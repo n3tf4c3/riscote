@@ -22,7 +22,7 @@ export class OnlineScene extends Phaser.Scene {
   create(): void {
     const session = this.ctx.session();
     if (!session) return;
-    drawArena(this, session.arena);
+    drawArena(this, session.arena, session.state.difficulty === 'dificil');
     this.gfx = this.add.graphics();
     const w = session.arena.cols * TILE;
     this.banner = this.add
@@ -59,9 +59,10 @@ export class OnlineScene extends Phaser.Scene {
     const now = performance.now();
     const state = session.state;
     const g = this.gfx.clear();
+    const inkGauge = state.difficulty === 'dificil';
     for (const e of session.enemyViews(now)) drawEnemy(g, e.x, e.y, e, state.soakToBall);
     for (const r of session.remotePlayers(now)) {
-      drawPlayerFull(g, r.x, r.y, session.params, r, PLAYER_COLORS[r.slot] ?? GREY, false, now);
+      drawPlayerFull(g, r.x, r.y, session.params, { ...r, inkGauge }, PLAYER_COLORS[r.slot] ?? GREY, false, now);
     }
     const me = session.me;
     const alpha = this.acc / TICK_DT;
@@ -72,7 +73,7 @@ export class OnlineScene extends Phaser.Scene {
         this.prevX + (local.x - this.prevX) * alpha,
         this.prevY + (local.y - this.prevY) * alpha,
         session.params,
-        { facing: local.facing, ink: me.ink, down: me.down, rescue: me.rescue, invuln: me.invuln },
+        { facing: local.facing, ink: me.ink, down: me.down, rescue: me.rescue, invuln: me.invuln, inkGauge, hp: me.hp },
         PLAYER_COLORS[session.slot] ?? GREY,
         true,
         now,

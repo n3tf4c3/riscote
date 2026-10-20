@@ -30,7 +30,8 @@ const ENEMY_MARK = 0xc8402a;
 /** Cores dos 5 jogadores (plano, seção 3): vermelhão, azul, ocre, verde-azulado, púrpura. */
 export const PLAYER_COLORS = [0xe0502e, 0x3f8fd8, 0xd99a1e, 0x1f9e89, 0x9b4f96] as const;
 
-export function drawArena(scene: Phaser.Scene, a: Arena): void {
+/** `showTubes`: os tubos de tinta só aparecem no modo difícil (nos outros a tinta é infinita). */
+export function drawArena(scene: Phaser.Scene, a: Arena, showTubes = true): void {
   const g = scene.add.graphics();
   g.fillStyle(PAPER).fillRect(0, 0, a.cols * TILE, a.rows * TILE);
   g.lineStyle(1, GRID);
@@ -48,7 +49,7 @@ export function drawArena(scene: Phaser.Scene, a: Arena): void {
     }
   }
 
-  for (const tube of a.tubes) {
+  for (const tube of showTubes ? a.tubes : []) {
     const t = tubeRect(tube);
     g.fillStyle(TUBE).fillRect(t.x + 3, t.y + 4, t.w - 6, t.h - 4);
     g.fillStyle(INK).fillRect(t.x + 1, t.y, t.w - 2, 5);
@@ -97,6 +98,10 @@ export interface PlayerLook {
   invuln: number;
   /** Conexão caiu: desenhado esmaecido até voltar. */
   away?: boolean;
+  /** Medidor de tinta ao lado do boneco: só quando a tinta acaba (modo difícil). */
+  inkGauge?: boolean;
+  /** Toques que ainda aguenta; acima de 1 (modo fácil), desenha a proteção. */
+  hp?: number;
 }
 
 /** Jogador com medidor de tinta ao lado; derrubado vira mancha com o anel de resgate; invulnerável pisca. */
@@ -131,8 +136,13 @@ export function drawPlayerFull(
   }
   const blink = look.invuln > 0 && Math.floor(now / 100) % 2 === 0;
   drawPlayer(g, x, y, p, look.facing, color, isLocal, blink ? 0.35 : 1);
+  if ((look.hp ?? 1) > 1) {
+    // Proteção do modo fácil: contorno extra que some no primeiro toque.
+    g.lineStyle(2, color, 0.9).strokeRoundedRect(x - 4, y - 4, p.playerWidth * TILE + 8, p.playerHeight * TILE + 8, 5);
+  }
 
   // Medidor de tinta: frasquinho ao lado do boneco (plano, seção 2.7).
+  if (look.inkGauge === false) return;
   const gx = look.facing > 0 ? x - 6 : x + w + 2;
   const fill = (h - 4) * Math.max(0, Math.min(1, look.ink / RULES.tankSize));
   g.fillStyle(0xffffff).fillRect(gx, y + 2, 4, h - 4);

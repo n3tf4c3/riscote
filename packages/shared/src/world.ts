@@ -2,6 +2,7 @@ import { EMPTY, cellAt, type Arena, type CellPos } from './arena.ts';
 import { BTN_ATTACK, BTN_DOWN, BTN_JUMP, BTN_LEFT, BTN_RIGHT } from './input.ts';
 import { DEFAULT_PARAMS, TICK_DT, TILE, type MovementParams } from './params.ts';
 import { createPlayer, stepPlayer, touchesTube, type PlayerState } from './physics.ts';
+import { DIFFICULTY_RULES, movementParams, type Difficulty } from './protocol.ts';
 
 /** Regras da etapa 3 (plano, seções 2.3 a 2.7). Valores iniciais, a ajustar em playtest. */
 export const RULES = {
@@ -27,6 +28,7 @@ export const RULES = {
   rescueTime: 1,
   respawnTime: 5,
   invulnTime: 2,
+  hitInvulnTime: 1.5, // s de invulnerabilidade depois de um toque que não derrubou (modo fácil)
   teamLives: 5,
   scorePerEnemy: 100,
   // Etapa 4: pressão de tempo, virada de página e fim de capítulo (plano, seção 2.4).
@@ -169,6 +171,8 @@ export interface WorldPlayer {
   kills: number;
   /** Conexão caiu e a vaga está reservada: parado, invulnerável e ignorado pelos inimigos. */
   away: boolean;
+  /** Toques que ainda aguenta antes de cair. */
+  hp: number;
 }
 
 export interface Enemy {
@@ -210,7 +214,7 @@ export class World {
   /** Segundos na arena atual (a pressão de tempo começa em RULES.hurryTime). */
   waveTime = 0;
   hurry = false;
-  readonly params: MovementParams = { ...DEFAULT_PARAMS };
+  readonly params: MovementParams;
   readonly players = new Map<string, WorldPlayer>();
   readonly enemies = new Map<number, Enemy>();
   readonly drops = new Map<number, Drop>();
@@ -227,15 +231,23 @@ export class World {
   private nextId = 1;
   private readonly rng: () => number;
   private readonly autoWaves: boolean;
+  readonly difficulty: Difficulty;
+  /** Tinta acaba e recarrega nos tubos: só no modo difícil. */
+  readonly limitedInk: boolean;
+  readonly hitsToDown: number;
   private stats: RunningStats = emptyStats();
   private reports: ArenaReport[] = [];
 
   /** `waves: false` desliga ondas, pressão de tempo e progressão (cenários montados à mão nos testes). */
-  constructor(chapter: Arena | readonly Arena[], seed: number, options: { waves?: boolean } = {}) {
+  constructor(chapter: Arena | readonly Arena[], seed: number, options: { waves?: boolean; difficulty?: Difficulty } = {}) {
     this.chapter = Array.isArray(chapter) ? chapter : [chapter as Arena];
     if (this.chapter.length === 0) throw new Error('capítulo sem arenas');
     this.rng = seededRandom(seed);
     this.autoWaves = options.waves ?? true;
+    this.difficulty = options.difficulty ?? 'medio';
+    this.limitedInk = DIFFICULTY_RULES[this.difficulty].limitedInk;
+    this.hitsToDown = DIFFICULTY_RULES[this.difficulty].hitsToDown;
+    this.params = movementParams(this.difficulty);
     this.phase = this.autoWaves ? PHASE_LOBBY : PHASE_PLAYING;
   }
 
@@ -279,7 +291,7 @@ export class World {
       body: createPlayer(this.arena.playerSpawns[slot]!, this.params),
       ink: RULES.tankSize, cooldown: 0,
       down: false, downTime: 0, rescue: 0,
-      invuln: RULES.invulnTime, kills: 0, away: false,
+      invuln: RULES.invulnTime, kills: 0, away: false, hp: this.hitsToDown,
     };
     this.players.set(id, player);
     return player;
@@ -423,7 +435,7 @@ export class World {
       }
     }
     if (p.cooldown > 0 || p.ink < 1) return;
-    p.ink -= 1;
+    if (this.limitedInk) p.ink -= 1;
     p.cooldown = RULES.shotCooldown;
     this.playerStats(p).shots++;
     const box = bodyBox(p.body, this.params);
@@ -607,6 +619,12 @@ export class World {
       const box = bodyBox(p.body, this.params);
       for (const e of this.enemies.values()) {
         if (e.mode === MODE_WALK && overlaps(box, enemyBox(e))) {
+          if (p.hp > 1) {
+            // Modo fácil: o primeiro toque só tira a proteção.
+            p.hp--;
+            p.invuln = RULES.hitInvulnTime;
+            break;
+          }
           p.down = true;
           p.downTime = 0;
           p.rescue = 0;
@@ -642,6 +660,7 @@ export class World {
 
   private revive(p: WorldPlayer, atSpawn: boolean): void {
     p.down = false;
+    p.hp = this.hitsToDown;
     p.downTime = 0;
     p.rescue = 0;
     p.invuln = RULES.invulnTime;
@@ -764,6 +783,7 @@ export class World {
       p.rescue = 0;
       p.invuln = RULES.invulnTime;
       p.ink = RULES.tankSize;
+      p.hp = this.hitsToDown;
     }
     this.startWave();
   }

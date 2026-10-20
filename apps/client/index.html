@@ -77,6 +77,9 @@
         <div id="lobby">
           <h2>Nova sala</h2>
           <div id="online-arenas" class="stack"></div>
+          <h2>Dificuldade</h2>
+          <div id="online-difficulty" class="row" style="margin-bottom: 4px"></div>
+          <p class="keys" style="margin-bottom: 8px">No difícil a tinta acaba e é preciso recarregar nos tubos dos cantos. No fácil e no médio, a tinta é infinita.</p>
           <button type="button" id="create" class="primary">Criar sala</button>
 
           <h2>Entrar com código</h2>
@@ -100,6 +103,7 @@
           </div>
           <h2>Partida</h2>
           <dl>
+            <dt>Modo</dt><dd id="g-mode">—</dd>
             <dt>Arena</dt><dd id="g-arena">—</dd>
             <dt>Tempo</dt><dd id="g-time">—</dd>
             <dt>Inimigos</dt><dd id="g-enemies">—</dd>
@@ -108,7 +112,7 @@
             <dt>Sua tinta</dt><dd id="g-ink">—</dd>
             <dt>Seus abates</dt><dd id="g-kills">—</dd>
           </dl>
-          <p class="keys">Atire tinta até o inimigo virar bola; encoste e chute. Tinta acaba: recarregue num tubo azul dos cantos. Encoste num aliado derrubado por 1 s para revivê-lo.</p>
+          <p class="keys">Atire tinta até o inimigo virar bola; encoste e chute. No modo difícil a tinta acaba: recarregue num tubo azul dos cantos. Encoste num aliado derrubado por 1 s para revivê-lo.</p>
           <h2>Métricas de playtest</h2>
           <p id="g-last" class="keys">Nenhuma arena encerrada ainda.</p>
           <button type="button" id="copy-reports">Copiar métricas</button>

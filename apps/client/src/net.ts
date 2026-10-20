@@ -1,14 +1,16 @@
 import type { Room } from '@colyseus/sdk';
 import {
   ARENAS,
-  DEFAULT_PARAMS,
   Interpolator,
   MSG_INPUT,
   MSG_REPORT,
   MSG_START,
   Predictor,
+  movementParams,
+  parseDifficulty,
   type Arena,
   type ArenaReport,
+  type MovementParams,
   type NetPlayer,
   type PlayerState,
   type Positioned,
@@ -40,6 +42,7 @@ export interface NetState {
   arenaId: string;
   arenaIndex: number;
   arenaCount: number;
+  difficulty: string;
   hostId: string;
   tick: number;
   waveTime: number;
@@ -64,6 +67,7 @@ export interface PlayerView extends Positioned {
   rescue: number;
   invuln: number;
   away: boolean;
+  hp: number;
 }
 
 export type EnemyView = Positioned & NetEnemy;
@@ -72,7 +76,8 @@ export type DropView = Positioned & NetDrop;
 /** Liga a sala do Colyseus à previsão do próprio jogador e à interpolação do resto. */
 export class OnlineSession {
   arena: Arena;
-  readonly params = { ...DEFAULT_PARAMS };
+  /** Mesmos parâmetros do servidor para o modo da sala (a velocidade muda no fácil). */
+  readonly params: MovementParams;
   readonly slot: number;
   /** Relatórios de métricas das arenas encerradas nesta sessão. */
   readonly reports: ArenaReport[] = [];
@@ -91,6 +96,7 @@ export class OnlineSession {
     const me = state.players.get(room.sessionId);
     if (!arena || !me) throw new Error('estado inicial da sala incompleto');
     this.arena = arena;
+    this.params = movementParams(parseDifficulty(state.difficulty));
     this.slot = me.slot;
     this.predictor = new Predictor(arena, this.params, me);
     room.onStateChange((s: NetState) => this.onState(s));
@@ -169,7 +175,7 @@ export class OnlineSession {
       if (id === this.room.sessionId) return;
       others.push({
         id, slot: p.slot, x: p.x, y: p.y, facing: p.facing,
-        ink: p.ink, down: p.down, rescue: p.rescue, invuln: p.invuln, away: p.away,
+        ink: p.ink, down: p.down, rescue: p.rescue, invuln: p.invuln, away: p.away, hp: p.hp,
       });
     });
     this.players.push(now, others);

@@ -23,6 +23,7 @@ export const PlayerSchema = schema(
     invuln: t.float32(),
     kills: t.uint16(),
     away: t.boolean(),
+    hp: t.uint8(),
   },
   'Player',
 );
@@ -57,6 +58,8 @@ export const GameState = schema(
     arenaId: t.string(),
     arenaIndex: t.uint8(),
     arenaCount: t.uint8(),
+    /** facil | medio | dificil: só no difícil a tinta acaba. */
+    difficulty: t.string(),
     /** Sessão do anfitrião: quem pode encerrar o aquecimento. */
     hostId: t.string(),
     tick: t.uint32(),

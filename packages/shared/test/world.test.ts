@@ -3,6 +3,7 @@ import {
   ARENAS,
   BTN_ATTACK,
   BTN_RIGHT,
+  DEFAULT_PARAMS,
   ENEMY_SALTADOR,
   ENEMY_TRACA,
   MODE_BALL,
@@ -42,7 +43,8 @@ const TEST = parseArena('teste', 'Teste', [
 const ticks = (s: number) => Math.round(s / TICK_DT);
 
 function setup(players = 1) {
-  const world = new World(TEST, 1, { waves: false });
+  // Modo difícil: as regras de tinta e tubos valem.
+  const world = new World(TEST, 1, { waves: false, difficulty: 'dificil' });
   for (let i = 0; i < players; i++) world.addPlayer(`p${i}`, i);
   return world;
 }
@@ -582,5 +584,77 @@ describe('ausência por queda de conexão (etapa 5)', () => {
 
     world.setAway('p0', false);
     expect(away.invuln).toBe(RULES.invulnTime);
+  });
+});
+describe('modos de dificuldade', () => {
+  it.each(['facil', 'medio'] as const)('no modo %s a tinta não acaba', (difficulty) => {
+    const world = new World(TEST, 1, { waves: false, difficulty });
+    const p = world.addPlayer('p0', 0);
+    for (let i = 0; i < 40; i++) {
+      tap(world, 'p0', BTN_ATTACK);
+      run(world, ticks(RULES.shotCooldown) + 1);
+    }
+    expect(p.ink).toBe(RULES.tankSize);
+    expect(world.limitedInk).toBe(false);
+  });
+
+  it('no modo difícil a tinta acaba e o tiro para', () => {
+    const world = new World(TEST, 1, { waves: false, difficulty: 'dificil' });
+    const p = world.addPlayer('p0', 0);
+    for (let i = 0; i < RULES.tankSize + 5; i++) {
+      tap(world, 'p0', BTN_ATTACK);
+      run(world, ticks(RULES.shotCooldown) + 1);
+    }
+    expect(p.ink).toBeLessThan(1);
+    expect(world.limitedInk).toBe(true);
+  });
+
+  it('no fácil o boneco aguenta um toque a mais; no médio e no difícil, cai no primeiro', () => {
+    for (const [difficulty, toques] of [['facil', 2], ['medio', 1], ['dificil', 1]] as const) {
+      const world = new World(TEST, 1, { waves: false, difficulty });
+      const p = world.addPlayer('p0', 0);
+      p.invuln = 0;
+      const e = world.spawnEnemy(ENEMY_TRACA, { col: 3, row: 6 });
+      pin(e);
+      let hits = 0;
+      for (let t = 0; t < ticks(5) && !p.down; t++) {
+        const before = p.hp;
+        run(world, 1);
+        if (p.hp < before || p.down) hits++;
+      }
+      expect(p.down).toBe(true);
+      expect(hits).toBe(toques);
+      pinned.clear();
+    }
+  });
+
+  it('ao renascer, a proteção do fácil volta', () => {
+    const world = new World(TEST, 1, { waves: false, difficulty: 'facil' });
+    const p = world.addPlayer('p0', 0);
+    p.hp = 1;
+    p.invuln = 0;
+    const e = world.spawnEnemy(ENEMY_TRACA, { col: 3, row: 6 });
+    e.body.x = p.body.x;
+    run(world, 1);
+    world.enemies.delete(e.id);
+    expect(p.down).toBe(true);
+    run(world, ticks(RULES.respawnTime) + 1);
+    expect(p.down).toBe(false);
+    expect(p.hp).toBe(2);
+  });
+
+  it('no fácil o boneco corre 15% mais rápido', () => {
+    const speed = (difficulty: 'facil' | 'medio') => {
+      const world = new World(TEST, 1, { waves: false, difficulty });
+      const p = world.addPlayer('p0', 0);
+      run(world, 30, { p0: BTN_RIGHT });
+      return p.body.vx / TILE;
+    };
+    expect(speed('medio')).toBeCloseTo(DEFAULT_PARAMS.runSpeed, 6);
+    expect(speed('facil')).toBeCloseTo(DEFAULT_PARAMS.runSpeed * 1.15, 6);
+  });
+
+  it('sem escolha, o mundo usa o modo médio', () => {
+    expect(new World(TEST, 1).difficulty).toBe('medio');
   });
 });

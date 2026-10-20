@@ -2,6 +2,8 @@ import * as Phaser from 'phaser';
 import { CloseCode, ColyseusSDK, type Room } from '@colyseus/sdk';
 import {
   ARENAS,
+  DIFFICULTIES,
+  DIFFICULTY_NAMES,
   MAX_PLAYERS,
   PHASE_LOBBY,
   ROOM_NAME,
@@ -11,9 +13,11 @@ import {
   arenaWidth,
   describeJoinError,
   normalizeRoomCode,
+  parseDifficulty,
   type Arena,
   type ArenaReport,
   type CreateRoomOptions,
+  type Difficulty,
 } from '@riscote/shared';
 import { el } from './dom';
 import type { InputSource } from './input';
@@ -79,6 +83,7 @@ export function bootOnline(input: InputSource): void {
   let game: Phaser.Game | null = null;
   const scene = new OnlineScene({ session: () => session, input });
   let arenaId = 'padrao';
+  let difficulty: Difficulty = 'medio';
   // Recarregar ou fechar a aba derruba a conexão: a vaga guardada precisa sobreviver a isso.
   let unloading = false;
   window.addEventListener('pagehide', () => {
@@ -103,6 +108,19 @@ export function bootOnline(input: InputSource): void {
       [...arenaButtons.children].forEach((b) => b.classList.toggle('active', b === button));
     });
     arenaButtons.append(button);
+  }
+
+  const difficultyButtons = el('online-difficulty');
+  for (const mode of DIFFICULTIES) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = DIFFICULTY_NAMES[mode];
+    button.classList.toggle('active', mode === difficulty);
+    button.addEventListener('click', () => {
+      difficulty = mode;
+      [...difficultyButtons.children].forEach((b) => b.classList.toggle('active', b === button));
+    });
+    difficultyButtons.append(button);
   }
 
   function setBusy(busy: boolean): void {
@@ -175,7 +193,7 @@ export function bootOnline(input: InputSource): void {
   }
 
   createButton.addEventListener('click', () => {
-    const options: CreateRoomOptions = { arenaId };
+    const options: CreateRoomOptions = { arenaId, difficulty };
     void enter(sdk.create(ROOM_NAME, options));
   });
 
@@ -208,6 +226,9 @@ export function bootOnline(input: InputSource): void {
     const url = new URL(location.href);
     url.search = '';
     url.searchParams.set('sala', session.code);
+    // Fora do padrão (ex.: túnel de playtest), o convite leva junto o endereço do servidor.
+    const server = query.get('servidor');
+    if (server) url.searchParams.set('servidor', server);
     void navigator.clipboard?.writeText(url.toString());
   });
 
@@ -224,6 +245,7 @@ export function bootOnline(input: InputSource): void {
   }
 
   const hud = {
+    mode: el('g-mode'),
     arena: el('g-arena'),
     time: el('g-time'),
     last: el('g-last'),
@@ -256,7 +278,9 @@ export function bootOnline(input: InputSource): void {
     hud.enemies.textContent = String(state.enemiesLeft);
     hud.lives.textContent = String(state.lives);
     hud.score.textContent = String(state.score);
-    hud.ink.textContent = me ? `${Math.floor(me.ink)}/${RULES.tankSize}` : '—';
+    const limitedInk = state.difficulty === 'dificil';
+    hud.mode.textContent = DIFFICULTY_NAMES[parseDifficulty(state.difficulty)];
+    hud.ink.textContent = !me ? '—' : limitedInk ? `${Math.floor(me.ink)}/${RULES.tankSize}` : '∞';
     hud.kills.textContent = me ? String(me.kills) : '—';
     playersOut.textContent = `${state.players.size}/${MAX_PLAYERS}`;
     correctionsOut.textContent = String(session.corrections);

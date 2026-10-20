@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BTN_ALL, BTN_RIGHT, describeJoinError, normalizeRoomCode, parseInput } from '../src/index.ts';
+import { BTN_ALL, BTN_RIGHT, describeJoinError, normalizeRoomCode, parseDifficulty, parseInput } from '../src/index.ts';
 
 describe('parseInput', () => {
   it('aceita seq inteiro e botões dentro da máscara, descartando outros campos', () => {
@@ -43,5 +43,13 @@ describe('describeJoinError', () => {
     expect(describeJoinError(new Error('room "ABCDEF" is locked'))).toMatch(/Sala cheia/);
     expect(describeJoinError(new Error('room "ABCDEF" not found'))).toMatch(/Nenhuma sala/);
     expect(describeJoinError(new Error('ECONNREFUSED'))).toMatch(/Não foi possível/);
+  });
+});
+
+describe('parseDifficulty', () => {
+  it('aceita só os modos conhecidos; o resto vira médio', () => {
+    expect(parseDifficulty('facil')).toBe('facil');
+    expect(parseDifficulty('dificil')).toBe('dificil');
+    for (const raw of [undefined, null, 'DIFICIL', 'impossivel', 3, {}]) expect(parseDifficulty(raw)).toBe('medio');
   });
 });
