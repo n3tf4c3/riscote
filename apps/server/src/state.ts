@@ -24,6 +24,11 @@ export const PlayerSchema = schema(
     kills: t.uint16(),
     away: t.boolean(),
     hp: t.uint8(),
+    strength: t.uint8(),
+    speed: t.uint8(),
+    rate: t.uint8(),
+    range: t.uint8(),
+    star: t.float32(),
   },
   'Player',
 );
@@ -53,6 +58,17 @@ export const DropSchema = schema(
 );
 export type DropSchema = SchemaType<typeof DropSchema>;
 
+export const ItemSchema = schema(
+  {
+    kind: t.uint8(),
+    x: t.float32(),
+    y: t.float32(),
+    ttl: t.float32(),
+  },
+  'Item',
+);
+export type ItemSchema = SchemaType<typeof ItemSchema>;
+
 export const GameState = schema(
   {
     arenaId: t.string(),
@@ -75,6 +91,7 @@ export const GameState = schema(
     players: t.map(PlayerSchema),
     enemies: t.map(EnemySchema),
     drops: t.map(DropSchema),
+    items: t.map(ItemSchema),
   },
   'GameState',
 );

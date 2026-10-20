@@ -2,7 +2,7 @@ import { EMPTY, cellAt, type Arena, type CellPos } from './arena.ts';
 import { BTN_ATTACK, BTN_DOWN, BTN_JUMP, BTN_LEFT, BTN_RIGHT } from './input.ts';
 import { DEFAULT_PARAMS, TICK_DT, TILE, type MovementParams } from './params.ts';
 import { createPlayer, stepPlayer, touchesTube, type PlayerState } from './physics.ts';
-import { DIFFICULTY_RULES, movementParams, type Difficulty } from './protocol.ts';
+import { DIFFICULTY_RULES, POWER_MAX_LEVEL, movementParams, type Difficulty } from './protocol.ts';
 
 /** Regras da etapa 3 (plano, seções 2.3 a 2.7). Valores iniciais, a ajustar em playtest. */
 export const RULES = {
@@ -36,7 +36,25 @@ export const RULES = {
   borraoSpeed: 2.5, // células/s, atravessa paredes e não pode ser derrotado
   turnDelay: 1.2, // s de virada de página
   chapterDelay: 6, // s de resumo no fim do capítulo
+  // Itens que fortalecem o boneco (acumulam até ele ser derrubado, exceto a invencibilidade).
+  itemFirstAt: 10, // s na arena até o primeiro item
+  itemEvery: 12, // s entre itens
+  itemLife: 10, // s até sumir se ninguém pegar
+  maxItemsOnScreen: 2,
+  itemSize: 0.8, // células
+  invincibleTime: 6, // s
+  ratePerLevel: 0.75, // multiplica a cadência de tiro por nível
+  dropSpeedPerLevel: 0.2, // +20% de velocidade da gota por nível
+  rangePerLevel: 0.35, // +35% de alcance da gota por nível
 } as const;
+
+export const ITEM_FORCA = 0;
+export const ITEM_AGILIDADE = 1;
+export const ITEM_TIRO_AGIL = 2;
+export const ITEM_ALCANCE = 3;
+export const ITEM_INVENCIVEL = 4;
+/** Chance relativa de cada item (a invencibilidade é a mais rara). */
+const ITEM_WEIGHTS = [25, 25, 20, 20, 10];
 
 export const ENEMY_TRACA = 0;
 export const ENEMY_SALTADOR = 1;
@@ -173,6 +191,23 @@ export interface WorldPlayer {
   away: boolean;
   /** Toques que ainda aguenta antes de cair. */
   hp: number;
+  /** Níveis acumulados dos itens (0 a POWER_MAX_LEVEL). */
+  strength: number;
+  speed: number;
+  rate: number;
+  range: number;
+  /** Segundos restantes de invencibilidade (item). */
+  star: number;
+  /** Itens pegos (métrica). */
+  items: number;
+}
+
+export interface Item {
+  id: number;
+  kind: number;
+  x: number;
+  y: number;
+  ttl: number;
 }
 
 export interface Enemy {
@@ -201,6 +236,8 @@ export interface Drop {
   y: number;
   vx: number;
   life: number;
+  /** Quanto encharca ao acertar (1 + nível de força de quem atirou). */
+  power: number;
 }
 
 /**
@@ -215,6 +252,10 @@ export class World {
   waveTime = 0;
   hurry = false;
   readonly params: MovementParams;
+  /** Parâmetros por nível de agilidade (índice = nível). */
+  private readonly speedParams: MovementParams[];
+  readonly items = new Map<number, Item>();
+  private nextItemAt: number = RULES.itemFirstAt;
   readonly players = new Map<string, WorldPlayer>();
   readonly enemies = new Map<number, Enemy>();
   readonly drops = new Map<number, Drop>();
@@ -248,6 +289,7 @@ export class World {
     this.limitedInk = DIFFICULTY_RULES[this.difficulty].limitedInk;
     this.hitsToDown = DIFFICULTY_RULES[this.difficulty].hitsToDown;
     this.params = movementParams(this.difficulty);
+    this.speedParams = Array.from({ length: POWER_MAX_LEVEL + 1 }, (_, level) => movementParams(this.difficulty, level));
     this.phase = this.autoWaves ? PHASE_LOBBY : PHASE_PLAYING;
   }
 
@@ -292,6 +334,7 @@ export class World {
       ink: RULES.tankSize, cooldown: 0,
       down: false, downTime: 0, rescue: 0,
       invuln: RULES.invulnTime, kills: 0, away: false, hp: this.hitsToDown,
+      strength: 0, speed: 0, rate: 0, range: 0, star: 0, items: 0,
     };
     this.players.set(id, player);
     return player;
@@ -318,7 +361,7 @@ export class World {
       p.body.prevButtons = buttons;
       return;
     }
-    stepPlayer(p.body, buttons, this.arena, this.params);
+    stepPlayer(p.body, buttons, this.arena, this.speedParams[p.speed]!);
     if (pressed & BTN_ATTACK) this.attack(p);
   }
 
@@ -328,6 +371,7 @@ export class World {
     for (const p of this.players.values()) {
       p.cooldown = Math.max(0, p.cooldown - dt);
       p.invuln = Math.max(0, p.invuln - dt);
+      p.star = Math.max(0, p.star - dt);
       if (!p.down && touchesTube(p.body, this.arena, this.params)) {
         p.ink = Math.min(RULES.tankSize, p.ink + RULES.refillPerSecond * dt);
       }
@@ -339,6 +383,7 @@ export class World {
       if (this.autoWaves && !this.hurry && this.waveTime >= RULES.hurryTime) this.spawnBorrao();
     }
 
+    this.stepItems(dt);
     this.stepDrops(dt);
     this.stepEnemies(dt);
     this.stepDamage();
@@ -359,6 +404,66 @@ export class World {
     };
     this.enemies.set(enemy.id, enemy);
     return enemy;
+  }
+
+  /** Coloca um item sobre a célula sólida ou atravessável `cell` (o item fica na célula de cima). */
+  spawnItem(kind: number, cell: CellPos): Item {
+    const size = RULES.itemSize * TILE;
+    const item: Item = {
+      id: this.nextId++, kind,
+      x: cell.col * TILE + (TILE - size) / 2,
+      y: cell.row * TILE - size,
+      ttl: RULES.itemLife,
+    };
+    this.items.set(item.id, item);
+    return item;
+  }
+
+  /** Itens aparecem de tempos em tempos sobre uma plataforma sorteada; quem encosta pega. */
+  private stepItems(dt: number): void {
+    if (this.autoWaves && this.phase === PHASE_PLAYING && this.waveStarted && this.waveTime >= this.nextItemAt) {
+      this.nextItemAt += RULES.itemEvery;
+      if (this.items.size < RULES.maxItemsOnScreen) this.spawnRandomItem();
+    }
+    const size = RULES.itemSize * TILE;
+    for (const item of this.items.values()) {
+      if ((item.ttl -= dt) <= 0) {
+        this.items.delete(item.id);
+        continue;
+      }
+      const box = { x: item.x, y: item.y, w: size, h: size };
+      for (const p of this.players.values()) {
+        if (p.down || p.away || !overlaps(box, bodyBox(p.body, this.params))) continue;
+        this.pickItem(p, item.kind);
+        this.items.delete(item.id);
+        break;
+      }
+    }
+  }
+
+  private spawnRandomItem(): void {
+    const cells: CellPos[] = [];
+    for (let row = 2; row < this.arena.rows; row++) {
+      for (let col = 1; col < this.arena.cols - 1; col++) {
+        if (cellAt(this.arena, col, row) !== EMPTY && cellAt(this.arena, col, row - 1) === EMPTY) cells.push({ col, row });
+      }
+    }
+    if (cells.length === 0) return;
+    const cell = cells[Math.floor(this.rng() * cells.length)]!;
+    let roll = this.rng() * ITEM_WEIGHTS.reduce((a, b) => a + b, 0);
+    let kind = 0;
+    while (roll >= ITEM_WEIGHTS[kind]!) roll -= ITEM_WEIGHTS[kind++]!;
+    this.spawnItem(kind, cell);
+  }
+
+  private pickItem(p: WorldPlayer, kind: number): void {
+    p.items++;
+    const up = (level: number) => Math.min(POWER_MAX_LEVEL, level + 1);
+    if (kind === ITEM_FORCA) p.strength = up(p.strength);
+    else if (kind === ITEM_AGILIDADE) p.speed = up(p.speed);
+    else if (kind === ITEM_TIRO_AGIL) p.rate = up(p.rate);
+    else if (kind === ITEM_ALCANCE) p.range = up(p.range);
+    else if (kind === ITEM_INVENCIVEL) p.star = RULES.invincibleTime;
   }
 
   /** O borrão surge no alto, no centro, e vem atrás de quem estiver mais perto. */
@@ -436,7 +541,7 @@ export class World {
     }
     if (p.cooldown > 0 || p.ink < 1) return;
     if (this.limitedInk) p.ink -= 1;
-    p.cooldown = RULES.shotCooldown;
+    p.cooldown = RULES.shotCooldown * RULES.ratePerLevel ** p.rate;
     this.playerStats(p).shots++;
     const box = bodyBox(p.body, this.params);
     const size = RULES.dropSize * TILE;
@@ -445,8 +550,9 @@ export class World {
       id, owner: p.id, slot: p.slot,
       x: p.body.facing > 0 ? box.x + box.w : box.x - size,
       y: box.y + box.h * 0.35,
-      vx: p.body.facing * RULES.dropSpeed * TILE,
-      life: RULES.dropLife,
+      vx: p.body.facing * RULES.dropSpeed * TILE * (1 + RULES.dropSpeedPerLevel * p.rate),
+      life: RULES.dropLife * (1 + RULES.rangePerLevel * p.range),
+      power: 1 + p.strength,
     });
   }
 
@@ -466,7 +572,7 @@ export class World {
         // A tinta não pega no borrão nem na bola rolando.
         if (e.mode === MODE_ROLL || e.kind === ENEMY_BORRAO || !overlaps(box, enemyBox(e))) continue;
         this.drops.delete(d.id);
-        this.soak(e, 1);
+        this.soak(e, d.power);
         break;
       }
     }
@@ -615,7 +721,7 @@ export class World {
 
   private stepDamage(): void {
     for (const p of this.players.values()) {
-      if (p.down || p.away || p.invuln > 0) continue;
+      if (p.down || p.away || p.invuln > 0 || p.star > 0) continue;
       const box = bodyBox(p.body, this.params);
       for (const e of this.enemies.values()) {
         if (e.mode === MODE_WALK && overlaps(box, enemyBox(e))) {
@@ -626,6 +732,12 @@ export class World {
             break;
           }
           p.down = true;
+          // Derrubado perde tudo o que acumulou.
+          p.strength = 0;
+          p.speed = 0;
+          p.rate = 0;
+          p.range = 0;
+          p.star = 0;
           p.downTime = 0;
           p.rescue = 0;
           p.body.vx = 0;
@@ -798,6 +910,8 @@ export class World {
     this.stats = emptyStats();
     this.enemies.clear();
     this.drops.clear();
+    this.items.clear();
+    this.nextItemAt = RULES.itemFirstAt;
     const n = Math.max(1, this.players.size);
     this.soakToBall = n >= 4 ? RULES.soakToBallBigTeam : RULES.soakToBall;
     this.spawnQueue = Math.round(4 + 1.5 * n);

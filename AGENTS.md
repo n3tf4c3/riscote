@@ -58,6 +58,10 @@ Ainda não há lint. O aviso de bundle acima de 500 kB vem do Phaser e é espera
   - Difícil: igual ao médio, mais tinta limitada com recarga nos tubos (`World.limitedInk`).
   - Fora do difícil, a tinta é infinita, e o cliente não desenha tubos nem medidor.
   - A velocidade entra na previsão: o cliente usa `movementParams(dificuldade)`, igual ao servidor; com parâmetros diferentes, a previsão corrige o tempo todo.
+- **Itens.** `World.stepItems` mantém os itens: o primeiro surge aos 10 s da arena e depois um a cada 12 s, até 2 na tela, sobre uma plataforma sorteada pela semente; se ninguém pegar, somem em 10 s.
+  - Tipos: força, agilidade, tiro ágil, alcance e invencível (constantes `ITEM_*`).
+  - Os quatro primeiros acumulam até `POWER_MAX_LEVEL` (3) e zeram quando o boneco é derrubado. A invencibilidade dura 6 s e renova, sem acumular.
+  - A agilidade muda a velocidade: servidor e `Predictor` usam `movementParams(dificuldade, nívelDeAgilidade)`. O nível chega em cada estado, e a previsão troca os parâmetros na reconciliação.
 - **Aquecimento e anfitrião.** A sala abre em `PHASE_LOBBY`: todos andam, sem inimigos, sem tempo nem métricas.
   - O anfitrião é o primeiro a chegar; se ele sair, assume o seguinte. Só ele encerra o aquecimento (`MSG_START`, botão ou Enter).
   - `World.start` dimensiona a primeira arena com quem está na sala nesse momento.

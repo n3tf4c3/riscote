@@ -255,6 +255,7 @@ export function bootOnline(input: InputSource): void {
     score: el('g-score'),
     ink: el('g-ink'),
     kills: el('g-kills'),
+    powers: el('g-powers'),
   };
   const lobbyStart = el('lobby-start');
   const startButton = el<HTMLButtonElement>('start');
@@ -283,6 +284,7 @@ export function bootOnline(input: InputSource): void {
     hud.mode.textContent = DIFFICULTY_NAMES[parseDifficulty(state.difficulty)];
     hud.ink.textContent = !me ? '—' : limitedInk ? `${Math.floor(me.ink)}/${RULES.tankSize}` : '∞';
     hud.kills.textContent = me ? String(me.kills) : '—';
+    hud.powers.textContent = me ? describePowers(me) : '—';
     playersOut.textContent = `${state.players.size}/${MAX_PLAYERS}`;
     correctionsOut.textContent = String(session.corrections);
     pendingOut.textContent = `${session.pendingCount} (~${Math.round(session.pendingCount * TICK_DT * 1000)} ms)`;
@@ -297,4 +299,15 @@ function describeReport(r: ArenaReport, count: number): string {
     `abates por jogador ${kills}, quedas ${r.downs}, resgates ${r.rescues}, combos ${r.combos}, ` +
     `distância média ${r.spreadCells} células, maior tempo sem agir ${Math.round(idle * 100)}%.`
   );
+}
+/** Poderes acumulados por itens, como aparecem no painel. */
+function describePowers(me: { strength: number; speed: number; rate: number; range: number; star: number }): string {
+  const parts = [
+    me.strength && `força ${me.strength}`,
+    me.speed && `agilidade ${me.speed}`,
+    me.rate && `tiro ágil ${me.rate}`,
+    me.range && `alcance ${me.range}`,
+    me.star > 0 && `invencível ${Math.ceil(me.star)} s`,
+  ].filter(Boolean);
+  return parts.length ? parts.join(' · ') : 'nenhum';
 }

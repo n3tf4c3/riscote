@@ -6,6 +6,14 @@ import {
   DEFAULT_PARAMS,
   ENEMY_SALTADOR,
   ENEMY_TRACA,
+  ITEM_AGILIDADE,
+  ITEM_ALCANCE,
+  ITEM_FORCA,
+  ITEM_INVENCIVEL,
+  ITEM_TIRO_AGIL,
+  POWER_MAX_LEVEL,
+  SPEED_PER_LEVEL,
+  cellAt,
   MODE_BALL,
   MODE_ROLL,
   MODE_WALK,
@@ -656,5 +664,112 @@ describe('modos de dificuldade', () => {
 
   it('sem escolha, o mundo usa o modo médio', () => {
     expect(new World(TEST, 1).difficulty).toBe('medio');
+  });
+});
+describe('itens que fortalecem o boneco', () => {
+  /** Item no chão, colado no jogador p0 (célula da coluna dele, sobre o chão da arena de teste). */
+  function give(world: World, kind: number, id = 'p0') {
+    const p = world.players.get(id)!;
+    const col = Math.floor((p.body.x + 8) / TILE);
+    world.spawnItem(kind, { col, row: 7 });
+    run(world, 1);
+  }
+
+  it('força: cada gota encharca 1 a mais por nível', () => {
+    const world = setup();
+    world.players.get('p0')!.invuln = 1e9;
+    give(world, ITEM_FORCA);
+    expect(world.players.get('p0')!.strength).toBe(1);
+    const e = world.spawnEnemy(ENEMY_TRACA, { col: 6, row: 6 });
+    pin(e);
+    tap(world, 'p0', BTN_ATTACK);
+    run(world, 10);
+    expect(e.soak).toBe(2);
+  });
+
+  it('agilidade: corre 12% mais rápido por nível', () => {
+    const world = setup();
+    give(world, ITEM_AGILIDADE);
+    give(world, ITEM_AGILIDADE);
+    const p = world.players.get('p0')!;
+    run(world, 30, { p0: BTN_RIGHT });
+    expect(p.body.vx / TILE).toBeCloseTo(DEFAULT_PARAMS.runSpeed * (1 + 2 * SPEED_PER_LEVEL), 6);
+  });
+
+  it('tiro ágil: a cadência cai 25% por nível', () => {
+    const world = setup();
+    give(world, ITEM_TIRO_AGIL);
+    const p = world.players.get('p0')!;
+    tap(world, 'p0', BTN_ATTACK);
+    expect(p.cooldown).toBeCloseTo(RULES.shotCooldown * RULES.ratePerLevel - 2 * TICK_DT, 6);
+  });
+
+  it('alcance: a gota vive 35% mais por nível', () => {
+    const world = setup();
+    give(world, ITEM_ALCANCE);
+    run(world, 1, { p0: BTN_ATTACK });
+    const drop = [...world.drops.values()][0]!;
+    expect(drop.life).toBeCloseTo(RULES.dropLife * (1 + RULES.rangePerLevel) - TICK_DT, 6);
+  });
+
+  it('os níveis acumulam até o teto e zeram quando o boneco é derrubado', () => {
+    const world = setup();
+    for (let i = 0; i < POWER_MAX_LEVEL + 2; i++) give(world, ITEM_FORCA);
+    give(world, ITEM_ALCANCE);
+    const p = world.players.get('p0')!;
+    expect(p.strength).toBe(POWER_MAX_LEVEL);
+    expect(p.range).toBe(1);
+    p.invuln = 0;
+    const e = world.spawnEnemy(ENEMY_TRACA, { col: 1, row: 1 });
+    e.body.x = p.body.x;
+    e.body.y = p.body.y;
+    run(world, 1);
+    expect(p.down).toBe(true);
+    expect([p.strength, p.speed, p.rate, p.range]).toEqual([0, 0, 0, 0]);
+  });
+
+  it('invencível: 6 s sem dano; pegar outro renova o tempo, não acumula', () => {
+    const world = setup();
+    const p = world.players.get('p0')!;
+    give(world, ITEM_INVENCIVEL);
+    p.invuln = 0;
+    const e = world.spawnEnemy(ENEMY_TRACA, { col: 3, row: 6 });
+    pin(e);
+    e.body.x = p.body.x;
+    run(world, ticks(RULES.invincibleTime) - 5);
+    expect(p.down).toBe(false);
+    give(world, ITEM_INVENCIVEL);
+    expect(p.star).toBe(RULES.invincibleTime);
+    run(world, ticks(RULES.invincibleTime) + 2);
+    expect(p.down).toBe(true);
+  });
+
+  it('derrubado ou ausente não pega item; item some depois do prazo', () => {
+    const world = setup();
+    const p = world.players.get('p0')!;
+    p.away = true;
+    give(world, ITEM_FORCA);
+    expect(p.strength).toBe(0);
+    expect(world.items.size).toBe(1);
+    run(world, ticks(RULES.itemLife));
+    expect(world.items.size).toBe(0);
+  });
+
+  it('aparecem com o tempo, sobre plataformas, no máximo 2 por vez', () => {
+    const arena = ARENAS[1]!;
+    const world = new World(arena, 13);
+    world.addPlayer('p0', 0).away = true;
+    world.start();
+    run(world, ticks(RULES.itemFirstAt) - 2);
+    expect(world.items.size).toBe(0);
+    run(world, 3);
+    expect(world.items.size).toBe(1);
+    run(world, ticks(RULES.itemEvery * 3));
+    expect(world.items.size).toBeLessThanOrEqual(RULES.maxItemsOnScreen);
+    for (const item of world.items.values()) {
+      const col = Math.floor((item.x + 8) / TILE);
+      const below = Math.round((item.y + RULES.itemSize * TILE) / TILE);
+      expect(cellAt(arena, col, below)).not.toBe(0);
+    }
   });
 });

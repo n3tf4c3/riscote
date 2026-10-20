@@ -17,6 +17,8 @@ Cada arquivo é um cartão. A primeira linha (`<!-- @dsCard group="…" -->`) de
 
 ## Publicar ou atualizar
 
+Projeto no Claude Design: **Riscote**, do tipo design system, id `4a754692-cd6e-4804-beb7-20057a938092`. Primeira publicação em 2026-10-20. Atualize sempre este projeto; não crie outro.
+
 1. Uma única vez, numa sessão interativa do Claude Code no terminal desta máquina, autorize o acesso ao Claude Design com `/design-login`.
 2. Peça ao agente para sincronizar o design system (skill `design-sync-projeto`). O fluxo é sempre ler → planejar → escrever, enviando só o que mudou e sem apagar a curadoria feita lá.
 

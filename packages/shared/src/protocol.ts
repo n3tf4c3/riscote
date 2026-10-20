@@ -34,9 +34,18 @@ export const DIFFICULTY_RULES: Record<Difficulty, { limitedInk: boolean; hitsToD
   dificil: { limitedInk: true, hitsToDown: 1, speedMult: 1 },
 };
 
-/** Parâmetros de movimento do modo. Servidor e previsão do cliente precisam usar os mesmos. */
-export function movementParams(difficulty: Difficulty): MovementParams {
-  return { ...DEFAULT_PARAMS, runSpeed: DEFAULT_PARAMS.runSpeed * DIFFICULTY_RULES[difficulty].speedMult };
+/** Item de agilidade: +12% de corrida por nível (até POWER_MAX_LEVEL). */
+export const SPEED_PER_LEVEL = 0.12;
+/** Teto de acúmulo dos itens: acima disso a velocidade passaria do limite da física. */
+export const POWER_MAX_LEVEL = 3;
+
+/**
+ * Parâmetros de movimento do modo e do nível de agilidade do jogador. Servidor e previsão
+ * do cliente precisam usar exatamente esta função para chegar aos mesmos números.
+ */
+export function movementParams(difficulty: Difficulty, speedLevel = 0): MovementParams {
+  const mult = DIFFICULTY_RULES[difficulty].speedMult * (1 + SPEED_PER_LEVEL * speedLevel);
+  return { ...DEFAULT_PARAMS, runSpeed: DEFAULT_PARAMS.runSpeed * mult };
 }
 
 /** Valida a escolha vinda do cliente; qualquer outra coisa vira o modo médio. */
@@ -63,6 +72,13 @@ export interface NetPlayer extends Omit<PlayerState, 'facing'> {
   away: boolean;
   /** Toques que ainda aguenta antes de cair (2 no fácil). */
   hp: number;
+  /** Níveis dos itens acumulados (0 a POWER_MAX_LEVEL); zeram quando o boneco é derrubado. */
+  strength: number;
+  speed: number;
+  rate: number;
+  range: number;
+  /** Segundos restantes do item de invencibilidade. */
+  star: number;
 }
 
 const MAX_SEQ = 2 ** 31 - 1;

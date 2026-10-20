@@ -9,6 +9,7 @@ import {
   Interpolator,
   Predictor,
   createPlayer,
+  movementParams,
   stepPlayer,
   type InputMessage,
   type NetPlayer,
@@ -19,7 +20,7 @@ const arena = ARENAS[1]!;
 const params = { ...DEFAULT_PARAMS };
 
 function net(s: PlayerState, ack: number, down = false): NetPlayer {
-  return { ...s, slot: 0, ack, ink: 12, down, rescue: 0, invuln: 0, kills: 0, away: false, hp: 1 };
+  return { ...s, slot: 0, ack, ink: 12, down, rescue: 0, invuln: 0, kills: 0, away: false, hp: 1, strength: 0, speed: 0, rate: 0, range: 0, star: 0 };
 }
 
 /** Servidor em memória: aplica cada comando uma vez, na ordem, com atraso fixo em ticks nos dois sentidos. */
@@ -67,6 +68,26 @@ describe('Predictor', () => {
     expect(predictor.state.prevButtons).toBe(BTN_RIGHT);
   });
 
+  it('agilidade pega no servidor: a previsão passa a usar a velocidade nova, sem correções depois', () => {
+    const fast = movementParams('medio', 2);
+    const start = createPlayer(arena.playerSpawns[0]!, params);
+    const predictor = new Predictor(arena, (level) => movementParams('medio', level), net(start, 0));
+    const server = { ...start };
+    // O servidor anda com a velocidade de nível 2 desde o comando 1.
+    for (let seq = 1; seq <= 30; seq++) {
+      predictor.tick(BTN_RIGHT);
+      stepPlayer(server, BTN_RIGHT, arena, fast);
+    }
+    predictor.reconcile({ ...net(server, 30), speed: 2 });
+    const corrections = predictor.corrections;
+    for (let seq = 31; seq <= 60; seq++) {
+      predictor.tick(BTN_RIGHT);
+      stepPlayer(server, BTN_RIGHT, arena, fast);
+    }
+    predictor.reconcile({ ...net(server, 60), speed: 2 });
+    expect(predictor.corrections).toBe(corrections);
+    expect(predictor.state).toEqual(server);
+  });
   it('passo extra do servidor gera correção e a previsão converge para o estado autoritativo', () => {
     const { predictor, server } = simulate(6, 200, (t) => (t < 100 ? BTN_RIGHT : 0), 40);
     expect(predictor.corrections).toBeGreaterThan(0);
