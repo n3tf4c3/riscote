@@ -3,6 +3,7 @@ import { CloseCode, ColyseusSDK, type Room } from '@colyseus/sdk';
 import {
   ARENAS,
   MAX_PLAYERS,
+  PHASE_LOBBY,
   ROOM_NAME,
   RULES,
   TICK_DT,
@@ -142,6 +143,12 @@ export function bootOnline(input: InputSource): void {
     void enter(sdk.joinById(code));
   });
 
+  el('start').addEventListener('click', () => session?.start());
+  window.addEventListener('keydown', (e) => {
+    if (e.code !== 'Enter' || e.target instanceof HTMLInputElement) return;
+    if (session?.isHost && session.state.phase === PHASE_LOBBY) session.start();
+  });
+
   el('copy-reports').addEventListener('click', () => {
     if (session) void navigator.clipboard?.writeText(JSON.stringify(session.reports, null, 2));
   });
@@ -175,6 +182,9 @@ export function bootOnline(input: InputSource): void {
     ink: el('g-ink'),
     kills: el('g-kills'),
   };
+  const lobbyStart = el('lobby-start');
+  const startButton = el<HTMLButtonElement>('start');
+  const startHint = el('start-hint');
   const playersOut = el('r-players');
   const correctionsOut = el('r-corrections');
   const pendingOut = el('r-pending');
@@ -182,6 +192,11 @@ export function bootOnline(input: InputSource): void {
     if (!session) return;
     const state = session.state;
     const me = session.me;
+    lobbyStart.hidden = state.phase !== PHASE_LOBBY;
+    startButton.disabled = !session.isHost;
+    startHint.textContent = session.isHost
+      ? 'Você é o anfitrião. Comece (ou aperte Enter) quando todos tiverem entrado: a primeira arena é dimensionada para quem estiver na sala.'
+      : 'Aquecimento: aguardando o anfitrião começar a partida.';
     hud.arena.textContent = `${session.arena.name} (${state.arenaIndex + 1}/${state.arenaCount})`;
     const secs = Math.floor(state.waveTime);
     hud.time.textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}${state.hurry ? ' · borrão!' : ''}`;

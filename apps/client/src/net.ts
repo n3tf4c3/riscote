@@ -5,6 +5,7 @@ import {
   Interpolator,
   MSG_INPUT,
   MSG_REPORT,
+  MSG_START,
   Predictor,
   type Arena,
   type ArenaReport,
@@ -39,6 +40,7 @@ export interface NetState {
   arenaId: string;
   arenaIndex: number;
   arenaCount: number;
+  hostId: string;
   tick: number;
   waveTime: number;
   hurry: boolean;
@@ -98,6 +100,15 @@ export class OnlineSession {
 
   get me(): NetPlayer | undefined {
     return this.state.players.get(this.room.sessionId);
+  }
+
+  get isHost(): boolean {
+    return this.state.hostId === this.room.sessionId;
+  }
+
+  /** Pede ao servidor o fim do aquecimento (só vale para o anfitrião). */
+  start(): void {
+    this.room.send(MSG_START);
   }
 
   get code(): string {

@@ -43,6 +43,9 @@ Ainda não há lint. O aviso de bundle acima de 500 kB vem do Phaser e é espera
   - Não depende de Phaser, DOM ou relógio: o tsconfig não inclui DOM e o passo é fixo (`TICK_DT`).
   - `Math.random` não é usado sem semente.
   - A mesma sequência de comandos produz o mesmo estado; um teste cobre isso.
+- **Aquecimento e anfitrião.** A sala abre em `PHASE_LOBBY`: todos andam, sem inimigos, sem tempo nem métricas.
+  - O anfitrião é o primeiro a chegar; se ele sair, assume o seguinte. Só ele encerra o aquecimento (`MSG_START`, botão ou Enter).
+  - `World.start` dimensiona a primeira arena com quem está na sala nesse momento.
 - **Capítulo.** A sala começa na arena escolhida e segue a ordem de `ARENAS`.
   - Arena limpa → pausa → virada de página → próxima arena.
   - Depois da última: resumo, pontos e vidas zerados, volta à primeira.

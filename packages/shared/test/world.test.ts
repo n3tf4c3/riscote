@@ -14,6 +14,7 @@ import {
   ENEMY_BORRAO,
   PHASE_CHAPTER,
   PHASE_CLEAR,
+  PHASE_LOBBY,
   PHASE_PLAYING,
   PHASE_RESTART,
   PHASE_TURN,
@@ -287,6 +288,7 @@ describe('ondas', () => {
   ])('%i jogador(es): %i inimigos, %i acertos para virar bola', (players, total, soak) => {
     const world = new World(arena, 7);
     for (let i = 0; i < players; i++) world.addPlayer(`p${i}`, i);
+    world.start();
     world.step();
     expect(world.enemiesLeft).toBe(total);
     expect(world.enemies.size).toBeLessThanOrEqual(RULES.maxEnemiesOnScreen);
@@ -296,6 +298,7 @@ describe('ondas', () => {
   it('inimigos se espalham pela arena e ninguém atravessa as paredes', () => {
     const world = new World(arena, 3);
     world.addPlayer('p0', 0).invuln = 1e9;
+    world.start();
     run(world, ticks(20));
     for (const e of world.enemies.values()) {
       expect(e.body.x).toBeGreaterThanOrEqual(TILE);
@@ -309,6 +312,7 @@ describe('ondas', () => {
       const world = new World(arena, seed);
       world.addPlayer('p0', 0);
       world.addPlayer('p1', 1);
+      world.start();
       for (let t = 0; t < ticks(15); t++) {
         world.applyInput('p0', [BTN_RIGHT, BTN_ATTACK, 0][Math.floor(t / 20) % 3]!);
         world.applyInput('p1', t % 40 < 20 ? BTN_ATTACK : 0);
@@ -339,6 +343,7 @@ describe('progressão, pressão de tempo e métricas (etapa 4)', () => {
     const world = new World([padrao, ampla], 7);
     world.addPlayer('p0', 0);
     world.addPlayer('p1', 1);
+    world.start();
     run(world, ticks(3));
     world.score = 500;
     clearArena(world);
@@ -367,6 +372,7 @@ describe('progressão, pressão de tempo e métricas (etapa 4)', () => {
   it(`depois de ${RULES.hurryTime} s na arena, o borrão aparece, persegue, não toma tinta e não conta como inimigo restante`, () => {
     const world = new World(compacta, 5);
     const p = world.addPlayer('p0', 0);
+    world.start();
     p.invuln = 1e9;
     run(world, ticks(RULES.hurryTime) - 5);
     expect(world.hurry).toBe(false);
@@ -401,8 +407,8 @@ describe('progressão, pressão de tempo e métricas (etapa 4)', () => {
     const world = new World(padrao, 9);
     const a = world.addPlayer('p0', 0);
     world.addPlayer('p1', 1).invuln = 1e9;
+    world.start();
     a.invuln = 1e9;
-    run(world, 1); // a onda começa no primeiro tick e zera as métricas
     for (let i = 0; i < 3; i++) {
       tap(world, 'p0', BTN_ATTACK);
       run(world, ticks(RULES.shotCooldown) + 1);
@@ -432,6 +438,7 @@ describe('progressão, pressão de tempo e métricas (etapa 4)', () => {
   it('todos caídos sem vidas: relatório de recomeço e a mesma arena volta', () => {
     const world = new World([padrao, ampla], 9);
     const p = world.addPlayer('p0', 0);
+    world.start();
     run(world, 2);
     world.lives = 0;
     p.invuln = 0;
@@ -480,6 +487,7 @@ describe('progressão, pressão de tempo e métricas (etapa 4)', () => {
   it.each([1, 3, 5])('%i robô(s) jogando 4 minutos: nada trava, ninguém sai da arena, relatórios saem', (bots) => {
     const world = new World(ARENAS, 11);
     for (let i = 0; i < bots; i++) world.addPlayer(`b${i}`, i);
+    world.start();
     const reports = [];
     const phases = new Set<number>();
     for (let t = 0; t < ticks(240); t++) {
@@ -517,5 +525,33 @@ describe('progressão, pressão de tempo e métricas (etapa 4)', () => {
       touched = touchesTube(p.body, world.arena, world.params);
     }
     expect(touched).toBe(true);
+  });
+});
+
+describe('aquecimento e início (etapa 4)', () => {
+  it('antes de começar: ninguém some, nenhum inimigo, nenhuma métrica, nenhum borrão', () => {
+    const world = new World(ARENAS[1]!, 4);
+    world.addPlayer('p0', 0);
+    run(world, ticks(RULES.hurryTime + 5), { p0: BTN_RIGHT | BTN_ATTACK });
+    expect(world.phase).toBe(PHASE_LOBBY);
+    expect(world.enemies.size).toBe(0);
+    expect(world.hurry).toBe(false);
+    expect(world.takeReports()).toEqual([]);
+  });
+
+  it('começar dimensiona a primeira arena com quem está na sala nesse momento', () => {
+    const world = new World(ARENAS[1]!, 4);
+    world.addPlayer('p0', 0);
+    run(world, 30);
+    world.addPlayer('p1', 1);
+    world.addPlayer('p2', 2);
+    expect(world.start()).toBe(true);
+    expect(world.phase).toBe(PHASE_PLAYING);
+    expect(world.enemiesLeft).toBe(Math.round(4 + 1.5 * 3));
+    expect(world.start()).toBe(false);
+  });
+
+  it('sala vazia não começa', () => {
+    expect(new World(ARENAS[1]!, 4).start()).toBe(false);
   });
 });

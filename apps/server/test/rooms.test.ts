@@ -13,6 +13,9 @@ import {
   MAX_PLAYERS,
   MSG_INPUT,
   MSG_REPORT,
+  MSG_START,
+  PHASE_LOBBY,
+  PHASE_PLAYING,
   Predictor,
   ROOM_NAME,
   createPlayer,
@@ -239,6 +242,7 @@ describe("partida com inimigos (etapa 3)", () => {
     const room = (await t.createRoom(ROOM_WITH_ENEMIES, {})) as unknown as ArenaRoom;
     const a = await t.connectTo(room);
     const b = await t.connectTo(room);
+    a.send(MSG_START);
     await until(() => (a.state as any).enemies.size > 0 && (b.state as any).enemies.size > 0);
     expect((a.state as any).enemiesLeft).toBe(Math.round(4 + 1.5 * 2));
 
@@ -262,6 +266,7 @@ describe("partida com inimigos (etapa 3)", () => {
   it('o cliente não altera pontos, vidas, tinta, abates nem a fase; tipo de mensagem desconhecido derruba o cliente', async () => {
     const room = (await t.createRoom(ROOM_WITH_ENEMIES, {})) as unknown as ArenaRoom;
     const c = await t.connectTo(room);
+    c.send(MSG_START);
     c.send(MSG_INPUT, { seq: 1, buttons: 0, score: 99999, lives: 99, ink: 99, kills: 50, phase: 1 });
     c.send(MSG_INPUT, { seq: 2, buttons: 0, down: false, invuln: 999 });
     await sleep(150);
@@ -292,6 +297,7 @@ describe('progressão entre arenas (etapa 4)', () => {
     a.onMessage(MSG_REPORT, (r: any) => reports.push(r));
     expect((a.state as any).arenaId).toBe('compacta');
     expect((a.state as any).arenaCount).toBe(ARENAS.length);
+    a.send(MSG_START);
     await until(() => (a.state as any).enemiesLeft > 0);
 
     // Atalho de teste: derrota todos os inimigos direto no mundo do servidor.
@@ -305,4 +311,28 @@ describe('progressão entre arenas (etapa 4)', () => {
     expect((b.state as any).arenaIndex).toBe(1);
     expect((b.state as any).enemiesLeft).toBe(Math.round(4 + 1.5 * 2));
   }, 15000);
+});
+describe('aquecimento e anfitrião', () => {
+  it('só o anfitrião começa; se ele sair, o próximo a ter chegado assume', async () => {
+    const room = (await t.createRoom(ROOM_WITH_ENEMIES, {})) as unknown as ArenaRoom;
+    const host = await t.connectTo(room);
+    const guest = await t.connectTo(room);
+    const third = await t.connectTo(room);
+    expect(room.state.hostId).toBe(host.sessionId);
+    expect(room.state.phase).toBe(PHASE_LOBBY);
+
+    guest.send(MSG_START);
+    await sleep(100);
+    expect(room.state.phase).toBe(PHASE_LOBBY);
+    expect(room.state.enemies.size).toBe(0);
+
+    await host.leave();
+    await until(() => room.state.hostId === guest.sessionId);
+    guest.send(MSG_START);
+    await until(() => room.state.phase === PHASE_PLAYING);
+    // Dois jogadores na sala ao começar: a arena é dimensionada para eles.
+    expect(room.state.enemiesLeft).toBe(Math.round(4 + 1.5 * 2));
+    // Os outros clientes recebem o novo anfitrião no patch seguinte.
+    await until(() => (third.state as any).hostId === guest.sessionId);
+  });
 });
