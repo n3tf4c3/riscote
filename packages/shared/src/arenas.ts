@@ -1,4 +1,4 @@
-import { parseArena, type Arena } from './arena';
+import { parseArena, type Arena } from './arena.ts';
 
 // Três tamanhos greybox para comparar com 1, 3 e 5 jogadores (plano, seção 2.2).
 // Andares a cada 3 células; tubos de tinta nos cantos inferiores (C21).

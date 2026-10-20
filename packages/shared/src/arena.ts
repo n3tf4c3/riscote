@@ -1,4 +1,4 @@
-import { TILE } from './params';
+import { TILE } from './params.ts';
 
 export const EMPTY = 0;
 export const SOLID = 1;
