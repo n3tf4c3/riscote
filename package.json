@@ -1,0 +1,12 @@
+{
+  "name": "riscote",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.4.2",
+  "scripts": {
+    "client": "pnpm --filter ./apps/client dev",
+    "client:build": "pnpm --filter ./apps/client build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
+  }
+}

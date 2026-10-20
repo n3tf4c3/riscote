@@ -1,0 +1,19 @@
+{
+  "name": "@riscote/client",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "echo \"client: sem testes (lógica testada em @riscote/shared)\""
+  },
+  "dependencies": {
+    "@riscote/shared": "workspace:*",
+    "phaser": "^4.2.1"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4"
+  }
+}

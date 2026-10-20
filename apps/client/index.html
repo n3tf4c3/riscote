@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Riscote — protótipo de movimento</title>
+    <style>
+      :root {
+        --paper: #e7dfcc;
+        --panel: #f6f1e6;
+        --ink: #1f1d1a;
+        --muted: #6d665a;
+        --accent: #2f6fd6;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; }
+      body {
+        background: var(--paper);
+        color: var(--ink);
+        font: 14px/1.4 system-ui, sans-serif;
+        display: grid;
+        grid-template-columns: 1fr 300px;
+      }
+      #game { min-width: 0; height: 100vh; }
+      aside {
+        background: var(--panel);
+        border-left: 2px solid var(--ink);
+        padding: 12px 14px;
+        overflow-y: auto;
+        height: 100vh;
+      }
+      h1 { font-size: 16px; margin: 0 0 4px; }
+      h2 { font-size: 13px; margin: 14px 0 6px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+      p.keys { margin: 0; color: var(--muted); font-size: 12px; }
+      #arenas { display: grid; gap: 4px; }
+      button {
+        font: inherit; text-align: left; padding: 5px 8px; cursor: pointer;
+        background: #fff; color: var(--ink); border: 1.5px solid var(--ink); border-radius: 4px;
+      }
+      button.active { background: var(--ink); color: var(--panel); }
+      .row { display: flex; gap: 6px; flex-wrap: wrap; }
+      dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; font-size: 12px; }
+      dt { color: var(--muted); }
+      dd { margin: 0; font-variant-numeric: tabular-nums; }
+      .slider { display: grid; grid-template-columns: 1fr auto; gap: 0 6px; margin-bottom: 6px; font-size: 12px; }
+      .slider input { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
+      .slider output { font-variant-numeric: tabular-nums; }
+      @media (max-width: 760px) {
+        body { grid-template-columns: 1fr; }
+        #game { height: 60vh; }
+        aside { height: auto; border-left: 0; border-top: 2px solid var(--ink); }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game"></div>
+    <aside>
+      <h1>Riscote · etapa 1</h1>
+      <p class="keys">
+        ← → / A D andar · Espaço / Z pular (segure para ir mais alto) · ↓ + pular descer da plataforma ·
+        1–3 trocar arena · R reposicionar · gamepad: direcional + A
+      </p>
+
+      <h2>Arena</h2>
+      <div id="arenas"></div>
+
+      <h2>Medições</h2>
+      <dl>
+        <dt>Travessia</dt><dd id="m-crossing">—</dd>
+        <dt>Topo → tubo</dt><dd id="m-tube">—</dd>
+        <dt>Agora</dt><dd id="m-speed">—</dd>
+      </dl>
+      <p class="keys">Metas do plano: travessia 3–4 s; do andar mais alto até um tubo ≤ 3 s.</p>
+
+      <h2>Movimento</h2>
+      <div class="row" style="margin-bottom: 8px">
+        <button type="button" id="respawn">Reposicionar</button>
+        <button type="button" id="reset-params">Restaurar padrão</button>
+        <button type="button" id="copy">Copiar medições</button>
+      </div>
+      <div id="sliders"></div>
+    </aside>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
