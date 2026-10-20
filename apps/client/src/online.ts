@@ -41,6 +41,34 @@ function firstState(room: Room): Promise<void> {
   });
 }
 
+/** Vaga na sala guardada por aba: recarregar a página volta ao mesmo boneco enquanto a vaga estiver reservada. */
+const SEAT_KEY = 'riscote.vaga.v1';
+
+function saveSeat(room: Room): void {
+  try {
+    sessionStorage.setItem(SEAT_KEY, JSON.stringify({ code: room.roomId, token: room.reconnectionToken }));
+  } catch {
+    // Sem armazenamento: só não haverá retomada após recarregar.
+  }
+}
+
+function loadSeat(): { code: string; token: string } | null {
+  try {
+    const seat = JSON.parse(sessionStorage.getItem(SEAT_KEY) ?? 'null') as { code?: unknown; token?: unknown } | null;
+    return typeof seat?.code === 'string' && typeof seat.token === 'string' ? { code: seat.code, token: seat.token } : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearSeat(): void {
+  try {
+    sessionStorage.removeItem(SEAT_KEY);
+  } catch {
+    // Nada a limpar.
+  }
+}
+
 /** Modo online (etapa 2): criar sala, entrar por código e jogar com até 5. */
 export function bootOnline(input: InputSource): void {
   el('panel-online').hidden = false;
@@ -51,6 +79,11 @@ export function bootOnline(input: InputSource): void {
   let game: Phaser.Game | null = null;
   const scene = new OnlineScene({ session: () => session, input });
   let arenaId = 'padrao';
+  // Recarregar ou fechar a aba derruba a conexão: a vaga guardada precisa sobreviver a isso.
+  let unloading = false;
+  window.addEventListener('pagehide', () => {
+    unloading = true;
+  });
 
   const lobby = el('lobby');
   const inRoom = el('in-room');
@@ -102,7 +135,7 @@ export function bootOnline(input: InputSource): void {
     }
   }
 
-  async function enter(joining: Promise<Room>): Promise<void> {
+  async function enter(joining: Promise<Room>, failure?: string): Promise<void> {
     setBusy(true);
     statusOut.textContent = 'Conectando…';
     try {
@@ -111,9 +144,21 @@ export function bootOnline(input: InputSource): void {
       const current = new OnlineSession(room);
       current.onArenaChange = (arena) => startGame(arena);
       session = current;
+      saveSeat(room);
+      // Queda de rede: o SDK tenta reconectar sozinho; a vaga fica reservada no servidor.
+      room.onDrop(() => {
+        if (session === current) current.reconnecting = true;
+      });
+      room.onReconnect(() => {
+        if (session !== current) return;
+        current.reconnecting = false;
+        saveSeat(room);
+      });
       room.onLeave((code: number) => {
         if (session !== current) return;
         session = null;
+        if (unloading) return;
+        clearSeat();
         showLobby(code === CloseCode.CONSENTED ? '' : 'A conexão com a sala caiu.');
       });
       startGame(current.arena);
@@ -122,7 +167,8 @@ export function bootOnline(input: InputSource): void {
       el('room-code').textContent = current.code;
       statusOut.textContent = '';
     } catch (error) {
-      statusOut.textContent = describeJoinError(error);
+      if (failure) clearSeat();
+      statusOut.textContent = failure ?? describeJoinError(error);
     } finally {
       setBusy(false);
     }
@@ -167,9 +213,14 @@ export function bootOnline(input: InputSource): void {
 
   // Convite por link: ?sala=CODIGO já entra direto.
   const invited = normalizeRoomCode(query.get('sala') ?? '');
-  if (invited) {
+  const saved = loadSeat();
+  if (invited && invited !== saved?.code) {
     codeInput.value = invited;
     void enter(sdk.joinById(invited));
+  } else if (saved) {
+    // Página recarregada: volta ao mesmo boneco se a vaga ainda estiver reservada.
+    codeInput.value = saved.code;
+    void enter(sdk.reconnect(saved.token), 'A vaga na sala anterior expirou. Entre de novo pelo código.');
   }
 
   const hud = {

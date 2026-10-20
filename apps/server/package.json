@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "node --watch src/index.ts",
     "start": "node src/index.ts",
+    "carga": "node scripts/carga.ts",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"
   },

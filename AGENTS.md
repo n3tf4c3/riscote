@@ -7,6 +7,7 @@ Estado atual:
 - **Etapa 2** (servidor autoritativo, salas por código, previsão e interpolação) concluída.
 - **Etapa 3** (inimigos, mecânica de encharcar e rolar, tinta com recarga nos tubos, derrubada com resgate, vidas da equipe e ondas) implementada.
 - **Etapa 4** (capítulo com as 3 arenas e virada de página, borrão aos 60 s, relatório de métricas por arena) implementada.
+- **Etapa 5** (reconexão com vaga reservada, limite de tentativas de entrada, rede instável e carga medida) implementada. Falta o teste em redes reais, que depende da hospedagem.
 
 O planejamento completo fica em `PLANEJAMENTO.md` na raiz (local, fora do Git por decisão do usuário).
 
@@ -21,6 +22,8 @@ O planejamento completo fica em `PLANEJAMENTO.md` na raiz (local, fora do Git po
 | Previsão, reconciliação e interpolação | `packages/shared/src/prediction.ts` |
 | Regras da partida: tinta, inimigos, bola, resgate, vidas, ondas, capítulo, borrão, métricas (`RULES`, `ArenaReport`) | `packages/shared/src/world.ts` |
 | Sala autoritativa e estado sincronizado | `apps/server/src/ArenaRoom.ts`, `apps/server/src/state.ts` |
+| Limite de tentativas de entrada e endereço real do cliente | `apps/server/src/joinLimit.ts` |
+| Métricas do processo e teste de carga | `apps/server/src/metrics.ts`, `apps/server/scripts/carga.ts` |
 | Cliente online: entrada em sala, sessão, cena | `apps/client/src/online.ts`, `net.ts`, `OnlineScene.ts` |
 | Cliente local (`?local`): ajuste de movimento e medições | `apps/client/src/local.ts`, `ArenaScene.ts`, `tuning.ts`, `metrics.ts` |
 | Testes | `packages/shared/test/`, `apps/server/test/` |
@@ -33,6 +36,8 @@ O planejamento completo fica em `PLANEJAMENTO.md` na raiz (local, fora do Git po
   - `?sala=CODIGO` entra direto numa sala.
   - `?servidor=ws://…` troca o servidor.
 - `pnpm client:build`
+- `pnpm --filter ./apps/server carga -- --salas 10 --segundos 30 --servidor ws://localhost:2600`: robôs de carga. Rode antes um servidor separado com `RISCOTE_METRICS=1`, `RISCOTE_JOIN_LIMIT=0` e `PORT=2600`.
+- Variáveis do servidor: ver o comentário no topo de `apps/server/src/index.ts`.
 - `pnpm typecheck`
 - `pnpm test`
 
@@ -60,6 +65,11 @@ Ainda não há lint. O aviso de bundle acima de 500 kB vem do Phaser e é espera
   - `ack` informa o último comando aplicado; a reconciliação depende dele.
 - **Estado sincronizado.** Os campos de `PlayerSchema` espelham `NetPlayer`, em `float64`, para a reconciliação partir do estado exato do servidor.
 - **Previsão só do próprio movimento.** Inimigos, gotas e derrubadas não são previstos. Derrubado, o `Predictor` congela o boneco como o servidor faz. Renascimento e derrubada geram correções esperadas.
+- **Queda de conexão.** `onDrop` deixa o jogador ausente (`away`: parado, invulnerável e ignorado pelos inimigos) e reserva a vaga por 30 s, que conta no limite de 5. O SDK reconecta sozinho. Recarregar a aba retoma a vaga pelo token guardado em `sessionStorage`. Saída voluntária ou prazo vencido chama `onLeave` e libera a vaga.
+- **Limite de entradas.** 20 tentativas de criar ou entrar em sala por minuto por endereço, com resposta HTTP 429.
+  - O endereço vem do socket, gravado em `x-riscote-peer` por `markPeerAddress`, que intercepta o `emit('request')` antes do roteador do Colyseus.
+  - Nunca use o IP do Colyseus: ele aceita `X-Forwarded-For` forjado.
+  - Atrás de um proxy confiável, configure `RISCOTE_IP_HEADER` (ex.: `cf-connecting-ip`).
 - **Mensagens desconhecidas.** Fora do modo de desenvolvimento, o Colyseus derruba o cliente que manda um tipo de mensagem não registrado.
 - **Testes de rede.** Usam `QuietRoom`, uma subclasse sem ondas definida só no servidor de teste. Opções do cliente nunca desligam inimigos.
 - **Previsão própria.** Previsão e interpolação ficam em `prediction.ts`. O `Predict` do Colyseus 0.18 não é usado por enquanto (decisão para reavaliar).

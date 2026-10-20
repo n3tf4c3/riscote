@@ -90,6 +90,7 @@ export class OnlineScene extends Phaser.Scene {
 
 function bannerText(session: OnlineSession): string {
   const state = session.state;
+  if (session.reconnecting) return 'A conexão caiu: reconectando…';
   switch (state.phase) {
     case PHASE_LOBBY:
       return `Aquecimento: ${state.players.size}/${MAX_PLAYERS} na sala\n${session.isHost ? 'Aperte Enter para começar' : 'O anfitrião começa quando todos entrarem'}`;

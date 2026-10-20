@@ -36,6 +36,7 @@ export interface NetPlayer extends Omit<PlayerState, 'facing'> {
   rescue: number;
   invuln: number;
   kills: number;
+  away: boolean;
 }
 
 const MAX_SEQ = 2 ** 31 - 1;
@@ -54,8 +55,12 @@ export function parseInput(raw: unknown): InputMessage | null {
  * Traduz a recusa do matchmaking em mensagem para o jogador. A sala só fica trancada
  * ao atingir MAX_PLAYERS (o servidor não tranca por outro motivo), então "locked" = cheia.
  */
+/** Recusa por excesso de tentativas de criar ou entrar em sala (HTTP 429). */
+export const TOO_MANY_JOINS = 'Muitas tentativas de entrar em sala. Espere um minuto e tente de novo.';
+
 export function describeJoinError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
+  if (message.includes(TOO_MANY_JOINS)) return TOO_MANY_JOINS;
   if (/is locked/.test(message)) return `Sala cheia: o limite é de ${MAX_PLAYERS} jogadores.`;
   if (/not found/.test(message)) return 'Nenhuma sala com esse código.';
   return 'Não foi possível entrar na sala. Tente de novo.';

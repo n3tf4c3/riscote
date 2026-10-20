@@ -63,6 +63,7 @@ export interface PlayerView extends Positioned {
   down: boolean;
   rescue: number;
   invuln: number;
+  away: boolean;
 }
 
 export type EnemyView = Positioned & NetEnemy;
@@ -77,6 +78,8 @@ export class OnlineSession {
   readonly reports: ArenaReport[] = [];
   /** Chamado quando o servidor vira a página para outra arena. */
   onArenaChange: ((arena: Arena) => void) | null = null;
+  /** A conexão caiu e o SDK está tentando voltar. */
+  reconnecting = false;
   private predictor: Predictor;
   private players = new Interpolator<PlayerView>();
   private enemies = new Interpolator<EnemyView>();
@@ -166,7 +169,7 @@ export class OnlineSession {
       if (id === this.room.sessionId) return;
       others.push({
         id, slot: p.slot, x: p.x, y: p.y, facing: p.facing,
-        ink: p.ink, down: p.down, rescue: p.rescue, invuln: p.invuln,
+        ink: p.ink, down: p.down, rescue: p.rescue, invuln: p.invuln, away: p.away,
       });
     });
     this.players.push(now, others);

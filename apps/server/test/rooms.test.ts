@@ -1,3 +1,4 @@
+import { createServer } from 'node:http';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { Server } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
@@ -18,12 +19,15 @@ import {
   PHASE_PLAYING,
   Predictor,
   ROOM_NAME,
+  TOO_MANY_JOINS,
+  seededRandom,
   createPlayer,
   describeJoinError,
   normalizeRoomCode,
   stepPlayer,
 } from '@riscote/shared';
 import { ArenaRoom } from '../src/ArenaRoom.ts';
+import { AttemptLimiter, limitJoins, markPeerAddress } from '../src/joinLimit.ts';
 
 const ROOM_WITH_ENEMIES = 'arena-com-inimigos';
 
@@ -32,12 +36,21 @@ class QuietRoom extends ArenaRoom {
   protected override readonly waves = false;
 }
 
+/** Prazo de reconexão curto para testar a expiração da vaga reservada. */
+class FastReconnectRoom extends QuietRoom {
+  protected override readonly reconnectSeconds = 1;
+}
+const ROOM_FAST_RECONNECT = 'arena-reconexao-rapida';
+
 let t: ColyseusTestServer;
 
 beforeAll(async () => {
-  const server = new Server({ transport: new WebSocketTransport(), greet: false, gracefullyShutdown: false });
+  const http = createServer();
+  markPeerAddress(http);
+  const server = new Server({ transport: new WebSocketTransport({ server: http }), greet: false, gracefullyShutdown: false });
   server.define(ROOM_NAME, QuietRoom);
   server.define(ROOM_WITH_ENEMIES, ArenaRoom);
+  server.define(ROOM_FAST_RECONNECT, FastReconnectRoom);
   t = await boot(server);
 });
 afterEach(async () => {
@@ -180,12 +193,30 @@ describe('autoridade do servidor', () => {
   }, 10000);
 });
 
+/**
+ * Atraso variável de 0 a jitter ms no envio, sem trocar a ordem (como no TCP): cada comando
+ * sai no mínimo junto com o anterior. Sequência pseudoaleatória fixa para o teste ser reproduzível.
+ */
+const jitterRandom = seededRandom(2026);
+let lastRelease = 0;
+function sendWithJitter(room: { send(type: string, msg: unknown): void }, input: unknown, jitter: number) {
+  if (jitter === 0) return room.send(MSG_INPUT, input);
+  const release = Math.max(performance.now() + jitterRandom() * jitter, lastRelease);
+  lastRelease = release;
+  setTimeout(() => room.send(MSG_INPUT, input), release - performance.now());
+}
+
 describe('previsão e interpolação sob latência (critério da etapa 2)', () => {
   afterEach(() => {
     t.server.simulateLatency(0);
   });
 
-  it.each([0, 100, 200])('%i ms de ida e volta: previsão sem correções e os outros veem movimento sem recuos', async (rtt) => {
+  it.each([
+    [0, 0],
+    [100, 0],
+    [200, 0],
+    [100, 30],
+  ])('%i ms de ida e volta, jitter de até %i ms: previsão sem correções e os outros veem movimento sem recuos', async (rtt, jitter) => {
     t.server.simulateLatency(rtt);
     await sleep(20);
     const room = await newRoom();
@@ -207,7 +238,7 @@ describe('previsão e interpolação sob latência (critério da etapa 2)', () =
     // Termina parado (botões soltos) para comparar sem o servidor ainda desacelerando o boneco.
     for (let tick = 0; tick < 120; tick++) {
       const buttons = tick >= 90 ? 0 : tick % 30 < 8 ? BTN_RIGHT | BTN_JUMP : BTN_RIGHT;
-      mover.send(MSG_INPUT, predictor.tick(buttons));
+      sendWithJitter(mover, predictor.tick(buttons), jitter);
       const v = seen.sample(performance.now())[0];
       if (v) samples.push(v.x);
       await sleep(1000 / 60);
@@ -334,5 +365,79 @@ describe('aquecimento e anfitrião', () => {
     expect(room.state.enemiesLeft).toBe(Math.round(4 + 1.5 * 2));
     // Os outros clientes recebem o novo anfitrião no patch seguinte.
     await until(() => (third.state as any).hostId === guest.sessionId);
+  });
+});
+describe('queda de conexão e reconexão (etapa 5)', () => {
+  /** Derruba a conexão sem despedida, como uma rede que cai. */
+  async function drop(c: any) {
+    c.reconnection.enabled = false;
+    await c.leave(false);
+  }
+
+  it('quem cai fica ausente com a vaga reservada; o 6º continua recusado; quem caiu volta ao mesmo boneco', async () => {
+    const room = await newRoom();
+    const clients = [];
+    for (let i = 0; i < MAX_PLAYERS; i++) clients.push(await t.connectTo(room));
+    const dropped = clients[3]!;
+    const id = dropped.sessionId;
+    const token = dropped.reconnectionToken;
+    const slot = room.state.players.get(id)!.slot;
+
+    await drop(dropped);
+    await until(() => room.state.players.get(id)?.away === true);
+    expect(room.state.players.size).toBe(MAX_PLAYERS);
+    expect(await joinError(room.roomId)).toBe('Sala cheia: o limite é de 5 jogadores.');
+
+    const back = await t.sdk.reconnect(token);
+    expect(back.sessionId).toBe(id);
+    await until(() => room.state.players.get(id)?.away === false);
+    expect(room.state.players.get(id)!.slot).toBe(slot);
+
+    // Os comandos voltam a valer depois da reconexão.
+    const x = room.state.players.get(id)!.x;
+    for (let seq = 1000; seq < 1010; seq++) back.send(MSG_INPUT, { seq, buttons: BTN_RIGHT });
+    await until(() => room.state.players.get(id)!.x > x);
+  });
+
+  it('sem reconexão dentro do prazo, a vaga é liberada', async () => {
+    const room = (await t.createRoom(ROOM_FAST_RECONNECT, {})) as unknown as ArenaRoom;
+    const stays = await t.connectTo(room);
+    const leaves = await t.connectTo(room);
+    const id = leaves.sessionId;
+    await drop(leaves);
+    await until(() => room.state.players.get(id)?.away === true);
+    await until(() => !room.state.players.has(id), 3000);
+    expect([...room.state.players.keys()]).toEqual([stays.sessionId]);
+  });
+});
+describe('limite de tentativas de entrada (etapa 5)', () => {
+  it('acima do limite, o mesmo endereço recebe HTTP 429 com mensagem clara, mesmo forjando cabeçalhos de IP', async () => {
+    const undo = limitJoins(new AttemptLimiter(3, 60_000));
+    try {
+      for (let i = 0; i < 3; i++) expect(await joinError('ZZZZZZ')).toBe('Nenhuma sala com esse código.');
+      expect(await joinError('ZZZZZZ')).toBe(TOO_MANY_JOINS);
+
+      const port = (t.server as any).port;
+      for (const forged of ['1.2.3.4', '5.6.7.8']) {
+        const res = await fetch(`http://127.0.0.1:${port}/matchmake/joinById/ZZZZZZ`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-forwarded-for': forged, 'x-real-ip': forged, 'x-riscote-peer': forged },
+          body: '{}',
+        });
+        expect(res.status).toBe(429);
+      }
+    } finally {
+      undo();
+    }
+    expect(await joinError('ZZZZZZ')).toBe('Nenhuma sala com esse código.');
+  });
+
+  it('o limitador conta por chave e libera na janela seguinte', () => {
+    let now = 0;
+    const limiter = new AttemptLimiter(2, 1000, () => now);
+    expect([limiter.allow('a'), limiter.allow('a'), limiter.allow('a')]).toEqual([true, true, false]);
+    expect(limiter.allow('b')).toBe(true);
+    now = 1000;
+    expect(limiter.allow('a')).toBe(true);
   });
 });

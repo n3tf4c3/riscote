@@ -555,3 +555,32 @@ describe('aquecimento e início (etapa 4)', () => {
     expect(new World(ARENAS[1]!, 4).start()).toBe(false);
   });
 });
+describe('ausência por queda de conexão (etapa 5)', () => {
+  it('ausente não é derrubado nem perseguido; ao voltar, fica invulnerável por um tempo', () => {
+    const world = setup(2);
+    const away = world.players.get('p0')!;
+    const other = world.players.get('p1')!;
+    away.invuln = 0;
+    other.invuln = 1e9;
+    world.setAway('p0', true);
+    const e = world.spawnEnemy(ENEMY_TRACA, { col: 3, row: 6 });
+    pin(e);
+    e.body.x = away.body.x;
+    run(world, 30);
+    expect(away.down).toBe(false);
+
+    // Ausente mais perto, à esquerda; presente à direita.
+    away.body.x = 13 * TILE + 2;
+    other.body.x = 18 * TILE + 2;
+    const saltador = world.spawnEnemy(ENEMY_SALTADOR, { col: 15, row: 6 });
+    saltador.aiTimer = 1e9;
+    run(world, 3); // pousa
+    saltador.aiTimer = 0;
+    run(world, 1);
+    // O saltador mira o jogador presente, não o ausente.
+    expect(saltador.dir).toBe(1);
+
+    world.setAway('p0', false);
+    expect(away.invuln).toBe(RULES.invulnTime);
+  });
+});

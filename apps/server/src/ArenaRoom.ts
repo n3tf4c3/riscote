@@ -15,6 +15,7 @@ import {
   type InputMessage,
   type WorldPlayer,
 } from '@riscote/shared';
+import { recordTick, processMetrics } from './metrics.ts';
 import { DropSchema, EnemySchema, GameState, PlayerSchema } from './state.ts';
 
 /** Fila acima disto descarta os comandos mais antigos: limita o atraso acumulado (~130 ms). */
@@ -40,6 +41,8 @@ function randomCode(): string {
 export class ArenaRoom extends Room<{ state: GameState }> {
   /** Ondas automáticas de inimigos. Só subclasses de teste desligam; nunca vem do cliente. */
   protected readonly waves: boolean = true;
+  /** Segundos de vaga reservada depois de uma queda de conexão (plano, seção 4.4). */
+  protected readonly reconnectSeconds: number = 30;
   private world!: World;
   private seats = new Map<string, Seat>();
   /** Ordem de chegada: o primeiro é o anfitrião; se ele sair, o seguinte assume. */
@@ -71,7 +74,16 @@ export class ArenaRoom extends Room<{ state: GameState }> {
     this.onMessage(MSG_START, (client) => {
       if (client.sessionId === this.state.hostId) this.world.start();
     });
-    this.setFixedTimestep(() => this.step(), TICK_RATE);
+    this.setFixedTimestep(() => {
+      const started = performance.now();
+      this.step();
+      recordTick(performance.now() - started);
+    }, TICK_RATE);
+    processMetrics.rooms++;
+  }
+
+  onDispose(): void {
+    processMetrics.rooms--;
   }
 
   onJoin(client: Client): void {
@@ -87,14 +99,31 @@ export class ArenaRoom extends Room<{ state: GameState }> {
     this.state.players.set(client.sessionId, net);
     copyPlayer(player, net);
     this.arrivals.push(client.sessionId);
+    processMetrics.players++;
     this.state.hostId = this.arrivals[0]!;
   }
 
+  /** Queda sem despedida: o boneco fica ausente e a vaga, reservada (conta no limite de 5). */
+  onDrop(client: Client): void {
+    this.world.setAway(client.sessionId, true);
+    const seat = this.seats.get(client.sessionId);
+    if (seat) seat.queue = [];
+    const net = this.state.players.get(client.sessionId);
+    if (net) net.away = true;
+    this.allowReconnection(client, this.reconnectSeconds);
+  }
+
+  onReconnect(client: Client): void {
+    this.world.setAway(client.sessionId, false);
+  }
+
+  /** Saída definitiva: por vontade própria ou fim do prazo de reconexão. */
   onLeave(client: Client): void {
     this.world.removePlayer(client.sessionId);
     this.seats.delete(client.sessionId);
     this.state.players.delete(client.sessionId);
     this.arrivals = this.arrivals.filter((id) => id !== client.sessionId);
+    processMetrics.players--;
     this.state.hostId = this.arrivals[0] ?? '';
   }
 
@@ -205,4 +234,5 @@ function copyPlayer(p: WorldPlayer, net: PlayerSchema): void {
   net.rescue = p.rescue;
   net.invuln = p.invuln;
   net.kills = p.kills;
+  net.away = p.away;
 }
