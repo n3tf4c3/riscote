@@ -38,7 +38,9 @@ O planejamento completo fica em `PLANEJAMENTO.md` na raiz (local, fora do Git po
   - `?servidor=ws://…` troca o servidor.
 - `pnpm client:build`
 - `pnpm --filter ./apps/server carga -- --salas 10 --segundos 30 --servidor ws://localhost:2600`: robôs de carga. Rode antes um servidor separado com `RISCOTE_METRICS=1`, `RISCOTE_JOIN_LIMIT=0` e `PORT=2600`.
+- `node apps/server/scripts/sonda-rede.ts wss://…`: mede o atraso entre enviar um comando e recebê-lo confirmado. Serve para separar problema de rede/túnel de problema no cliente.
 - Variáveis do servidor: ver o comentário no topo de `apps/server/src/index.ts`.
+- `?debug` no link expõe `window.riscote` também na versão compilada, para inspeção pelo console.
 - `pnpm typecheck`
 - `pnpm test`
 
