@@ -1,6 +1,6 @@
 import * as Phaser from 'phaser';
 import { MAX_PLAYERS, PHASE_CHAPTER, PHASE_CLEAR, PHASE_LOBBY, PHASE_RESTART, PHASE_TURN, RULES, TICK_DT, TILE } from '@riscote/shared';
-import { INK, PLAYER_COLORS, drawArena, drawDrop, drawEnemy, drawPageTurn, drawPlayerFull } from './draw';
+import { INK, PLAYER_COLORS, drawArena, drawDrop, drawEnemy, drawItem, drawPageTurn, drawPlayerFull } from './draw';
 import type { InputSource } from './input';
 import type { OnlineSession } from './net';
 
@@ -60,6 +60,7 @@ export class OnlineScene extends Phaser.Scene {
     const state = session.state;
     const g = this.gfx.clear();
     const inkGauge = state.difficulty === 'dificil';
+    state.items.forEach((item) => drawItem(g, item.x, item.y, item.kind, item.ttl, now));
     for (const e of session.enemyViews(now)) drawEnemy(g, e.x, e.y, e, state.soakToBall);
     for (const r of session.remotePlayers(now)) {
       drawPlayerFull(g, r.x, r.y, session.params, { ...r, inkGauge }, PLAYER_COLORS[r.slot] ?? GREY, false, now);
@@ -73,7 +74,7 @@ export class OnlineScene extends Phaser.Scene {
         this.prevX + (local.x - this.prevX) * alpha,
         this.prevY + (local.y - this.prevY) * alpha,
         session.params,
-        { facing: local.facing, ink: me.ink, down: me.down, rescue: me.rescue, invuln: me.invuln, inkGauge, hp: me.hp },
+        { facing: local.facing, ink: me.ink, down: me.down, rescue: me.rescue, invuln: me.invuln, inkGauge, hp: me.hp, star: me.star },
         PLAYER_COLORS[session.slot] ?? GREY,
         true,
         now,

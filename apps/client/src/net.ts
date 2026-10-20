@@ -10,6 +10,7 @@ import {
   parseDifficulty,
   type Arena,
   type ArenaReport,
+  type Difficulty,
   type MovementParams,
   type NetPlayer,
   type PlayerState,
@@ -57,6 +58,14 @@ export interface NetState {
   players: NetMap<NetPlayer>;
   enemies: NetMap<NetEnemy>;
   drops: NetMap<NetDrop>;
+  items: NetMap<NetItem>;
+}
+
+export interface NetItem {
+  kind: number;
+  x: number;
+  y: number;
+  ttl: number;
 }
 
 export interface PlayerView extends Positioned {
@@ -68,6 +77,7 @@ export interface PlayerView extends Positioned {
   invuln: number;
   away: boolean;
   hp: number;
+  star: number;
 }
 
 export type EnemyView = Positioned & NetEnemy;
@@ -78,6 +88,7 @@ export class OnlineSession {
   arena: Arena;
   /** Mesmos parâmetros do servidor para o modo da sala (a velocidade muda no fácil). */
   readonly params: MovementParams;
+  readonly difficulty: Difficulty;
   readonly slot: number;
   /** Relatórios de métricas das arenas encerradas nesta sessão. */
   readonly reports: ArenaReport[] = [];
@@ -96,9 +107,10 @@ export class OnlineSession {
     const me = state.players.get(room.sessionId);
     if (!arena || !me) throw new Error('estado inicial da sala incompleto');
     this.arena = arena;
-    this.params = movementParams(parseDifficulty(state.difficulty));
+    this.difficulty = parseDifficulty(state.difficulty);
+    this.params = movementParams(this.difficulty);
     this.slot = me.slot;
-    this.predictor = new Predictor(arena, this.params, me);
+    this.predictor = new Predictor(arena, (level) => movementParams(this.difficulty, level), me);
     room.onStateChange((s: NetState) => this.onState(s));
     room.onMessage(MSG_REPORT, (r: ArenaReport) => this.reports.push(r));
   }
@@ -162,7 +174,7 @@ export class OnlineSession {
       const arena = ARENAS.find((a) => a.id === state.arenaId);
       if (!arena) return;
       this.arena = arena;
-      this.predictor = new Predictor(arena, this.params, me);
+      this.predictor = new Predictor(arena, (level) => movementParams(this.difficulty, level), me);
       this.players = new Interpolator<PlayerView>();
       this.enemies = new Interpolator<EnemyView>();
       this.drops = new Interpolator<DropView>();
@@ -175,7 +187,7 @@ export class OnlineSession {
       if (id === this.room.sessionId) return;
       others.push({
         id, slot: p.slot, x: p.x, y: p.y, facing: p.facing,
-        ink: p.ink, down: p.down, rescue: p.rescue, invuln: p.invuln, away: p.away, hp: p.hp,
+        ink: p.ink, down: p.down, rescue: p.rescue, invuln: p.invuln, away: p.away, hp: p.hp, star: p.star,
       });
     });
     this.players.push(now, others);

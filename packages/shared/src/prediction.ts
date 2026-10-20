@@ -31,11 +31,16 @@ export class Predictor {
   private seq = 0;
   private pending: InputMessage[] = [];
   private readonly arena: Arena;
-  private readonly params: MovementParams;
+  /** Parâmetros por nível de agilidade; o servidor informa o nível em cada estado. */
+  private readonly paramsFor: (speedLevel: number) => MovementParams;
+  private params: MovementParams;
+  private speedLevel: number;
 
-  constructor(arena: Arena, params: MovementParams, initial: NetPlayer) {
+  constructor(arena: Arena, params: MovementParams | ((speedLevel: number) => MovementParams), initial: NetPlayer) {
     this.arena = arena;
-    this.params = params;
+    this.paramsFor = typeof params === 'function' ? params : () => params;
+    this.speedLevel = initial.speed ?? 0;
+    this.params = this.paramsFor(this.speedLevel);
     this.state = {
       x: 0, y: 0, vx: 0, vy: 0, onGround: false, onOneWay: false,
       coyote: 0, jumpBuffer: 0, jumpHeld: false, facing: 1, prevButtons: 0,
@@ -61,6 +66,11 @@ export class Predictor {
     const beforeY = this.state.y;
     copyNetPlayer(server, this.state);
     this.frozen = server.down;
+    if ((server.speed ?? 0) !== this.speedLevel) {
+      // Pegou (ou perdeu) agilidade: a reaplicação já usa a velocidade nova, como o servidor.
+      this.speedLevel = server.speed ?? 0;
+      this.params = this.paramsFor(this.speedLevel);
+    }
     this.pending = this.pending.filter((i) => i.seq > server.ack);
     for (const input of this.pending) this.apply(input.buttons);
     const corrected = Math.abs(this.state.x - beforeX) > 0.01 || Math.abs(this.state.y - beforeY) > 0.01;

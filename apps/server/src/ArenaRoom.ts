@@ -17,7 +17,7 @@ import {
   type WorldPlayer,
 } from '@riscote/shared';
 import { recordTick, processMetrics } from './metrics.ts';
-import { DropSchema, EnemySchema, GameState, PlayerSchema } from './state.ts';
+import { DropSchema, EnemySchema, GameState, ItemSchema, PlayerSchema } from './state.ts';
 
 /** Fila acima disto descarta os comandos mais antigos: limita o atraso acumulado (~130 ms). */
 const MAX_QUEUE = 8;
@@ -204,6 +204,20 @@ export class ArenaRoom extends Room<{ state: GameState }> {
       net.soak = e.soak;
     }
 
+    for (const id of [...s.items.keys()]) if (!w.items.has(Number(id))) s.items.delete(id);
+    for (const item of w.items.values()) {
+      const key = String(item.id);
+      let net = s.items.get(key);
+      if (!net) {
+        net = new ItemSchema();
+        net.kind = item.kind;
+        net.x = item.x;
+        net.y = item.y;
+        s.items.set(key, net);
+      }
+      net.ttl = item.ttl;
+    }
+
     for (const id of [...s.drops.keys()]) if (!w.drops.has(Number(id))) s.drops.delete(id);
     for (const d of w.drops.values()) {
       const key = String(d.id);
@@ -239,4 +253,9 @@ function copyPlayer(p: WorldPlayer, net: PlayerSchema): void {
   net.kills = p.kills;
   net.away = p.away;
   net.hp = p.hp;
+  net.strength = p.strength;
+  net.speed = p.speed;
+  net.rate = p.rate;
+  net.range = p.range;
+  net.star = p.star;
 }

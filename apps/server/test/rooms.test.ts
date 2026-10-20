@@ -19,6 +19,7 @@ import {
   PHASE_PLAYING,
   Predictor,
   ROOM_NAME,
+  ITEM_AGILIDADE,
   TOO_MANY_JOINS,
   movementParams,
   parseDifficulty,
@@ -472,4 +473,27 @@ describe('modo fácil na rede', () => {
     expect(predictor.state.x).toBe(server.x);
     expect(server.hp).toBe(2);
   }, 10000);
+});
+describe('itens na rede', () => {
+  it('itens aparecem para os clientes; quem pega ganha o nível e todos veem', async () => {
+    const room = (await t.createRoom(ROOM_NAME, {})) as unknown as ArenaRoom;
+    const a = await t.connectTo(room);
+    const b = await t.connectTo(room);
+    const world = (room as any).world;
+    const me = world.players.get(a.sessionId);
+    // Atalho de teste: item de agilidade no chão, sob o jogador A.
+    world.spawnItem(ITEM_AGILIDADE, { col: Math.floor((me.body.x + 8) / 20), row: 17 });
+    await until(() => room.state.players.get(a.sessionId)!.speed === 1);
+    await until(() => (b.state as any).players.get(a.sessionId)?.speed === 1);
+    expect(room.state.items.size).toBe(0);
+  });
+
+  it('o cliente não forja níveis de item nem invencibilidade', async () => {
+    const room = (await t.createRoom(ROOM_NAME, {})) as unknown as ArenaRoom;
+    const c = await t.connectTo(room);
+    c.send(MSG_INPUT, { seq: 1, buttons: 0, strength: 3, speed: 3, rate: 3, range: 3, star: 99 });
+    await sleep(150);
+    const me = room.state.players.get(c.sessionId)!;
+    expect([me.strength, me.speed, me.rate, me.range, me.star]).toEqual([0, 0, 0, 0, 0]);
+  });
 });

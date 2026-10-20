@@ -26,6 +26,9 @@ const TUBE = INK_BLUE;
 const TRACA = 0x8b6f4e;
 const SALTADOR = 0x5d4f8f;
 const ENEMY_MARK = 0xc8402a;
+const STAR_GOLD = 0xe8b400;
+/** Cor do líquido de cada item, na ordem ITEM_FORCA..ITEM_INVENCIVEL. */
+const ITEM_COLORS = [0xc8402a, 0xd99a1e, 0x2f6fd6, 0x1f9e89, STAR_GOLD];
 
 /** Cores dos 5 jogadores (plano, seção 3): vermelhão, azul, ocre, verde-azulado, púrpura. */
 export const PLAYER_COLORS = [0xe0502e, 0x3f8fd8, 0xd99a1e, 0x1f9e89, 0x9b4f96] as const;
@@ -102,6 +105,8 @@ export interface PlayerLook {
   inkGauge?: boolean;
   /** Toques que ainda aguenta; acima de 1 (modo fácil), desenha a proteção. */
   hp?: number;
+  /** Segundos de invencibilidade (item): aura dourada pulsando. */
+  star?: number;
 }
 
 /** Jogador com medidor de tinta ao lado; derrubado vira mancha com o anel de resgate; invulnerável pisca. */
@@ -136,6 +141,10 @@ export function drawPlayerFull(
   }
   const blink = look.invuln > 0 && Math.floor(now / 100) % 2 === 0;
   drawPlayer(g, x, y, p, look.facing, color, isLocal, blink ? 0.35 : 1);
+  if ((look.star ?? 0) > 0) {
+    const pulse = 0.55 + 0.45 * Math.sin(now / 90);
+    g.lineStyle(3, STAR_GOLD, pulse).strokeRoundedRect(x - 6, y - 6, p.playerWidth * TILE + 12, p.playerHeight * TILE + 12, 7);
+  }
   if ((look.hp ?? 1) > 1) {
     // Proteção do modo fácil: contorno extra que some no primeiro toque.
     g.lineStyle(2, color, 0.9).strokeRoundedRect(x - 4, y - 4, p.playerWidth * TILE + 8, p.playerHeight * TILE + 8, 5);
@@ -216,4 +225,33 @@ export function drawPageTurn(g: Phaser.GameObjects.Graphics, width: number, heig
   g.fillStyle(0xf1ead9).fillRect(width - w, 0, w, height);
   g.fillStyle(INK, 0.15).fillRect(width - w - 8, 0, 8, height);
   g.lineStyle(3, INK).lineBetween(width - w, 0, width - w, height);
+}
+/** Item: potinho de tinta com o líquido na cor do poder e um símbolo; pisca nos últimos 3 s. */
+export function drawItem(g: Phaser.GameObjects.Graphics, x: number, y: number, kind: number, ttl: number, now: number): void {
+  if (ttl < 3 && Math.floor(now / 150) % 2 === 0) return;
+  const s = RULES.itemSize * TILE;
+  const cx = x + s / 2;
+  const bob = Math.sin(now / 220) * 1.5;
+  const top = y - 2 + bob;
+  g.fillStyle(ITEM_COLORS[kind] ?? INK).fillRoundedRect(x, top + 5, s, s - 3, 4);
+  g.lineStyle(2, INK).strokeRoundedRect(x, top + 5, s, s - 3, 4);
+  g.fillStyle(INK).fillRect(cx - 4, top, 8, 6);
+  const gy = top + 5 + (s - 3) / 2;
+  g.lineStyle(2, 0xf6f1e6).fillStyle(0xf6f1e6);
+  if (kind === 0) {
+    // Força: cruz grossa.
+    g.fillRect(cx - 4, gy - 1.5, 8, 3).fillRect(cx - 1.5, gy - 4, 3, 8);
+  } else if (kind === 1) {
+    // Agilidade: riscos de velocidade.
+    g.lineBetween(cx - 4, gy - 3, cx + 3, gy - 3).lineBetween(cx - 2, gy, cx + 4, gy).lineBetween(cx - 4, gy + 3, cx + 3, gy + 3);
+  } else if (kind === 2) {
+    // Tiro ágil: duas gotas.
+    g.fillCircle(cx - 2.5, gy, 2).fillCircle(cx + 2.5, gy, 2);
+  } else if (kind === 3) {
+    // Alcance: seta.
+    g.lineBetween(cx - 4, gy, cx + 4, gy).lineBetween(cx + 4, gy, cx + 1, gy - 3).lineBetween(cx + 4, gy, cx + 1, gy + 3);
+  } else {
+    // Invencível: estrela.
+    g.fillStyle(INK).fillTriangle(cx, gy - 5, cx - 4.5, gy + 3.5, cx + 4.5, gy + 3.5).fillTriangle(cx, gy + 5, cx - 4.5, gy - 2.5, cx + 4.5, gy - 2.5);
+  }
 }
