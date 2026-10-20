@@ -10,6 +10,9 @@ export const ROOM_CODE_LENGTH = 6;
 
 /** Mensagem cliente → servidor: só botões, nunca posição, dano ou pontuação. */
 export const MSG_INPUT = 'i';
+/** Mensagem servidor → sala: relatório de métricas de uma arena encerrada (ArenaReport). */
+export const MSG_REPORT = 'relatorio';
+
 export interface InputMessage {
   seq: number;
   buttons: number;

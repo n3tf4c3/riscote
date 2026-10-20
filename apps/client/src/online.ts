@@ -11,6 +11,7 @@ import {
   describeJoinError,
   normalizeRoomCode,
   type Arena,
+  type ArenaReport,
   type CreateRoomOptions,
 } from '@riscote/shared';
 import { el } from './dom';
@@ -107,6 +108,7 @@ export function bootOnline(input: InputSource): void {
       const room = await joining;
       await firstState(room);
       const current = new OnlineSession(room);
+      current.onArenaChange = (arena) => startGame(arena);
       session = current;
       room.onLeave((code: number) => {
         if (session !== current) return;
@@ -140,6 +142,10 @@ export function bootOnline(input: InputSource): void {
     void enter(sdk.joinById(code));
   });
 
+  el('copy-reports').addEventListener('click', () => {
+    if (session) void navigator.clipboard?.writeText(JSON.stringify(session.reports, null, 2));
+  });
+
   el('leave').addEventListener('click', () => {
     void session?.room.leave();
   });
@@ -160,7 +166,9 @@ export function bootOnline(input: InputSource): void {
   }
 
   const hud = {
-    wave: el('g-wave'),
+    arena: el('g-arena'),
+    time: el('g-time'),
+    last: el('g-last'),
     enemies: el('g-enemies'),
     lives: el('g-lives'),
     score: el('g-score'),
@@ -174,7 +182,11 @@ export function bootOnline(input: InputSource): void {
     if (!session) return;
     const state = session.state;
     const me = session.me;
-    hud.wave.textContent = String(state.wave);
+    hud.arena.textContent = `${session.arena.name} (${state.arenaIndex + 1}/${state.arenaCount})`;
+    const secs = Math.floor(state.waveTime);
+    hud.time.textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}${state.hurry ? ' · borrão!' : ''}`;
+    const last = session.reports[session.reports.length - 1];
+    if (last) hud.last.textContent = describeReport(last, session.reports.length);
     hud.enemies.textContent = String(state.enemiesLeft);
     hud.lives.textContent = String(state.lives);
     hud.score.textContent = String(state.score);
@@ -184,4 +196,14 @@ export function bootOnline(input: InputSource): void {
     correctionsOut.textContent = String(session.corrections);
     pendingOut.textContent = `${session.pendingCount} (~${Math.round(session.pendingCount * TICK_DT * 1000)} ms)`;
   }, 200);
+}
+
+function describeReport(r: ArenaReport, count: number): string {
+  const kills = r.perPlayer.map((p) => p.kills).join('/');
+  const idle = r.perPlayer.length ? Math.max(...r.perPlayer.map((p) => (p.idleSeconds + p.downSeconds) / Math.max(1, r.seconds))) : 0;
+  return (
+    `${count} arena(s) encerrada(s). Última: ${r.arena}, ${r.outcome}, ${Math.round(r.seconds)} s, ` +
+    `abates por jogador ${kills}, quedas ${r.downs}, resgates ${r.rescues}, combos ${r.combos}, ` +
+    `distância média ${r.spreadCells} células, maior tempo sem agir ${Math.round(idle * 100)}%.`
+  );
 }

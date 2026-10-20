@@ -1,6 +1,6 @@
 import * as Phaser from 'phaser';
-import { PHASE_CLEAR, PHASE_RESTART, TICK_DT, TILE } from '@riscote/shared';
-import { INK, PLAYER_COLORS, drawArena, drawDrop, drawEnemy, drawPlayerFull } from './draw';
+import { PHASE_CHAPTER, PHASE_CLEAR, PHASE_RESTART, PHASE_TURN, RULES, TICK_DT, TILE } from '@riscote/shared';
+import { INK, PLAYER_COLORS, drawArena, drawDrop, drawEnemy, drawPageTurn, drawPlayerFull } from './draw';
 import type { InputSource } from './input';
 import type { OnlineSession } from './net';
 
@@ -26,8 +26,9 @@ export class OnlineScene extends Phaser.Scene {
     this.gfx = this.add.graphics();
     const w = session.arena.cols * TILE;
     this.banner = this.add
-      .text(w / 2, TILE * 1.5, '', { fontFamily: 'system-ui, sans-serif', fontSize: '20px', color: '#1f1d1a', fontStyle: 'bold' })
-      .setOrigin(0.5, 0.5);
+      .text(w / 2, TILE * 1.5, '', { fontFamily: 'system-ui, sans-serif', fontSize: '20px', color: '#1f1d1a', fontStyle: 'bold', align: 'center' })
+      .setOrigin(0.5, 0)
+      .setDepth(1);
     this.acc = 0;
     this.prevX = session.local.x;
     this.prevY = session.local.y;
@@ -70,8 +71,25 @@ export class OnlineScene extends Phaser.Scene {
     }
     for (const d of session.dropViews(now)) drawDrop(g, d.x, d.y, PLAYER_COLORS[d.slot] ?? INK);
 
-    this.banner.setText(
-      state.phase === PHASE_CLEAR ? 'Arena limpa!' : state.phase === PHASE_RESTART ? 'Sem vidas: recomeçando a arena…' : '',
-    );
+    if (state.phase === PHASE_TURN) {
+      const arena = session.arena;
+      drawPageTurn(g, arena.cols * TILE, arena.rows * TILE, 1 - state.phaseTime / RULES.turnDelay);
+    }
+    this.banner.setText(bannerText(state));
   }
+}
+
+function bannerText(state: OnlineSession['state']): string {
+  switch (state.phase) {
+    case PHASE_CLEAR:
+      return state.arenaIndex + 1 < state.arenaCount ? 'Arena limpa!' : 'Última arena limpa!';
+    case PHASE_CHAPTER:
+      return `Capítulo concluído!\n${state.score} pontos`;
+    case PHASE_RESTART:
+      return 'Sem vidas: recomeçando a arena…';
+    case PHASE_TURN:
+      return '';
+  }
+  if (state.hurry && state.waveTime < RULES.hurryTime + 3) return 'O borrão chegou: depressa!';
+  return '';
 }

@@ -1,5 +1,7 @@
 import type * as Phaser from 'phaser';
 import {
+  BORRAO_SIZE,
+  ENEMY_BORRAO,
   ENEMY_SALTADOR,
   ENEMY_SIZE,
   MODE_WALK,
@@ -140,6 +142,7 @@ export interface EnemyLook {
 }
 
 export function drawEnemy(g: Phaser.GameObjects.Graphics, x: number, y: number, e: EnemyLook, soakToBall: number): void {
+  if (e.kind === ENEMY_BORRAO) return drawBorrao(g, x, y, e.facing);
   const size = ENEMY_SIZE * TILE;
   if (e.mode !== MODE_WALK) {
     // Bola de tinta; rolando, um traço gira com o deslocamento.
@@ -174,4 +177,27 @@ export function drawDrop(g: Phaser.GameObjects.Graphics, x: number, y: number, c
   const size = RULES.dropSize * TILE;
   g.fillStyle(INK_BLUE).fillCircle(x + size / 2, y + size / 2, size / 2 + 1);
   g.lineStyle(1.5, color).strokeCircle(x + size / 2, y + size / 2, size / 2 + 1);
+}
+
+/** Borrão: mancha de nanquim com escorridos e olhos vermelhos — perigo que não se derrota. */
+function drawBorrao(g: Phaser.GameObjects.Graphics, x: number, y: number, facing: number): void {
+  const size = BORRAO_SIZE * TILE;
+  const cx = x + size / 2;
+  const cy = y + size / 2;
+  g.fillStyle(INK, 0.92).fillCircle(cx, cy, size / 2);
+  g.fillCircle(cx - size * 0.3, cy + size * 0.25, size * 0.22);
+  g.fillCircle(cx + size * 0.32, cy - size * 0.2, size * 0.18);
+  g.fillRect(cx - size * 0.15, cy + size * 0.3, 3, size * 0.35);
+  g.fillRect(cx + size * 0.12, cy + size * 0.35, 3, size * 0.25);
+  const eye = facing > 0 ? 4 : -4;
+  g.fillStyle(0xd7261e).fillCircle(cx - 5 + eye, cy - 3, 3).fillCircle(cx + 5 + eye, cy - 3, 3);
+}
+
+/** Virada de página: o papel novo avança da direita para a esquerda, com a borda em nanquim. */
+export function drawPageTurn(g: Phaser.GameObjects.Graphics, width: number, height: number, progress: number): void {
+  const w = width * Math.max(0, Math.min(1, progress));
+  if (w <= 0) return;
+  g.fillStyle(0xf1ead9).fillRect(width - w, 0, w, height);
+  g.fillStyle(INK, 0.15).fillRect(width - w - 8, 0, 8, height);
+  g.lineStyle(3, INK).lineBetween(width - w, 0, width - w, height);
 }

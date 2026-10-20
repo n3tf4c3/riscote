@@ -29,18 +29,67 @@ export const RULES = {
   invulnTime: 2,
   teamLives: 5,
   scorePerEnemy: 100,
+  // Etapa 4: pressão de tempo, virada de página e fim de capítulo (plano, seção 2.4).
+  hurryTime: 60, // s na arena até o borrão aparecer
+  borraoSpeed: 2.5, // células/s, atravessa paredes e não pode ser derrotado
+  turnDelay: 1.2, // s de virada de página
+  chapterDelay: 6, // s de resumo no fim do capítulo
 } as const;
 
 export const ENEMY_TRACA = 0;
 export const ENEMY_SALTADOR = 1;
+/** A ameaça de tempo: persegue o jogador mais próximo, atravessa paredes e não é encharcada. */
+export const ENEMY_BORRAO = 2;
 export const MODE_WALK = 0;
 export const MODE_BALL = 1;
 export const MODE_ROLL = 2;
 export const PHASE_PLAYING = 0;
 export const PHASE_CLEAR = 1;
 export const PHASE_RESTART = 2;
+export const PHASE_TURN = 3;
+export const PHASE_CHAPTER = 4;
 
 export const ENEMY_SIZE = 0.9; // células, nos três modos
+export const BORRAO_SIZE = 1.3; // células
+
+/** Métricas de playtest por jogador numa arena (plano, seção 6). */
+export interface PlayerArenaStats {
+  slot: number;
+  kills: number;
+  shots: number;
+  downSeconds: number;
+  /** Parado no chão sem atirar (aproximação de "sem participar"). */
+  idleSeconds: number;
+  emptyTankSeconds: number;
+}
+
+export interface ArenaReport {
+  arena: string;
+  position: number;
+  arenas: number;
+  players: number;
+  seconds: number;
+  outcome: 'limpa' | 'recomeço';
+  hurry: boolean;
+  downs: number;
+  rescues: number;
+  livesUsed: number;
+  /** Bolas que derrubaram 2 ou mais inimigos além de si mesmas. */
+  combos: number;
+  /** Distância média entre os jogadores de pé, em células. */
+  spreadCells: number;
+  perPlayer: PlayerArenaStats[];
+}
+
+interface RunningStats {
+  downs: number;
+  rescues: number;
+  livesUsed: number;
+  combos: number;
+  spreadSum: number;
+  spreadSamples: number;
+  perPlayer: Map<string, PlayerArenaStats>;
+}
 
 const ENEMY_BASE: Record<number, MovementParams> = {
   [ENEMY_TRACA]: {
@@ -82,6 +131,15 @@ export function overlaps(a: Box, b: Box): boolean {
 
 function bodyBox(b: PlayerState, p: MovementParams, grow = 0): Box {
   return { x: b.x - grow, y: b.y - grow, w: p.playerWidth * TILE + 2 * grow, h: p.playerHeight * TILE + 2 * grow };
+}
+
+export function enemyBox(e: { kind: number; body: { x: number; y: number } }): Box {
+  const size = (e.kind === ENEMY_BORRAO ? BORRAO_SIZE : ENEMY_SIZE) * TILE;
+  return { x: e.body.x, y: e.body.y, w: size, h: size };
+}
+
+function emptyStats(): RunningStats {
+  return { downs: 0, rescues: 0, livesUsed: 0, combos: 0, spreadSum: 0, spreadSamples: 0, perPlayer: new Map() };
 }
 
 /** Gerador determinístico (mulberry32): mesma semente, mesma partida. */
@@ -142,7 +200,12 @@ export interface Drop {
  * Puro e determinístico: o servidor chama applyInput por comando e step uma vez por tick.
  */
 export class World {
-  readonly arena: Arena;
+  /** Capítulo: as arenas em sequência; limpar a última fecha o capítulo e volta à primeira. */
+  readonly chapter: readonly Arena[];
+  arenaIndex = 0;
+  /** Segundos na arena atual (a pressão de tempo começa em RULES.hurryTime). */
+  waveTime = 0;
+  hurry = false;
   readonly params: MovementParams = { ...DEFAULT_PARAMS };
   readonly players = new Map<string, WorldPlayer>();
   readonly enemies = new Map<number, Enemy>();
@@ -160,16 +223,42 @@ export class World {
   private nextId = 1;
   private readonly rng: () => number;
   private readonly autoWaves: boolean;
+  private stats: RunningStats = emptyStats();
+  private reports: ArenaReport[] = [];
 
-  /** `waves: false` desliga as ondas automáticas (cenários montados à mão nos testes). */
-  constructor(arena: Arena, seed: number, options: { waves?: boolean } = {}) {
-    this.arena = arena;
+  /** `waves: false` desliga ondas, pressão de tempo e progressão (cenários montados à mão nos testes). */
+  constructor(chapter: Arena | readonly Arena[], seed: number, options: { waves?: boolean } = {}) {
+    this.chapter = Array.isArray(chapter) ? chapter : [chapter as Arena];
+    if (this.chapter.length === 0) throw new Error('capítulo sem arenas');
     this.rng = seededRandom(seed);
     this.autoWaves = options.waves ?? true;
   }
 
+  get arena(): Arena {
+    return this.chapter[this.arenaIndex]!;
+  }
+
+  /** Inimigos que faltam derrotar; o borrão não conta (não pode ser derrotado). */
   get enemiesLeft(): number {
-    return this.enemies.size + this.spawnQueue;
+    let count = this.spawnQueue;
+    for (const e of this.enemies.values()) if (e.kind !== ENEMY_BORRAO) count++;
+    return count;
+  }
+
+  /** Relatórios das arenas encerradas desde a última chamada. */
+  takeReports(): ArenaReport[] {
+    const out = this.reports;
+    this.reports = [];
+    return out;
+  }
+
+  private playerStats(p: WorldPlayer): PlayerArenaStats {
+    let s = this.stats.perPlayer.get(p.id);
+    if (!s) {
+      s = { slot: p.slot, kills: 0, shots: 0, downSeconds: 0, idleSeconds: 0, emptyTankSeconds: 0 };
+      this.stats.perPlayer.set(p.id, s);
+    }
+    return s;
   }
 
   addPlayer(id: string, slot: number): WorldPlayer {
@@ -204,6 +293,7 @@ export class World {
   /** Avança o mundo um tick (depois dos comandos do tick). */
   step(): void {
     const dt = TICK_DT;
+    // A primeira onda é dimensionada com quem está na sala no primeiro tick.
     if (this.autoWaves && !this.waveStarted && this.players.size > 0) this.startWave();
 
     for (const p of this.players.values()) {
@@ -212,6 +302,12 @@ export class World {
       if (!p.down && touchesTube(p.body, this.arena, this.params)) {
         p.ink = Math.min(RULES.tankSize, p.ink + RULES.refillPerSecond * dt);
       }
+    }
+
+    if (this.phase === PHASE_PLAYING && this.waveStarted) {
+      this.waveTime += dt;
+      this.measure(dt);
+      if (this.autoWaves && !this.hurry && this.waveTime >= RULES.hurryTime) this.spawnBorrao();
     }
 
     this.stepDrops(dt);
@@ -223,7 +319,8 @@ export class World {
   }
 
   spawnEnemy(kind: number, cell: CellPos): Enemy {
-    const params = ENEMY_PARAMS[kind]![0]!;
+    // O borrão não usa física: os parâmetros só posicionam o corpo inicial.
+    const params = ENEMY_PARAMS[kind]?.[0] ?? BALL_PARAMS;
     const enemy: Enemy = {
       id: this.nextId++, kind, mode: MODE_WALK,
       body: createPlayer(cell, params),
@@ -235,10 +332,69 @@ export class World {
     return enemy;
   }
 
+  /** O borrão surge no alto, no centro, e vem atrás de quem estiver mais perto. */
+  spawnBorrao(): Enemy {
+    const e = this.spawnEnemy(ENEMY_BORRAO, { col: Math.floor(this.arena.cols / 2), row: 1 });
+    e.body.x = (this.arena.cols * TILE - BORRAO_SIZE * TILE) / 2;
+    e.body.y = TILE;
+    this.hurry = true;
+    return e;
+  }
+
+  /** Amostra de métricas por tick (plano, seção 6). */
+  private measure(dt: number): void {
+    const standing: PlayerState[] = [];
+    for (const p of this.players.values()) {
+      const s = this.playerStats(p);
+      if (p.down) {
+        s.downSeconds += dt;
+        continue;
+      }
+      standing.push(p.body);
+      if (p.ink < 1) s.emptyTankSeconds += dt;
+      if (p.body.vx === 0 && p.body.onGround && p.cooldown === 0) s.idleSeconds += dt;
+    }
+    if (standing.length < 2) return;
+    let sum = 0;
+    let pairs = 0;
+    for (let i = 0; i < standing.length; i++) {
+      for (let j = i + 1; j < standing.length; j++) {
+        sum += Math.hypot(standing[i]!.x - standing[j]!.x, standing[i]!.y - standing[j]!.y);
+        pairs++;
+      }
+    }
+    this.stats.spreadSum += sum / pairs / TILE;
+    this.stats.spreadSamples++;
+  }
+
+  private report(outcome: ArenaReport['outcome']): void {
+    const round = (v: number) => Math.round(v * 100) / 100;
+    this.reports.push({
+      arena: this.arena.id,
+      position: this.arenaIndex + 1,
+      arenas: this.chapter.length,
+      players: this.players.size,
+      seconds: round(this.waveTime),
+      outcome,
+      hurry: this.hurry,
+      downs: this.stats.downs,
+      rescues: this.stats.rescues,
+      livesUsed: this.stats.livesUsed,
+      combos: this.stats.combos,
+      spreadCells: round(this.stats.spreadSamples ? this.stats.spreadSum / this.stats.spreadSamples : 0),
+      perPlayer: [...this.stats.perPlayer.values()].map((s) => ({
+        ...s,
+        downSeconds: round(s.downSeconds),
+        idleSeconds: round(s.idleSeconds),
+        emptyTankSeconds: round(s.emptyTankSeconds),
+      })),
+    });
+  }
+
   private attack(p: WorldPlayer): void {
     const reach = bodyBox(p.body, this.params, 2);
     for (const e of this.enemies.values()) {
-      if (e.mode === MODE_BALL && overlaps(reach, bodyBox(e.body, BALL_PARAMS))) {
+      if (e.mode === MODE_BALL && overlaps(reach, enemyBox(e))) {
         // Chutar não gasta tinta.
         e.mode = MODE_ROLL;
         e.dir = p.body.facing;
@@ -252,6 +408,7 @@ export class World {
     if (p.cooldown > 0 || p.ink < 1) return;
     p.ink -= 1;
     p.cooldown = RULES.shotCooldown;
+    this.playerStats(p).shots++;
     const box = bodyBox(p.body, this.params);
     const size = RULES.dropSize * TILE;
     const id = this.nextId++;
@@ -277,7 +434,8 @@ export class World {
       }
       const box = { x: d.x, y: d.y, w: size, h: size };
       for (const e of this.enemies.values()) {
-        if (e.mode === MODE_ROLL || !overlaps(box, bodyBox(e.body, BALL_PARAMS))) continue;
+        // A tinta não pega no borrão nem na bola rolando.
+        if (e.mode === MODE_ROLL || e.kind === ENEMY_BORRAO || !overlaps(box, enemyBox(e))) continue;
         this.drops.delete(d.id);
         this.soak(e, 1);
         break;
@@ -297,7 +455,9 @@ export class World {
 
   private stepEnemies(dt: number): void {
     for (const e of this.enemies.values()) {
-      if (e.mode === MODE_WALK) {
+      if (e.kind === ENEMY_BORRAO) {
+        this.chase(e, dt);
+      } else if (e.mode === MODE_WALK) {
         if (e.soak > 0 && (e.soakTimer -= dt) <= 0) {
           e.soak--;
           e.soakTimer = RULES.soakDecay;
@@ -319,17 +479,33 @@ export class World {
           e.dir = e.dir > 0 ? -1 : 1;
           e.bounces++;
         }
-        const box = bodyBox(e.body, BALL_PARAMS);
+        const box = enemyBox(e);
         for (const other of this.enemies.values()) {
-          if (other === e || other.mode === MODE_ROLL) continue;
-          if (overlaps(box, bodyBox(other.body, BALL_PARAMS))) {
+          if (other === e || other.mode === MODE_ROLL || other.kind === ENEMY_BORRAO) continue;
+          if (overlaps(box, enemyBox(other))) {
             e.combo++;
+            if (e.combo === 2) this.stats.combos++;
             this.defeat(other, e.kicker, e.combo);
           }
         }
         if (e.bounces >= RULES.rollMaxBounces || e.rollTime >= RULES.rollMaxTime) this.burst(e);
       }
     }
+  }
+
+  /** Borrão: segue em linha reta o jogador de pé mais próximo, atravessando paredes. */
+  private chase(e: Enemy, dt: number): void {
+    const target = this.nearestPlayer(e.body);
+    if (!target) return;
+    const box = enemyBox(e);
+    const dx = target.body.x + (this.params.playerWidth * TILE) / 2 - (box.x + box.w / 2);
+    const dy = target.body.y + (this.params.playerHeight * TILE) / 2 - (box.y + box.h / 2);
+    const dist = Math.hypot(dx, dy);
+    if (dist < 1) return;
+    const step = Math.min(dist, RULES.borraoSpeed * TILE * dt);
+    e.body.x += (dx / dist) * step;
+    e.body.y += (dy / dist) * step;
+    e.dir = dx >= 0 ? 1 : -1;
   }
 
   /** IA simples: a traça patrulha e às vezes pula ou desce; o saltador pula na direção do jogador mais próximo. */
@@ -388,17 +564,20 @@ export class World {
     this.enemies.delete(e.id);
     this.score += RULES.scorePerEnemy * Math.max(1, combo);
     const p = kicker ? this.players.get(kicker) : undefined;
-    if (p) p.kills++;
+    if (p) {
+      p.kills++;
+      this.playerStats(p).kills++;
+    }
   }
 
   private burst(ball: Enemy): void {
-    const center = bodyBox(ball.body, BALL_PARAMS);
+    const center = enemyBox(ball);
     const cx = center.x + center.w / 2;
     const cy = center.y + center.h / 2;
     this.defeat(ball, ball.kicker, 1);
     for (const e of this.enemies.values()) {
-      if (e.mode !== MODE_WALK) continue;
-      const box = bodyBox(e.body, BALL_PARAMS);
+      if (e.mode !== MODE_WALK || e.kind === ENEMY_BORRAO) continue;
+      const box = enemyBox(e);
       if (Math.hypot(box.x + box.w / 2 - cx, box.y + box.h / 2 - cy) <= RULES.burstRadius * TILE) {
         this.soak(e, RULES.burstSoak);
       }
@@ -410,12 +589,13 @@ export class World {
       if (p.down || p.invuln > 0) continue;
       const box = bodyBox(p.body, this.params);
       for (const e of this.enemies.values()) {
-        if (e.mode === MODE_WALK && overlaps(box, bodyBox(e.body, BALL_PARAMS))) {
+        if (e.mode === MODE_WALK && overlaps(box, enemyBox(e))) {
           p.down = true;
           p.downTime = 0;
           p.rescue = 0;
           p.body.vx = 0;
           p.body.vy = 0;
+          this.stats.downs++;
           break;
         }
       }
@@ -432,9 +612,12 @@ export class World {
         if (o !== p && !o.down && overlaps(area, bodyBox(o.body, this.params))) helped = true;
       }
       p.rescue = helped ? p.rescue + dt : 0;
-      if (p.rescue >= RULES.rescueTime) this.revive(p, false);
-      else if (p.downTime >= RULES.respawnTime && this.lives > 0) {
+      if (p.rescue >= RULES.rescueTime) {
+        this.stats.rescues++;
+        this.revive(p, false);
+      } else if (p.downTime >= RULES.respawnTime && this.lives > 0) {
         this.lives--;
+        this.stats.livesUsed++;
         this.revive(p, true);
       }
     }
@@ -495,24 +678,76 @@ export class World {
     this.spawnEnemy(kind, cell);
   }
 
+  /**
+   * Arena limpa → pausa curta → virada de página → próxima arena; depois da última, resumo do
+   * capítulo e volta à primeira. Todos caídos sem vidas → a mesma arena recomeça.
+   */
   private stepPhase(dt: number): void {
     if (this.phase === PHASE_PLAYING) {
-      if (this.waveStarted && this.enemies.size === 0 && this.spawnQueue === 0) {
+      if (this.waveStarted && this.enemiesLeft === 0) {
+        this.report('limpa');
+        // O borrão vai embora junto com a arena.
+        this.enemies.clear();
         this.phase = PHASE_CLEAR;
         this.phaseTime = RULES.clearDelay;
       } else if (this.lives === 0 && this.players.size > 0 && [...this.players.values()].every((p) => p.down)) {
+        if (this.waveStarted) this.report('recomeço');
         this.phase = PHASE_RESTART;
         this.phaseTime = RULES.restartDelay;
       }
       return;
     }
     if ((this.phaseTime -= dt) > 0) return;
-    if (this.phase === PHASE_RESTART) {
-      this.lives = RULES.teamLives;
-      for (const p of this.players.values()) this.revive(p, true);
+
+    if (!this.autoWaves) {
+      if (this.phase === PHASE_RESTART) this.resetTeam();
+      this.phase = PHASE_PLAYING;
+      return;
     }
-    if (this.autoWaves) this.startWave();
-    else this.phase = PHASE_PLAYING;
+    switch (this.phase) {
+      case PHASE_CLEAR:
+        if (this.arenaIndex < this.chapter.length - 1) {
+          this.phase = PHASE_TURN;
+          this.phaseTime = RULES.turnDelay;
+        } else {
+          this.phase = PHASE_CHAPTER;
+          this.phaseTime = RULES.chapterDelay;
+        }
+        break;
+      case PHASE_TURN:
+        this.loadArena(this.arenaIndex + 1);
+        break;
+      case PHASE_CHAPTER:
+        this.score = 0;
+        this.lives = RULES.teamLives;
+        this.loadArena(0);
+        break;
+      case PHASE_RESTART:
+        this.resetTeam();
+        this.startWave();
+        break;
+    }
+  }
+
+  private resetTeam(): void {
+    this.lives = RULES.teamLives;
+    for (const p of this.players.values()) this.revive(p, true);
+  }
+
+  /** Vira a página: todos começam juntos nos próprios surgimentos da nova arena. */
+  private loadArena(index: number): void {
+    this.arenaIndex = index;
+    for (const p of this.players.values()) {
+      const prevButtons = p.body.prevButtons;
+      p.body = createPlayer(this.arena.playerSpawns[p.slot]!, this.params);
+      p.body.prevButtons = prevButtons;
+      p.down = false;
+      p.downTime = 0;
+      p.rescue = 0;
+      p.invuln = RULES.invulnTime;
+      p.ink = RULES.tankSize;
+    }
+    this.startWave();
   }
 
   /** Nova onda: quantidade e resistência calculadas com quem está na sala agora (plano, seção 2.6). */
@@ -520,6 +755,9 @@ export class World {
     this.waveStarted = true;
     this.phase = PHASE_PLAYING;
     this.wave++;
+    this.waveTime = 0;
+    this.hurry = false;
+    this.stats = emptyStats();
     this.enemies.clear();
     this.drops.clear();
     const n = Math.max(1, this.players.size);

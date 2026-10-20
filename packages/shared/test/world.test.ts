@@ -8,9 +8,16 @@ import {
   MODE_BALL,
   MODE_ROLL,
   MODE_WALK,
+  BTN_DOWN,
+  BTN_JUMP,
+  BTN_LEFT,
+  ENEMY_BORRAO,
+  PHASE_CHAPTER,
   PHASE_CLEAR,
   PHASE_PLAYING,
   PHASE_RESTART,
+  PHASE_TURN,
+  touchesTube,
   RULES,
   TICK_DT,
   TILE,
@@ -286,20 +293,6 @@ describe('ondas', () => {
     expect(world.soakToBall).toBe(soak);
   });
 
-  it('arena limpa: pausa curta e nova onda', () => {
-    const world = new World(arena, 7);
-    world.addPlayer('p0', 0);
-    world.step();
-    world.enemies.clear();
-    (world as unknown as { spawnQueue: number }).spawnQueue = 0;
-    run(world, 1);
-    expect(world.phase).toBe(PHASE_CLEAR);
-    run(world, ticks(RULES.clearDelay) + 1);
-    expect(world.phase).toBe(PHASE_PLAYING);
-    expect(world.wave).toBe(2);
-    expect(world.enemiesLeft).toBeGreaterThan(0);
-  });
-
   it('inimigos se espalham pela arena e ninguém atravessa as paredes', () => {
     const world = new World(arena, 3);
     world.addPlayer('p0', 0).invuln = 1e9;
@@ -330,5 +323,199 @@ describe('ondas', () => {
     };
     expect(snapshot(42)).toBe(snapshot(42));
     expect(snapshot(42)).not.toBe(snapshot(43));
+  });
+});
+
+/** Encerra a arena atual como se todos os inimigos tivessem sido derrotados. */
+function clearArena(world: World) {
+  for (const e of [...world.enemies.values()]) if (e.kind !== ENEMY_BORRAO) world.enemies.delete(e.id);
+  (world as unknown as { spawnQueue: number }).spawnQueue = 0;
+}
+
+describe('progressão, pressão de tempo e métricas (etapa 4)', () => {
+  const [compacta, padrao, ampla] = [ARENAS[0]!, ARENAS[1]!, ARENAS[2]!];
+
+  it('arena limpa → pausa → virada de página → próxima arena; depois da última, resumo e volta à primeira', () => {
+    const world = new World([padrao, ampla], 7);
+    world.addPlayer('p0', 0);
+    world.addPlayer('p1', 1);
+    run(world, ticks(3));
+    world.score = 500;
+    clearArena(world);
+    run(world, 1);
+    expect(world.phase).toBe(PHASE_CLEAR);
+    run(world, ticks(RULES.clearDelay) + 1);
+    expect(world.phase).toBe(PHASE_TURN);
+    run(world, ticks(RULES.turnDelay) + 1);
+    expect(world.phase).toBe(PHASE_PLAYING);
+    expect(world.arena.id).toBe('ampla');
+    expect(world.enemiesLeft).toBe(Math.round(4 + 1.5 * 2));
+    const p1 = world.players.get('p1')!;
+    expect(Math.round(p1.body.x / TILE)).toBe(ampla.playerSpawns[1]!.col);
+    expect(world.score).toBe(500);
+
+    clearArena(world);
+    run(world, 1 + ticks(RULES.clearDelay) + 1);
+    expect(world.phase).toBe(PHASE_CHAPTER);
+    world.lives = 1;
+    run(world, ticks(RULES.chapterDelay) + 1);
+    expect(world.arena.id).toBe('padrao');
+    expect(world.score).toBe(0);
+    expect(world.lives).toBe(RULES.teamLives);
+  });
+
+  it(`depois de ${RULES.hurryTime} s na arena, o borrão aparece, persegue, não toma tinta e não conta como inimigo restante`, () => {
+    const world = new World(compacta, 5);
+    const p = world.addPlayer('p0', 0);
+    p.invuln = 1e9;
+    run(world, ticks(RULES.hurryTime) - 5);
+    expect(world.hurry).toBe(false);
+    const before = world.enemiesLeft;
+    run(world, 10);
+    expect(world.hurry).toBe(true);
+    const borrao = [...world.enemies.values()].find((e) => e.kind === ENEMY_BORRAO)!;
+    expect(borrao).toBeDefined();
+    expect(world.enemiesLeft).toBeLessThanOrEqual(before);
+
+    const dist = () => Math.hypot(borrao.body.x - p.body.x, borrao.body.y - p.body.y);
+    const d0 = dist();
+    run(world, ticks(1));
+    expect(dist()).toBeLessThan(d0);
+
+    // Na frente do jogador, os tiros o atravessam.
+    borrao.body.x = p.body.x + 2 * TILE;
+    borrao.body.y = p.body.y;
+    p.body.facing = 1;
+    tap(world, 'p0', BTN_ATTACK);
+    run(world, 5);
+    expect(borrao.soak).toBe(0);
+    expect(borrao.mode).toBe(MODE_WALK);
+
+    // Encostar derruba quem não está invulnerável.
+    p.invuln = 0;
+    run(world, ticks(1));
+    expect(p.down).toBe(true);
+  });
+
+  it('cada arena encerrada gera um relatório com as métricas do plano', () => {
+    const world = new World(padrao, 9);
+    const a = world.addPlayer('p0', 0);
+    world.addPlayer('p1', 1).invuln = 1e9;
+    a.invuln = 1e9;
+    run(world, 1); // a onda começa no primeiro tick e zera as métricas
+    for (let i = 0; i < 3; i++) {
+      tap(world, 'p0', BTN_ATTACK);
+      run(world, ticks(RULES.shotCooldown) + 1);
+    }
+    a.invuln = 0;
+    const e = world.spawnEnemy(ENEMY_TRACA, { col: 1, row: 1 });
+    e.body.x = a.body.x;
+    e.body.y = a.body.y;
+    run(world, 1);
+    world.enemies.delete(e.id);
+    expect(a.down).toBe(true);
+    const elapsed = world.waveTime;
+    clearArena(world);
+    run(world, 1);
+
+    const [report, ...rest] = world.takeReports();
+    expect(rest).toEqual([]);
+    expect(report).toMatchObject({ arena: 'padrao', position: 1, arenas: 1, players: 2, outcome: 'limpa', downs: 1, hurry: false });
+    expect(report!.seconds).toBeCloseTo(elapsed, 1);
+    const mine = report!.perPlayer.find((s) => s.slot === 0)!;
+    expect(mine.shots).toBe(3);
+    expect(mine.downSeconds).toBeGreaterThan(0);
+    expect(report!.spreadCells).toBeGreaterThan(0);
+    expect(world.takeReports()).toEqual([]);
+  });
+
+  it('todos caídos sem vidas: relatório de recomeço e a mesma arena volta', () => {
+    const world = new World([padrao, ampla], 9);
+    const p = world.addPlayer('p0', 0);
+    run(world, 2);
+    world.lives = 0;
+    p.invuln = 0;
+    const e = world.spawnEnemy(ENEMY_TRACA, { col: 1, row: 1 });
+    e.body.x = p.body.x;
+    e.body.y = p.body.y;
+    run(world, 2);
+    expect(world.phase).toBe(PHASE_RESTART);
+    expect(world.takeReports()[0]?.outcome).toBe('recomeço');
+    run(world, ticks(RULES.restartDelay) + 1);
+    expect(world.arena.id).toBe('padrao');
+    expect(world.lives).toBe(RULES.teamLives);
+  });
+
+  /** Robô simples: persegue o inimigo mais próximo, atira, pula e recarrega quando a tinta acaba. */
+  function botButtons(world: World, id: string, t: number): number {
+    const p = world.players.get(id)!;
+    if (p.down) return 0;
+    const b = p.body;
+    let targetX: number | null = null;
+    let targetY = b.y;
+    if (p.ink < 1) {
+      const tube = world.arena.tubes.reduce((a, c) => (Math.abs(c.col * TILE - b.x) < Math.abs(a.col * TILE - b.x) ? c : a));
+      targetX = tube.col * TILE;
+      targetY = tube.row * TILE;
+    } else {
+      let best = Infinity;
+      for (const e of world.enemies.values()) {
+        if (e.kind === ENEMY_BORRAO) continue;
+        const d = Math.abs(e.body.x - b.x) + Math.abs(e.body.y - b.y);
+        if (d < best) {
+          best = d;
+          targetX = e.body.x;
+          targetY = e.body.y;
+        }
+      }
+    }
+    let buttons = 0;
+    if (targetX !== null) buttons |= targetX > b.x + 4 ? BTN_RIGHT : targetX < b.x - 4 ? BTN_LEFT : 0;
+    if (targetY < b.y - 1.5 * TILE && t % 40 === 0) buttons |= BTN_JUMP;
+    if (targetY > b.y + 1.5 * TILE && b.onOneWay && t % 40 === 0) buttons |= BTN_DOWN | BTN_JUMP;
+    if (t % 10 === 0) buttons |= BTN_ATTACK;
+    return buttons;
+  }
+
+  it.each([1, 3, 5])('%i robô(s) jogando 4 minutos: nada trava, ninguém sai da arena, relatórios saem', (bots) => {
+    const world = new World(ARENAS, 11);
+    for (let i = 0; i < bots; i++) world.addPlayer(`b${i}`, i);
+    const reports = [];
+    const phases = new Set<number>();
+    for (let t = 0; t < ticks(240); t++) {
+      for (let i = 0; i < bots; i++) world.applyInput(`b${i}`, botButtons(world, `b${i}`, t + i * 7));
+      world.step();
+      phases.add(world.phase);
+      reports.push(...world.takeReports());
+      const w = world.arena.cols * TILE;
+      const h = world.arena.rows * TILE;
+      for (const p of world.players.values()) {
+        expect(Number.isFinite(p.body.x) && Number.isFinite(p.body.y)).toBe(true);
+        expect(p.body.x).toBeGreaterThanOrEqual(TILE - 0.001);
+        expect(p.body.x).toBeLessThanOrEqual(w - TILE);
+        expect(p.body.y).toBeLessThan(h - TILE);
+        expect(p.ink).toBeGreaterThanOrEqual(0);
+      }
+      expect(world.enemies.size).toBeLessThanOrEqual(RULES.maxEnemiesOnScreen + 1);
+    }
+    expect(reports.length).toBeGreaterThan(0);
+    for (const r of reports) {
+      expect(r.players).toBe(bots);
+      expect(r.perPlayer).toHaveLength(bots);
+    }
+    expect(phases.has(PHASE_PLAYING)).toBe(true);
+  });
+
+  it('o robô de teste chega a recarregar no tubo', () => {
+    const world = new World(padrao, 3, { waves: false });
+    const p = world.addPlayer('b0', 0);
+    p.ink = 0;
+    let touched = false;
+    for (let t = 0; t < ticks(6) && !touched; t++) {
+      world.applyInput('b0', botButtons(world, 'b0', t));
+      world.step();
+      touched = touchesTube(p.body, world.arena, world.params);
+    }
+    expect(touched).toBe(true);
   });
 });

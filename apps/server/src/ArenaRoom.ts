@@ -4,6 +4,7 @@ import {
   ARENAS,
   MAX_PLAYERS,
   MSG_INPUT,
+  MSG_REPORT,
   ROOM_CODE_ALPHABET,
   ROOM_CODE_LENGTH,
   TICK_RATE,
@@ -49,11 +50,13 @@ export class ArenaRoom extends Room<{ state: GameState }> {
     this.maxClients = MAX_PLAYERS;
     // 60 comandos/s mais folga; acima disso o cliente é desconectado.
     this.maxMessagesPerSecond = 120;
-    const arena = ARENAS.find((a) => a.id === options.arenaId) ?? ARENAS[1]!;
-    this.world = new World(arena, randomInt(2 ** 31), { waves: this.waves });
+    // Capítulo: todas as arenas, começando pela escolhida na criação da sala.
+    const found = ARENAS.findIndex((a) => a.id === options.arenaId);
+    const first = found >= 0 ? found : 1; // padrão: a arena Padrão
+    const chapter = [...ARENAS.slice(first), ...ARENAS.slice(0, first)];
+    this.world = new World(chapter, randomInt(2 ** 31), { waves: this.waves });
 
     const state = new GameState();
-    state.arenaId = arena.id;
     state.tick = 0;
     this.state = state;
     this.sync();
@@ -112,12 +115,22 @@ export class ArenaRoom extends Room<{ state: GameState }> {
     }
     this.world.step();
     this.sync();
+    for (const report of this.world.takeReports()) {
+      // Métricas de playtest: uma linha JSON por arena no log do servidor e o mesmo relatório para a sala.
+      console.log(JSON.stringify({ relatorio: 'arena', sala: this.roomId, ...report }));
+      this.broadcast(MSG_REPORT, report);
+    }
   }
 
   /** Copia o mundo para o estado sincronizado. */
   private sync(): void {
     const w = this.world;
     const s = this.state;
+    s.arenaId = w.arena.id;
+    s.arenaIndex = w.arenaIndex;
+    s.arenaCount = w.chapter.length;
+    s.waveTime = w.waveTime;
+    s.hurry = w.hurry;
     s.phase = w.phase;
     s.phaseTime = w.phaseTime;
     s.wave = w.wave;
