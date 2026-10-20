@@ -34,7 +34,7 @@ const ITEM_COLORS = [0xc8402a, 0xd99a1e, 0x2f6fd6, 0x1f9e89, STAR_GOLD];
 export const PLAYER_COLORS = [0xe0502e, 0x3f8fd8, 0xd99a1e, 0x1f9e89, 0x9b4f96] as const;
 
 /** `showTubes`: os tubos de tinta só aparecem no modo difícil (nos outros a tinta é infinita). */
-export function drawArena(scene: Phaser.Scene, a: Arena, showTubes = true): void {
+export function drawArena(scene: Phaser.Scene, a: Arena, showTubes = true): Phaser.GameObjects.Graphics {
   const g = scene.add.graphics();
   g.fillStyle(PAPER).fillRect(0, 0, a.cols * TILE, a.rows * TILE);
   g.lineStyle(1, GRID);
@@ -69,6 +69,7 @@ export function drawArena(scene: Phaser.Scene, a: Arena, showTubes = true): void
 
   g.fillStyle(INK, 0.25);
   for (const s of a.playerSpawns) g.fillCircle(s.col * TILE + TILE / 2, (s.row + 1) * TILE - 3, 3);
+  return g;
 }
 
 export function drawPlayer(
@@ -127,27 +128,50 @@ export function drawPlayerFull(
     const cy = y + h - 5;
     g.fillStyle(color, 0.85).fillEllipse(cx, cy, w * 1.6, 10);
     g.lineStyle(2, INK).strokeEllipse(cx, cy, w * 1.6, 10);
+  } else drawPlayer(g, x, y, p, look.facing, color, isLocal, playerAlpha(look, now));
+  drawPlayerOverlay(g, x, y, p, look, color, false, now);
+}
+
+/** Opacidade do boneco: esmaecido sem conexão, piscando enquanto invulnerável. */
+export function playerAlpha(look: PlayerLook, now: number): number {
+  if (look.away) return 0.25;
+  return look.invuln > 0 && Math.floor(now / 100) % 2 === 0 ? 0.35 : 1;
+}
+
+/** O que vai por cima do boneco (greybox ou arte): anel de resgate, aura, proteção, medidor e o marcador do próprio. */
+export function drawPlayerOverlay(
+  g: Phaser.GameObjects.Graphics,
+  x: number,
+  y: number,
+  p: MovementParams,
+  look: PlayerLook,
+  color: number,
+  marker: boolean,
+  now: number,
+): void {
+  const w = p.playerWidth * TILE;
+  const h = p.playerHeight * TILE;
+  if (look.down) {
     if (look.rescue > 0) {
       const k = Math.min(1, look.rescue / RULES.rescueTime);
       g.lineStyle(3, INK).beginPath();
-      g.arc(cx, cy - 14, 8, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2);
+      g.arc(x + w / 2, y + h - 19, 8, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2);
       g.strokePath();
     }
     return;
   }
-  if (look.away) {
-    drawPlayer(g, x, y, p, look.facing, color, isLocal, 0.25);
-    return;
+  if (look.away) return;
+  if (marker) {
+    // Marcador acima da cabeça (a arte é mais alta que a caixa de colisão).
+    g.fillStyle(INK).fillTriangle(x + w / 2 - 4, y - 14, x + w / 2 + 4, y - 14, x + w / 2, y - 9);
   }
-  const blink = look.invuln > 0 && Math.floor(now / 100) % 2 === 0;
-  drawPlayer(g, x, y, p, look.facing, color, isLocal, blink ? 0.35 : 1);
   if ((look.star ?? 0) > 0) {
     const pulse = 0.55 + 0.45 * Math.sin(now / 90);
-    g.lineStyle(3, STAR_GOLD, pulse).strokeRoundedRect(x - 6, y - 6, p.playerWidth * TILE + 12, p.playerHeight * TILE + 12, 7);
+    g.lineStyle(3, STAR_GOLD, pulse).strokeRoundedRect(x - 6, y - 6, w + 12, h + 12, 7);
   }
   if ((look.hp ?? 1) > 1) {
     // Proteção do modo fácil: contorno extra que some no primeiro toque.
-    g.lineStyle(2, color, 0.9).strokeRoundedRect(x - 4, y - 4, p.playerWidth * TILE + 8, p.playerHeight * TILE + 8, 5);
+    g.lineStyle(2, color, 0.9).strokeRoundedRect(x - 4, y - 4, w + 8, h + 8, 5);
   }
 
   // Medidor de tinta: frasquinho ao lado do boneco (plano, seção 2.7).

@@ -23,6 +23,7 @@ import { el } from './dom';
 import type { InputSource } from './input';
 import { OnlineSession, type NetState } from './net';
 import { OnlineScene } from './OnlineScene';
+import { RES } from './art/textures';
 
 const INITIAL_STATE_TIMEOUT_MS = 5000;
 
@@ -140,8 +141,8 @@ export function bootOnline(input: InputSource): void {
       game = new Phaser.Game({
         type: Phaser.AUTO,
         parent: 'game',
-        width: arenaWidth(arena),
-        height: arenaHeight(arena),
+        width: arenaWidth(arena) * RES,
+        height: arenaHeight(arena) * RES,
         backgroundColor: '#e7dfcc',
         scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
         scene,
@@ -149,7 +150,7 @@ export function bootOnline(input: InputSource): void {
       // Inspeção pelo console: em desenvolvimento ou com ?debug (só dados deste cliente).
       if (import.meta.env.DEV || query.has('debug')) Object.assign(window, { riscote: { game, scene, session: () => session } });
     } else {
-      game.scale.setGameSize(arenaWidth(arena), arenaHeight(arena));
+      game.scale.setGameSize(arenaWidth(arena) * RES, arenaHeight(arena) * RES);
       scene.scene.restart();
     }
   }

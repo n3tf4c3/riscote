@@ -78,6 +78,10 @@ export interface PlayerView extends Positioned {
   away: boolean;
   hp: number;
   star: number;
+  /** Para escolher a pose do desenho (corrida, pulo, queda). */
+  vx: number;
+  vy: number;
+  onGround: boolean;
 }
 
 export type EnemyView = Positioned & NetEnemy;
@@ -188,6 +192,7 @@ export class OnlineSession {
       others.push({
         id, slot: p.slot, x: p.x, y: p.y, facing: p.facing,
         ink: p.ink, down: p.down, rescue: p.rescue, invuln: p.invuln, away: p.away, hp: p.hp, star: p.star,
+        vx: p.vx, vy: p.vy, onGround: p.onGround,
       });
     });
     this.players.push(now, others);
