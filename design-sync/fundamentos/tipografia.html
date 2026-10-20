@@ -1,0 +1,29 @@
+<!-- @dsCard group="Fundamentos" -->
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Tipografia</title>
+<style>
+  body { margin: 0; padding: 20px; background: #f6f1e6; color: #1f1d1a; font: 14px/1.4 system-ui, sans-serif; }
+  .row { display: grid; grid-template-columns: 170px 1fr; gap: 12px; align-items: baseline; border-bottom: 1px solid #e2d9c4; padding: 8px 0; }
+  .meta { color: #6d665a; font: 11px ui-monospace, monospace; }
+  .t1 { font-size: 16px; font-weight: 700; }
+  .t2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: #6d665a; font-weight: 700; }
+  .body { font-size: 14px; }
+  .small { font-size: 12px; color: #6d665a; }
+  .code { font: 700 28px/1 ui-monospace, monospace; letter-spacing: .15em; }
+  .banner { font: 700 20px system-ui, sans-serif; color: #1f1d1a; -webkit-text-stroke: 0; text-shadow: 0 0 3px #f1ead9, 0 0 3px #f1ead9, 0 0 3px #f1ead9; background: repeating-linear-gradient(90deg,#1f1d1a 0 40px,#8a8478 40px 80px); padding: 6px 10px; display: inline-block; }
+  p.note { color: #6d665a; font-size: 12px; margin: 10px 0 0; }
+</style>
+</head>
+<body>
+<div class="row"><span class="meta">Título do painel · 16/700</span><span class="t1">Riscote · protótipo</span></div>
+<div class="row"><span class="meta">Seção · 13/700 caixa alta</span><span class="t2">Partida</span></div>
+<div class="row"><span class="meta">Corpo · 14/400</span><span class="body">Atire tinta até o inimigo virar bola; encoste e chute.</span></div>
+<div class="row"><span class="meta">Apoio · 12/400 grafite</span><span class="small">Pendentes: comandos ainda não confirmados.</span></div>
+<div class="row"><span class="meta">Código da sala · mono 28/700, +0.15em</span><span class="code">K7CG2U</span></div>
+<div class="row"><span class="meta">Aviso na arena · 20/700, contorno papel 6 px</span><span><span class="banner">Arena limpa!</span></span></div>
+<p class="note">Hoje tudo usa a fonte do sistema (system-ui), sem fontes remotas. Uma letra "manuscrita a pincel" para títulos e avisos pode entrar com a arte final, desde que embutida no jogo e legível a 20 px.</p>
+</body>
+</html>

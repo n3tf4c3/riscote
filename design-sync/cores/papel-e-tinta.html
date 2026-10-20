@@ -1,0 +1,36 @@
+<!-- @dsCard group="Cores" -->
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Papel e tinta</title>
+<style>
+  body { margin: 0; padding: 20px; background: #e7dfcc; color: #1f1d1a; font: 13px/1.4 system-ui, sans-serif; }
+  h1 { font-size: 15px; margin: 0 0 4px; }
+  p { margin: 0 0 14px; color: #6d665a; }
+  .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+  .sw { border: 1.5px solid #1f1d1a; border-radius: 4px; overflow: hidden; background: #f6f1e6; }
+  .chip { height: 64px; }
+  .meta { padding: 6px 8px; }
+  .meta b { display: block; font-size: 12px; }
+  code { font: 12px ui-monospace, monospace; }
+  .use { color: #6d665a; font-size: 11px; }
+</style>
+</head>
+<body>
+<h1>Papel e tinta — base do jogo e da interface</h1>
+<p>Valores reais do protótipo (<code>apps/client/src/draw.ts</code> e <code>index.html</code>). Jogável = nanquim escuro com contorno; decorativo = claro e sem contorno.</p>
+<div class="grid">
+  <div class="sw"><div class="chip" style="background:#f1ead9"></div><div class="meta"><b>Papel</b><code>#f1ead9</code><div class="use">fundo da arena</div></div></div>
+  <div class="sw"><div class="chip" style="background:#e2d9c4"></div><div class="meta"><b>Pauta</b><code>#e2d9c4</code><div class="use">grade/linhas do caderno</div></div></div>
+  <div class="sw"><div class="chip" style="background:#e7dfcc"></div><div class="meta"><b>Mesa</b><code>#e7dfcc</code><div class="use">fundo fora da arena</div></div></div>
+  <div class="sw"><div class="chip" style="background:#f6f1e6"></div><div class="meta"><b>Folha do painel</b><code>#f6f1e6</code><div class="use">painéis e cartões</div></div></div>
+  <div class="sw"><div class="chip" style="background:#6d665a"></div><div class="meta"><b>Grafite</b><code>#6d665a</code><div class="use">texto secundário</div></div></div>
+  <div class="sw"><div class="chip" style="background:#1f1d1a"></div><div class="meta"><b>Nanquim</b><code>#1f1d1a</code><div class="use">contornos, sólidos, texto</div></div></div>
+  <div class="sw"><div class="chip" style="background:#8a8478"></div><div class="meta"><b>Lápis</b><code>#8a8478</code><div class="use">plataforma atravessável</div></div></div>
+  <div class="sw"><div class="chip" style="background:#2f6fd6"></div><div class="meta"><b>Tinta azul</b><code>#2f6fd6</code><div class="use">tinta dos jogadores, tubos, ação</div></div></div>
+  <div class="sw"><div class="chip" style="background:#c8402a"></div><div class="meta"><b>Lacre</b><code>#c8402a</code><div class="use">surgimento de inimigo, alerta</div></div></div>
+  <div class="sw"><div class="chip" style="background:#d7261e"></div><div class="meta"><b>Olho do borrão</b><code>#d7261e</code><div class="use">perigo que não se derrota</div></div></div>
+</div>
+</body>
+</html>

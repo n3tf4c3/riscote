@@ -1,0 +1,52 @@
+<!-- @dsCard group="Interface" -->
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Painel da sala e controles</title>
+<style>
+  body { margin: 0; padding: 20px; background: #e7dfcc; color: #1f1d1a; font: 14px/1.4 system-ui, sans-serif; }
+  .cols { display: grid; grid-template-columns: 300px 1fr; gap: 18px; align-items: start; }
+  aside { background: #f6f1e6; border: 2px solid #1f1d1a; padding: 12px 14px; }
+  h2 { font-size: 13px; margin: 12px 0 6px; text-transform: uppercase; letter-spacing: .04em; color: #6d665a; }
+  h2:first-child { margin-top: 0; }
+  .stack { display: grid; gap: 4px; margin-bottom: 8px; }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; }
+  button { font: inherit; text-align: left; padding: 5px 8px; background: #fff; color: #1f1d1a; border: 1.5px solid #1f1d1a; border-radius: 4px; }
+  button.active, button.primary { background: #1f1d1a; color: #f6f1e6; }
+  button.primary { width: 100%; text-align: center; }
+  button[disabled] { opacity: .5; }
+  input { font: inherit; text-transform: uppercase; letter-spacing: .12em; width: 9.5em; padding: 5px 8px; border: 1.5px solid #1f1d1a; border-radius: 4px; background: #fff; }
+  .code { font: 700 28px/1 ui-monospace, monospace; letter-spacing: .15em; margin: 0 0 8px; }
+  dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; font-size: 12px; }
+  dt { color: #6d665a; }
+  dd { margin: 0; font-variant-numeric: tabular-nums; }
+  .status { color: #c8402a; font-size: 13px; margin: 6px 0 0; }
+  .keys { color: #6d665a; font-size: 12px; margin: 4px 0 0; }
+  .states { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .card { background: #f6f1e6; border: 1.5px solid #1f1d1a; border-radius: 4px; padding: 10px; }
+  .card b { display: block; margin-bottom: 6px; }
+</style>
+</head>
+<body>
+<div class="cols">
+  <aside>
+    <h2>Sala</h2>
+    <p class="code">K7CG2U</p>
+    <div class="row"><button>Copiar convite</button><button>Sair da sala</button></div>
+    <div style="margin-top:10px"><button class="primary">Começar partida</button><p class="keys">Você é o anfitrião. Comece (ou aperte Enter) quando todos tiverem entrado.</p></div>
+    <h2>Partida</h2>
+    <dl>
+      <dt>Modo</dt><dd>Difícil</dd><dt>Arena</dt><dd>Padrão 32×18 (1/3)</dd><dt>Tempo</dt><dd>1:05 · borrão!</dd>
+      <dt>Inimigos</dt><dd>4</dd><dt>Vidas da equipe</dt><dd>3</dd><dt>Pontos</dt><dd>700</dd><dt>Sua tinta</dt><dd>7/12</dd>
+    </dl>
+  </aside>
+  <div class="states">
+    <div class="card"><b>Nova sala</b><div class="stack"><button>Compacta 28×16</button><button class="active">Padrão 32×18</button><button>Ampla 36×20</button></div><div class="row"><button>Fácil</button><button class="active">Médio</button><button>Difícil</button></div><div style="margin-top:8px"><button class="primary">Criar sala</button></div></div>
+    <div class="card"><b>Entrar com código</b><div class="row"><input value="ABCD23"><button>Entrar</button></div><p class="status">Sala cheia: o limite é de 5 jogadores.</p><p class="status" style="color:#1f1d1a">Nenhuma sala com esse código.</p></div>
+    <div class="card"><b>Botões</b><div class="row"><button>Padrão</button><button class="active">Selecionado</button><button disabled>Desativado</button></div><div style="margin-top:6px"><button class="primary">Ação principal</button></div></div>
+    <div class="card"><b>Controles</b><p class="keys">← → / A D andar · Espaço / Z pular (segure para ir mais alto) · ↓ + pular descer da plataforma · X / J atirar tinta e chutar · gamepad: direcional + A pula, X ataca</p></div>
+  </div>
+</div>
+</body>
+</html>

@@ -95,7 +95,7 @@ Ainda não há lint. O aviso de bundle acima de 500 kB vem do Phaser e é espera
 - **Referências.** Nada de recursos, personagens ou layouts de Snow Bros ou do NANQUIM.
 
 ## Arte
-A arte final é produzida no Claude Design (claude.ai/design), decisão do usuário em 2026-10-20. Até lá o jogo usa greybox desenhado por código (`apps/client/src/draw.ts`). As cores dos 5 jogadores, a separação jogável × decorativo e a legibilidade vêm do plano (seção 3) e valem também para a arte final.
+A arte final é produzida no Claude Design (claude.ai/design), decisão do usuário em 2026-10-20. A base que alimenta o design system de lá está em `design-sync/` (cartões HTML e o README com o processo de publicação). Até lá o jogo usa greybox desenhado por código (`apps/client/src/draw.ts`). As cores dos 5 jogadores, a separação jogável × decorativo e a legibilidade vêm do plano (seção 3) e valem também para a arte final.
 
 ## TypeScript executado pelo Node
 O servidor roda `.ts` direto no Node (remoção de tipos, sem build). Em `apps/server` e `packages/shared`:
