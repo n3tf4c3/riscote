@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Riscote — protótipo de movimento</title>
+    <title>Riscote — protótipo</title>
     <style>
       :root {
         --paper: #e7dfcc;
@@ -32,7 +32,18 @@
       h1 { font-size: 16px; margin: 0 0 4px; }
       h2 { font-size: 13px; margin: 14px 0 6px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
       p.keys { margin: 0; color: var(--muted); font-size: 12px; }
-      #arenas { display: grid; gap: 4px; }
+      .stack { display: grid; gap: 4px; margin-bottom: 8px; }
+      #game { display: grid; place-items: center; }
+      #game-placeholder { color: var(--muted); }
+      button.primary { background: var(--ink); color: var(--panel); text-align: center; width: 100%; }
+      button:disabled { opacity: .5; cursor: progress; }
+      input[type="text"], #join-code {
+        font: inherit; text-transform: uppercase; letter-spacing: .12em; width: 9.5em;
+        padding: 5px 8px; border: 1.5px solid var(--ink); border-radius: 4px; background: #fff; color: var(--ink);
+      }
+      .status { min-height: 1.4em; margin: 6px 0 0; font-size: 13px; }
+      .code { font: 700 28px/1 ui-monospace, monospace; letter-spacing: .15em; margin: 0 0 8px; }
+      a { color: var(--accent); }
       button {
         font: inherit; text-align: left; padding: 5px 8px; cursor: pointer;
         background: #fff; color: var(--ink); border: 1.5px solid var(--ink); border-radius: 4px;
@@ -53,32 +64,67 @@
     </style>
   </head>
   <body>
-    <div id="game"></div>
+    <div id="game"><p id="game-placeholder">Crie uma sala ou entre com um código.</p></div>
     <aside>
-      <h1>Riscote · etapa 1</h1>
+      <h1>Riscote · protótipo</h1>
       <p class="keys">
         ← → / A D andar · Espaço / Z pular (segure para ir mais alto) · ↓ + pular descer da plataforma ·
-        1–3 trocar arena · R reposicionar · gamepad: direcional + A
+        gamepad: direcional + A
       </p>
 
-      <h2>Arena</h2>
-      <div id="arenas"></div>
+      <section id="panel-online" hidden>
+        <div id="lobby">
+          <h2>Nova sala</h2>
+          <div id="online-arenas" class="stack"></div>
+          <button type="button" id="create" class="primary">Criar sala</button>
 
-      <h2>Medições</h2>
-      <dl>
-        <dt>Travessia</dt><dd id="m-crossing">—</dd>
-        <dt>Topo → tubo</dt><dd id="m-tube">—</dd>
-        <dt>Agora</dt><dd id="m-speed">—</dd>
-      </dl>
-      <p class="keys">Metas do plano: travessia 3–4 s; do andar mais alto até um tubo ≤ 3 s.</p>
+          <h2>Entrar com código</h2>
+          <form id="join-form" class="row">
+            <input id="join-code" name="codigo" maxlength="9" placeholder="Ex.: ABCD23" autocomplete="off" spellcheck="false" aria-label="Código da sala" />
+            <button type="submit" id="join">Entrar</button>
+          </form>
+          <p id="lobby-status" class="status" role="status" aria-live="polite"></p>
+        </div>
 
-      <h2>Movimento</h2>
-      <div class="row" style="margin-bottom: 8px">
-        <button type="button" id="respawn">Reposicionar</button>
-        <button type="button" id="reset-params">Restaurar padrão</button>
-        <button type="button" id="copy">Copiar medições</button>
-      </div>
-      <div id="sliders"></div>
+        <div id="in-room" hidden>
+          <h2>Sala</h2>
+          <p class="code" id="room-code"></p>
+          <div class="row">
+            <button type="button" id="copy-invite">Copiar convite</button>
+            <button type="button" id="leave">Sair da sala</button>
+          </div>
+          <h2>Conexão</h2>
+          <dl>
+            <dt>Jogadores</dt><dd id="r-players">—</dd>
+            <dt>Correções</dt><dd id="r-corrections">—</dd>
+            <dt>Pendentes</dt><dd id="r-pending">—</dd>
+          </dl>
+          <p class="keys">Correções: vezes em que a previsão local divergiu do servidor. Pendentes: comandos ainda não confirmados (≈ ida e volta).</p>
+        </div>
+        <p class="keys"><a href="?local">Modo local: ajustar o movimento</a></p>
+      </section>
+
+      <section id="panel-local" hidden>
+        <p class="keys">1–3 trocar arena · R reposicionar · <a href="./">voltar ao modo online</a></p>
+        <h2>Arena</h2>
+        <div id="arenas" class="stack"></div>
+
+        <h2>Medições</h2>
+        <dl>
+          <dt>Travessia</dt><dd id="m-crossing">—</dd>
+          <dt>Topo → tubo</dt><dd id="m-tube">—</dd>
+          <dt>Agora</dt><dd id="m-speed">—</dd>
+        </dl>
+        <p class="keys">Metas do plano: travessia 3–4 s; do andar mais alto até um tubo ≤ 3 s.</p>
+
+        <h2>Movimento</h2>
+        <div class="row" style="margin-bottom: 8px">
+          <button type="button" id="respawn">Reposicionar</button>
+          <button type="button" id="reset-params">Restaurar padrão</button>
+          <button type="button" id="copy">Copiar medições</button>
+        </div>
+        <div id="sliders"></div>
+      </section>
     </aside>
     <script type="module" src="/src/main.ts"></script>
   </body>

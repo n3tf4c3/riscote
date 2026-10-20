@@ -9,6 +9,8 @@
     "test": "echo \"client: sem testes (lógica testada em @riscote/shared)\""
   },
   "dependencies": {
+    "@colyseus/schema": "^5.0.41",
+    "@colyseus/sdk": "^0.18.5",
     "@riscote/shared": "workspace:*",
     "phaser": "^4.2.1"
   },

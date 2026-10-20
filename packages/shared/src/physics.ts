@@ -1,6 +1,6 @@
-import { cellAt, ONE_WAY, SOLID, tubeRect, type Arena, type CellPos } from './arena';
-import { BTN_DOWN, BTN_JUMP, BTN_LEFT, BTN_RIGHT } from './input';
-import { TICK_DT, TILE, type MovementParams } from './params';
+import { cellAt, ONE_WAY, SOLID, tubeRect, type Arena, type CellPos } from './arena.ts';
+import { BTN_DOWN, BTN_JUMP, BTN_LEFT, BTN_RIGHT } from './input.ts';
+import { TICK_DT, TILE, type MovementParams } from './params.ts';
 
 const EPS = 0.001;
 

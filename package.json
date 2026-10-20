@@ -6,6 +6,7 @@
   "scripts": {
     "client": "pnpm --filter ./apps/client dev",
     "client:build": "pnpm --filter ./apps/client build",
+    "server": "pnpm --filter ./apps/server dev",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test"
   }

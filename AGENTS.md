@@ -1,37 +1,76 @@
 # Riscote — guia do projeto
 
-Jogo de plataforma 2D arcade, cooperativo e online, jogado no navegador, com salas de até 5 jogadores. A referência é o ritmo de Snow Bros, com identidade própria em estilo tinta sobre papel. Estado atual: **etapa 1** do MVP, movimento local em greybox, sem rede. O servidor autoritativo (Node + Colyseus) entra na etapa 2. O planejamento completo fica em `PLANEJAMENTO.md` na raiz (local, fora do Git por decisão do usuário).
+Jogo de plataforma 2D arcade, cooperativo e online, jogado no navegador, com salas de até 5 jogadores. A referência é o ritmo de Snow Bros, com identidade própria em estilo tinta sobre papel.
+
+Estado atual:
+- **Etapa 1** (movimento local em greybox) concluída.
+- **Etapa 2** (servidor autoritativo, salas por código, previsão e interpolação) concluída.
+
+Ainda não existem inimigos, mecânica central nem tinta. O planejamento completo fica em `PLANEJAMENTO.md` na raiz (local, fora do Git por decisão do usuário).
 
 ## Mapa
 | Assunto | Caminho |
 | --- | --- |
 | Parâmetros de movimento e tick | `packages/shared/src/params.ts` |
 | Comandos do jogador (máscara de bits) | `packages/shared/src/input.ts` |
-| Formato de arena e consultas de célula | `packages/shared/src/arena.ts` |
-| Arenas greybox (ASCII) | `packages/shared/src/arenas.ts` |
+| Arenas: formato e layouts ASCII | `packages/shared/src/arena.ts`, `packages/shared/src/arenas.ts` |
 | Física de plataforma | `packages/shared/src/physics.ts` |
-| Testes da simulação e das arenas | `packages/shared/test/` |
-| Cliente: cena, entrada, métricas, painel de ajuste | `apps/client/src/` |
+| Protocolo: sala, código, validação de entrada, mensagens de erro | `packages/shared/src/protocol.ts` |
+| Previsão, reconciliação e interpolação | `packages/shared/src/prediction.ts` |
+| Sala autoritativa e estado sincronizado | `apps/server/src/ArenaRoom.ts`, `apps/server/src/state.ts` |
+| Cliente online: entrada em sala, sessão, cena | `apps/client/src/online.ts`, `net.ts`, `OnlineScene.ts` |
+| Cliente local (`?local`): ajuste de movimento e medições | `apps/client/src/local.ts`, `ArenaScene.ts`, `tuning.ts`, `metrics.ts` |
+| Testes | `packages/shared/test/`, `apps/server/test/` |
 
 ## Comandos (raiz)
 - `pnpm install`
-- `pnpm client`: Vite em http://localhost:5173
+- `pnpm server`: partidas em ws://localhost:2567. `COLYSEUS_LATENCY=<ms>` simula a latência de ida e volta.
+- `pnpm client`: Vite em http://localhost:5173.
+  - `?local` abre o modo de ajuste.
+  - `?sala=CODIGO` entra direto numa sala.
+  - `?servidor=ws://…` troca o servidor.
 - `pnpm client:build`
 - `pnpm typecheck`
 - `pnpm test`
 
-Ainda não há lint configurado. O aviso de bundle acima de 500 kB vem do Phaser e é esperado.
+Ainda não há lint. O aviso de bundle acima de 500 kB vem do Phaser e é esperado.
 
 ## Invariantes
-- `packages/shared` é a fonte da verdade da simulação e será executado também pelo servidor. Não depende de Phaser, DOM ou relógio: o tsconfig não inclui DOM, o passo é fixo (`TICK_DT`) e `Math.random` não é usado sem semente. A mesma sequência de comandos produz o mesmo estado, e um teste cobre isso.
-- O cliente só produz a máscara de bits de botões. Posição, dano, pontuação e conclusão de fase nunca vêm do navegador.
-- A física do Phaser não é usada. O Phaser só desenha e lê a entrada.
-- Velocidade por tick abaixo de 1 célula: a colisão não faz varredura. `stepPlayer` limita a queda.
-- Arenas: os testes exigem paredes fechadas, 5 surgimentos de jogador, tubos de tinta nos dois cantos inferiores, andares a menos de `jumpHeight` células e, de qualquer plataforma, um tubo em até 3 s.
-- Nada de recursos, personagens ou layouts de Snow Bros ou do NANQUIM.
+- **Simulação compartilhada.** `packages/shared` é a fonte da verdade da simulação e roda igual no servidor e no cliente.
+  - Não depende de Phaser, DOM ou relógio: o tsconfig não inclui DOM e o passo é fixo (`TICK_DT`).
+  - `Math.random` não é usado sem semente.
+  - A mesma sequência de comandos produz o mesmo estado; um teste cobre isso.
+- **Servidor autoritativo.** O cliente envia só `{ seq, buttons }`, validado por `parseInput`. Posição, dano, pontuação e conclusão de fase nunca vêm do navegador.
+- **Fila de comandos no servidor.**
+  - Cada comando é simulado uma única vez, na ordem; `seq` repetido ou antigo é descartado.
+  - A fila guarda no máximo 8 comandos.
+  - Sem comandos por mais de 10 ticks, o jogador segue a simulação com os botões soltos.
+  - `ack` informa o último comando aplicado; a reconciliação depende dele.
+- **Estado sincronizado.** Os campos de `PlayerSchema` espelham `NetPlayer`, em `float64`, para a reconciliação partir do estado exato do servidor.
+- **Previsão própria.** Previsão e interpolação ficam em `prediction.ts`. O `Predict` do Colyseus 0.18 não é usado por enquanto (decisão para reavaliar).
+- **Sala cheia.** A sala só fica trancada ao atingir 5 jogadores, por isso `describeJoinError` trata "locked" como sala cheia. Se algum dia a sala for trancada por outro motivo, mude essa tradução.
+- **Física do Phaser.** Não é usada; o Phaser só desenha e lê a entrada.
+- **Colisão.** A velocidade por tick fica abaixo de 1 célula, porque a colisão não faz varredura; `stepPlayer` limita a queda.
+- **Arenas.** Os testes exigem:
+  - paredes fechadas;
+  - 5 surgimentos de jogador;
+  - tubos de tinta nos dois cantos inferiores;
+  - andares a menos de `jumpHeight` células;
+  - de qualquer plataforma, um tubo em até 3 s.
+- **Referências.** Nada de recursos, personagens ou layouts de Snow Bros ou do NANQUIM.
+
+## TypeScript executado pelo Node
+O servidor roda `.ts` direto no Node (remoção de tipos, sem build). Em `apps/server` e `packages/shared`:
+- imports relativos com extensão `.ts`;
+- nada de `enum`, `namespace` ou propriedades declaradas no construtor (`erasableSyntaxOnly` acusa);
+- schema do Colyseus com `schema()` e `t.*`, sem decorators.
+
+## Dependências
+- Usamos `@colyseus/core` + `@colyseus/ws-transport`, não o pacote `colyseus`. O pacote `colyseus` puxa `uWebSockets.js` direto de um repositório git, o que o pnpm bloqueia.
+- Scripts de instalação só rodam se aprovados em `pnpm-workspace.yaml` (`allowBuilds`), com o motivo ao lado.
 
 ## Testes no navegador
-Uma aba ou painel em segundo plano congela os timers e o `requestAnimationFrame`. Medições de tempo pelo navegador só valem com a aba visível. Para números confiáveis, use a simulação em teste. Em desenvolvimento, `window.riscote` expõe `game`, `scene`, `params` e `metrics`.
+Uma aba ou painel que não está sendo desenhado congela o `requestAnimationFrame`, e o jogo não avança. Medições de tempo e movimento pelo navegador só valem com a aba visível. Para números confiáveis, use os testes (simulação e servidor real com latência simulada). Em desenvolvimento, `window.riscote` expõe o jogo e a sessão.
 
 ## Limites
 - Não contratar serviços nem alterar o DNS de `riscote.win` sem pedido explícito.
