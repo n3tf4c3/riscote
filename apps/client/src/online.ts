@@ -4,6 +4,7 @@ import {
   ARENAS,
   MAX_PLAYERS,
   ROOM_NAME,
+  RULES,
   TICK_DT,
   arenaHeight,
   arenaWidth,
@@ -158,14 +159,28 @@ export function bootOnline(input: InputSource): void {
     void enter(sdk.joinById(invited));
   }
 
+  const hud = {
+    wave: el('g-wave'),
+    enemies: el('g-enemies'),
+    lives: el('g-lives'),
+    score: el('g-score'),
+    ink: el('g-ink'),
+    kills: el('g-kills'),
+  };
   const playersOut = el('r-players');
   const correctionsOut = el('r-corrections');
   const pendingOut = el('r-pending');
   setInterval(() => {
     if (!session) return;
-    let count = 0;
-    (session.room.state as NetState).players.forEach(() => count++);
-    playersOut.textContent = `${count}/${MAX_PLAYERS}`;
+    const state = session.state;
+    const me = session.me;
+    hud.wave.textContent = String(state.wave);
+    hud.enemies.textContent = String(state.enemiesLeft);
+    hud.lives.textContent = String(state.lives);
+    hud.score.textContent = String(state.score);
+    hud.ink.textContent = me ? `${Math.floor(me.ink)}/${RULES.tankSize}` : '—';
+    hud.kills.textContent = me ? String(me.kills) : '—';
+    playersOut.textContent = `${state.players.size}/${MAX_PLAYERS}`;
     correctionsOut.textContent = String(session.corrections);
     pendingOut.textContent = `${session.pendingCount} (~${Math.round(session.pendingCount * TICK_DT * 1000)} ms)`;
   }, 200);

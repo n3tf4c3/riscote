@@ -5,3 +5,4 @@ export * from './arenas.ts';
 export * from './physics.ts';
 export * from './protocol.ts';
 export * from './prediction.ts';
+export * from './world.ts';

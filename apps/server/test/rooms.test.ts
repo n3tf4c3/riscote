@@ -4,6 +4,7 @@ import { WebSocketTransport } from '@colyseus/ws-transport';
 import { boot, type ColyseusTestServer } from '@colyseus/testing';
 import {
   ARENAS,
+  BTN_ATTACK,
   BTN_JUMP,
   BTN_LEFT,
   BTN_RIGHT,
@@ -20,11 +21,19 @@ import {
 } from '@riscote/shared';
 import { ArenaRoom } from '../src/ArenaRoom.ts';
 
+const ROOM_WITH_ENEMIES = 'arena-com-inimigos';
+
+/** Sala sem inimigos: isola os testes de rede e autoridade do movimento. */
+class QuietRoom extends ArenaRoom {
+  protected override readonly waves = false;
+}
+
 let t: ColyseusTestServer;
 
 beforeAll(async () => {
   const server = new Server({ transport: new WebSocketTransport(), greet: false, gracefullyShutdown: false });
-  server.define(ROOM_NAME, ArenaRoom);
+  server.define(ROOM_NAME, QuietRoom);
+  server.define(ROOM_WITH_ENEMIES, ArenaRoom);
   t = await boot(server);
 });
 afterEach(async () => {
@@ -208,4 +217,67 @@ describe('previsão e interpolação sob latência (critério da etapa 2)', () =
     expect(samples.length).toBeGreaterThan(30);
     for (let i = 1; i < samples.length; i++) expect(samples[i]!).toBeGreaterThanOrEqual(samples[i - 1]!);
   }, 15000);
+});
+
+/** Resumo textual do estado decodificado por um cliente: tudo o que a partida tem de autoritativo. */
+function digest(state: any): string {
+  const sorted = (m: any) => {
+    const out: Array<[string, any]> = [];
+    m.forEach((v: any, k: string) => out.push([k, v]));
+    return out.sort(([a], [b]) => (a < b ? -1 : 1));
+  };
+  const rows = [`t${state.tick} f${state.phase} v${state.lives} s${state.score} e${state.enemiesLeft}`];
+  for (const [k, p] of sorted(state.players)) rows.push(`P${k}:${p.x},${p.y},${p.ack},${p.ink},${p.down},${p.kills}`);
+  for (const [k, e] of sorted(state.enemies)) rows.push(`E${k}:${e.kind},${e.mode},${e.x},${e.y},${e.soak}`);
+  for (const [k, d] of sorted(state.drops)) rows.push(`D${k}:${d.x},${d.y}`);
+  return rows.join("|");
+}
+
+describe("partida com inimigos (etapa 3)", () => {
+  it("dois clientes decodificam exatamente o mesmo estado autoritativo a cada tick", async () => {
+    const room = (await t.createRoom(ROOM_WITH_ENEMIES, {})) as unknown as ArenaRoom;
+    const a = await t.connectTo(room);
+    const b = await t.connectTo(room);
+    await until(() => (a.state as any).enemies.size > 0 && (b.state as any).enemies.size > 0);
+    expect((a.state as any).enemiesLeft).toBe(Math.round(4 + 1.5 * 2));
+
+    let seqA = 0;
+    let seqB = 0;
+    let compared = 0;
+    for (let tick = 0; tick < 120; tick++) {
+      a.send(MSG_INPUT, { seq: ++seqA, buttons: tick % 20 < 2 ? BTN_ATTACK : BTN_RIGHT });
+      b.send(MSG_INPUT, { seq: ++seqB, buttons: tick % 30 < 2 ? BTN_ATTACK | BTN_JUMP : BTN_LEFT });
+      await sleep(1000 / 60);
+      const sa = a.state as any;
+      const sb = b.state as any;
+      if (sa.tick === sb.tick) {
+        expect(digest(sa)).toBe(digest(sb));
+        compared++;
+      }
+    }
+    expect(compared).toBeGreaterThan(20);
+  }, 15000);
+
+  it('o cliente não altera pontos, vidas, tinta, abates nem a fase; tipo de mensagem desconhecido derruba o cliente', async () => {
+    const room = (await t.createRoom(ROOM_WITH_ENEMIES, {})) as unknown as ArenaRoom;
+    const c = await t.connectTo(room);
+    c.send(MSG_INPUT, { seq: 1, buttons: 0, score: 99999, lives: 99, ink: 99, kills: 50, phase: 1 });
+    c.send(MSG_INPUT, { seq: 2, buttons: 0, down: false, invuln: 999 });
+    await sleep(150);
+    const s = room.state;
+    const me = s.players.get(c.sessionId)!;
+    expect(s.tick).toBeGreaterThan(0);
+    expect(s.score).toBe(0);
+    expect(s.lives).toBe(5);
+    expect(s.phase).toBe(0);
+    expect(me.kills).toBe(0);
+    expect(me.ink).toBe(12);
+    expect(me.invuln).toBeLessThan(2);
+    expect(me.ack).toBe(2);
+
+    // Fora do modo de desenvolvimento, o Colyseus derruba quem manda um tipo não registrado.
+    c.send('score', { score: 99999 });
+    await until(() => room.clients.length === 0);
+    expect(s.score).toBe(0);
+  });
 });

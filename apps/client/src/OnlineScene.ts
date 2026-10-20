@@ -1,17 +1,19 @@
 import * as Phaser from 'phaser';
-import { TICK_DT } from '@riscote/shared';
-import { PLAYER_COLORS, drawArena, drawPlayer } from './draw';
+import { PHASE_CLEAR, PHASE_RESTART, TICK_DT, TILE } from '@riscote/shared';
+import { INK, PLAYER_COLORS, drawArena, drawDrop, drawEnemy, drawPlayerFull } from './draw';
 import type { InputSource } from './input';
 import type { OnlineSession } from './net';
 
 const MAX_FRAME = 0.25;
+const GREY = 0x888888;
 
-/** Modo online (etapa 2): o próprio boneco é previsto; os outros chegam interpolados do servidor. */
+/** Modo online: o próprio boneco é previsto; inimigos, gotas e os outros chegam interpolados do servidor. */
 export class OnlineScene extends Phaser.Scene {
   private acc = 0;
   private prevX = 0;
   private prevY = 0;
   private gfx!: Phaser.GameObjects.Graphics;
+  private banner!: Phaser.GameObjects.Text;
 
   constructor(private readonly ctx: { session: () => OnlineSession | null; input: InputSource }) {
     super('online');
@@ -22,6 +24,10 @@ export class OnlineScene extends Phaser.Scene {
     if (!session) return;
     drawArena(this, session.arena);
     this.gfx = this.add.graphics();
+    const w = session.arena.cols * TILE;
+    this.banner = this.add
+      .text(w / 2, TILE * 1.5, '', { fontFamily: 'system-ui, sans-serif', fontSize: '20px', color: '#1f1d1a', fontStyle: 'bold' })
+      .setOrigin(0.5, 0.5);
     this.acc = 0;
     this.prevX = session.local.x;
     this.prevY = session.local.y;
@@ -40,20 +46,32 @@ export class OnlineScene extends Phaser.Scene {
       this.acc -= TICK_DT;
     }
 
+    const now = performance.now();
+    const state = session.state;
     const g = this.gfx.clear();
-    for (const r of session.remotes(performance.now())) {
-      drawPlayer(g, r.x, r.y, session.params, r.facing, PLAYER_COLORS[r.slot] ?? 0x888888, false);
+    for (const e of session.enemyViews(now)) drawEnemy(g, e.x, e.y, e, state.soakToBall);
+    for (const r of session.remotePlayers(now)) {
+      drawPlayerFull(g, r.x, r.y, session.params, r, PLAYER_COLORS[r.slot] ?? GREY, false, now);
     }
+    const me = session.me;
     const alpha = this.acc / TICK_DT;
-    const me = session.local;
-    drawPlayer(
-      g,
-      this.prevX + (me.x - this.prevX) * alpha,
-      this.prevY + (me.y - this.prevY) * alpha,
-      session.params,
-      me.facing,
-      PLAYER_COLORS[session.slot] ?? 0x888888,
-      true,
+    const local = session.local;
+    if (me) {
+      drawPlayerFull(
+        g,
+        this.prevX + (local.x - this.prevX) * alpha,
+        this.prevY + (local.y - this.prevY) * alpha,
+        session.params,
+        { facing: local.facing, ink: me.ink, down: me.down, rescue: me.rescue, invuln: me.invuln },
+        PLAYER_COLORS[session.slot] ?? GREY,
+        true,
+        now,
+      );
+    }
+    for (const d of session.dropViews(now)) drawDrop(g, d.x, d.y, PLAYER_COLORS[d.slot] ?? INK);
+
+    this.banner.setText(
+      state.phase === PHASE_CLEAR ? 'Arena limpa!' : state.phase === PHASE_RESTART ? 'Sem vidas: recomeçando a arena…' : '',
     );
   }
 }

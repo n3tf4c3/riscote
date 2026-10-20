@@ -18,8 +18,8 @@ import {
 const arena = ARENAS[1]!;
 const params = { ...DEFAULT_PARAMS };
 
-function net(s: PlayerState, ack: number): NetPlayer {
-  return { ...s, slot: 0, ack };
+function net(s: PlayerState, ack: number, down = false): NetPlayer {
+  return { ...s, slot: 0, ack, ink: 12, down, rescue: 0, invuln: 0, kills: 0 };
 }
 
 /** Servidor em memória: aplica cada comando uma vez, na ordem, com atraso fixo em ticks nos dois sentidos. */
@@ -54,6 +54,17 @@ describe('Predictor', () => {
     expect(predictor.corrections).toBe(0);
     expect(predictor.pendingCount).toBe(0);
     expect(predictor.state).toEqual(server);
+  });
+
+  it('derrubado no servidor: a previsão para de mover o boneco', () => {
+    const start = createPlayer(arena.playerSpawns[0]!, params);
+    const predictor = new Predictor(arena, params, net(start, 0));
+    predictor.tick(BTN_RIGHT);
+    predictor.reconcile(net(start, 1, true));
+    const x = predictor.state.x;
+    for (let i = 0; i < 30; i++) predictor.tick(BTN_RIGHT);
+    expect(predictor.state.x).toBe(x);
+    expect(predictor.state.prevButtons).toBe(BTN_RIGHT);
   });
 
   it('passo extra do servidor gera correção e a previsão converge para o estado autoritativo', () => {
