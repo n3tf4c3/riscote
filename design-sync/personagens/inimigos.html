@@ -1,0 +1,31 @@
+<!-- @dsCard group="Personagens" -->
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Inimigos e a bola de tinta</title>
+<style>
+  body { margin: 0; padding: 20px; background: #f1ead9; color: #1f1d1a; font: 13px/1.4 system-ui, sans-serif; }
+  h1 { font-size: 15px; margin: 0 0 4px; }
+  p { margin: 0 0 12px; color: #6d665a; }
+  .row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+  figure { margin: 0; border: 1.5px solid #1f1d1a; border-radius: 4px; background: #f6f1e6; padding: 6px; text-align: center; }
+  figcaption { font-size: 11px; color: #6d665a; margin-top: 4px; }
+  figcaption b { color: #1f1d1a; display: block; font-size: 12px; }
+  svg { width: 100%; height: 90px; display: block; }
+  code { font: 11px ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<h1>Inimigos — tamanhos, cores de família e o ciclo da mecânica</h1>
+<p>Traça e saltador: caixa de 18 × 18 px (0,9 célula). Borrão: 26 × 26 px. Cada tipo precisa ser reconhecível em preto e branco.</p>
+<div class="row">
+  <figure><svg viewBox="0 0 60 60"><rect x="21" y="24" width="18" height="15" fill="#8b6f4e" stroke="#1f1d1a" stroke-width="2"/><path d="M26 24 l-3 -6 M34 24 l3 -6" stroke="#1f1d1a" stroke-width="2"/><circle cx="35" cy="29" r="3" fill="#fff"/><circle cx="35" cy="29" r="1.5" fill="#1f1d1a"/><line x1="8" y1="40" x2="52" y2="40" stroke="#1f1d1a" stroke-width="3"/></svg><figcaption><b>Traça</b>patrulha, pula e desce · <code>#8b6f4e</code></figcaption></figure>
+  <figure><svg viewBox="0 0 60 60"><rect x="21" y="21" width="18" height="18" rx="6" fill="#5d4f8f" stroke="#1f1d1a" stroke-width="2"/><circle cx="35" cy="29" r="3" fill="#fff"/><circle cx="35" cy="29" r="1.5" fill="#1f1d1a"/><path d="M14 18 q6 -10 12 0" stroke="#6d665a" stroke-dasharray="2 2" fill="none"/><line x1="8" y1="40" x2="52" y2="40" stroke="#1f1d1a" stroke-width="3"/></svg><figcaption><b>Saltador</b>salta rumo ao mais próximo · <code>#5d4f8f</code></figcaption></figure>
+  <figure><svg viewBox="0 0 60 60"><rect x="21" y="24" width="18" height="15" fill="#8b6f4e" stroke="#1f1d1a" stroke-width="2"/><rect x="21" y="31" width="18" height="8" fill="#2f6fd6" fill-opacity=".75"/><rect x="21" y="24" width="18" height="15" fill="none" stroke="#1f1d1a" stroke-width="2"/><line x1="8" y1="40" x2="52" y2="40" stroke="#1f1d1a" stroke-width="3"/></svg><figcaption><b>Encharcado</b>tinta sobe a cada acerto (4, ou 5 com 4–5 jogadores)</figcaption></figure>
+  <figure><svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="10" fill="#2f6fd6" stroke="#1f1d1a" stroke-width="2"/><line x1="25" y1="27" x2="35" y2="33" stroke="#fff" stroke-width="2" opacity=".8"/><line x1="8" y1="40" x2="52" y2="40" stroke="#1f1d1a" stroke-width="3"/></svg><figcaption><b>Bola de tinta</b>parada 5 s; encostar e chutar</figcaption></figure>
+  <figure><svg viewBox="0 0 60 60"><circle cx="34" cy="30" r="10" fill="#2f6fd6" stroke="#1f1d1a" stroke-width="2"/><line x1="29" y1="34" x2="39" y2="26" stroke="#fff" stroke-width="2" opacity=".8"/><path d="M8 26 h12 M6 31 h14 M10 36 h10" stroke="#1f1d1a" stroke-width="2"/><line x1="8" y1="40" x2="52" y2="40" stroke="#1f1d1a" stroke-width="3"/></svg><figcaption><b>Rolando</b>derruba quem estiver no caminho; estoura e respinga</figcaption></figure>
+  <figure><svg viewBox="0 0 60 60"><circle cx="30" cy="28" r="13" fill="#1f1d1a" opacity=".92"/><circle cx="21" cy="35" r="6" fill="#1f1d1a"/><circle cx="40" cy="22" r="5" fill="#1f1d1a"/><rect x="27" y="38" width="3" height="10" fill="#1f1d1a"/><rect x="33" y="39" width="3" height="7" fill="#1f1d1a"/><circle cx="26" cy="26" r="3" fill="#d7261e"/><circle cx="36" cy="26" r="3" fill="#d7261e"/></svg><figcaption><b>Borrão</b>surge aos 60 s, atravessa paredes, não se derrota</figcaption></figure>
+</div>
+</body>
+</html>

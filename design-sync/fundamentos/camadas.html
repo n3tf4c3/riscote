@@ -1,0 +1,31 @@
+<!-- @dsCard group="Fundamentos" -->
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Camadas de leitura</title>
+<style>
+  body { margin: 0; padding: 20px; background: #f1ead9; color: #1f1d1a; font: 13px/1.4 system-ui, sans-serif; }
+  h1 { font-size: 15px; margin: 0 0 4px; }
+  p { margin: 0 0 12px; color: #6d665a; }
+  ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+  li { display: grid; grid-template-columns: 34px 160px 1fr; gap: 10px; align-items: center; background: #f6f1e6; border: 1.5px solid #1f1d1a; border-radius: 4px; padding: 6px 10px; }
+  .n { font: 700 18px system-ui; text-align: center; }
+  b { font-size: 13px; }
+  .rule { color: #6d665a; }
+  .sample { height: 26px; border-radius: 3px; }
+</style>
+</head>
+<body>
+<h1>Seis camadas — do fundo para a frente (plano, seção 3)</h1>
+<p>Regra de ouro: tudo o que é jogável tem contorno de nanquim e contraste alto; o decorativo é claro e sem contorno. Efeitos nunca escondem plataformas nem perigos.</p>
+<ol>
+  <li><span class="n">1</span><b>Fundo decorativo</b><span class="rule">papel com textura discreta e aguadas sépia/cinza; <b>sem contorno preto</b>, pouco contraste</span></li>
+  <li><span class="n">2</span><b>Plataformas e paredes</b><span class="rule">traço de nanquim grosso, preenchimento chapado; silhueta contínua lida de imediato</span></li>
+  <li><span class="n">3</span><b>Itens e interativos</b><span class="rule">contorno grosso + cor de destaque reservada (tinta azul nos tubos)</span></li>
+  <li><span class="n">4</span><b>Inimigos</b><span class="rule">contorno grosso, cor de família por tipo, forma reconhecível em preto e branco</span></li>
+  <li><span class="n">5</span><b>Jogadores</b><span class="rule">cor + padrão + acessório; seta acima do próprio boneco; contorno mais grosso no jogador local</span></li>
+  <li><span class="n">6</span><b>Efeitos</b><span class="rule">semitransparentes e curtos (respingo &lt; 1 s), <b>atrás</b> do contorno de plataformas e perigos, com limite de partículas</span></li>
+</ol>
+</body>
+</html>

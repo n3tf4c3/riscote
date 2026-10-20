@@ -1,0 +1,28 @@
+<!-- @dsCard group="Cenário" -->
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Efeitos e transições</title>
+<style>
+  body { margin: 0; padding: 20px; background: #f1ead9; color: #1f1d1a; font: 13px/1.4 system-ui, sans-serif; }
+  h1 { font-size: 15px; margin: 0 0 4px; }
+  p { margin: 0 0 12px; color: #6d665a; }
+  .row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  figure { margin: 0; border: 1.5px solid #1f1d1a; border-radius: 4px; background: #f6f1e6; padding: 6px; }
+  figcaption { font-size: 11px; color: #6d665a; margin-top: 4px; }
+  figcaption b { color: #1f1d1a; display: block; font-size: 12px; }
+  svg { width: 100%; height: 100px; display: block; }
+</style>
+</head>
+<body>
+<h1>Efeitos — curtos, translúcidos e atrás do que é jogável</h1>
+<p>Nenhum efeito pode cobrir o contorno de plataformas, inimigos ou do borrão. Limite de partículas na tela.</p>
+<div class="row">
+  <figure><svg viewBox="0 0 120 70"><rect x="10" y="24" width="16" height="26" fill="#3f8fd8" stroke="#1f1d1a" stroke-width="2"/><circle cx="40" cy="33" r="5" fill="#2f6fd6" stroke="#3f8fd8" stroke-width="1.5"/><circle cx="58" cy="33" r="5" fill="#2f6fd6" stroke="#3f8fd8" stroke-width="1.5" opacity=".7"/><circle cx="76" cy="33" r="5" fill="#2f6fd6" stroke="#3f8fd8" stroke-width="1.5" opacity=".4"/><line x1="0" y1="50" x2="120" y2="50" stroke="#1f1d1a" stroke-width="3"/></svg><figcaption><b>Gota de tinta</b>16 células/s, alcance ~5,6 células; contorno na cor de quem atirou</figcaption></figure>
+  <figure><svg viewBox="0 0 120 70"><g fill="#2f6fd6" opacity=".55"><circle cx="60" cy="35" r="10"/><circle cx="44" cy="28" r="4"/><circle cx="78" cy="26" r="5"/><circle cx="74" cy="46" r="3"/><circle cx="46" cy="45" r="3"/></g><circle cx="60" cy="35" r="26" fill="none" stroke="#2f6fd6" stroke-dasharray="3 4" opacity=".6"/></svg><figcaption><b>Estouro da bola</b>respinga num raio de 2,5 células e encharca quem está perto; some em &lt; 1 s</figcaption></figure>
+  <figure><svg viewBox="0 0 120 70"><rect width="120" height="70" fill="#e2d9c4"/><rect x="60" width="60" height="70" fill="#f1ead9"/><rect x="52" width="8" height="70" fill="#1f1d1a" opacity=".15"/><line x1="60" y1="0" x2="60" y2="70" stroke="#1f1d1a" stroke-width="3"/></svg><figcaption><b>Virada de página</b>1,2 s; o papel novo avança da direita com borda de nanquim</figcaption></figure>
+  <figure><svg viewBox="0 0 120 70"><rect x="10" y="30" width="16" height="26" fill="#e0502e" stroke="#1f1d1a" stroke-width="2"/><rect x="6" y="26" width="24" height="34" rx="5" fill="none" stroke="#e0502e" stroke-width="2" opacity=".9"/><path d="M40 40 l14 -6 M40 44 l16 0 M40 48 l14 6" stroke="#e0502e" stroke-width="2"/><rect x="70" y="30" width="16" height="26" fill="#e0502e" fill-opacity=".35" stroke="#1f1d1a" stroke-opacity=".35" stroke-width="2"/></svg><figcaption><b>Toque no fácil</b>a proteção (contorno extra) estoura e o boneco pisca 1,5 s</figcaption></figure>
+</div>
+</body>
+</html>
