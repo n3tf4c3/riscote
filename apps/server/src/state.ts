@@ -54,7 +54,11 @@ export type DropSchema = SchemaType<typeof DropSchema>;
 export const GameState = schema(
   {
     arenaId: t.string(),
+    arenaIndex: t.uint8(),
+    arenaCount: t.uint8(),
     tick: t.uint32(),
+    waveTime: t.float32(),
+    hurry: t.boolean(),
     phase: t.uint8(),
     phaseTime: t.float32(),
     wave: t.uint16(),

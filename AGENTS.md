@@ -6,6 +6,7 @@ Estado atual:
 - **Etapa 1** (movimento local em greybox) concluída.
 - **Etapa 2** (servidor autoritativo, salas por código, previsão e interpolação) concluída.
 - **Etapa 3** (inimigos, mecânica de encharcar e rolar, tinta com recarga nos tubos, derrubada com resgate, vidas da equipe e ondas) implementada.
+- **Etapa 4** (capítulo com as 3 arenas e virada de página, borrão aos 60 s, relatório de métricas por arena) implementada.
 
 O planejamento completo fica em `PLANEJAMENTO.md` na raiz (local, fora do Git por decisão do usuário).
 
@@ -18,7 +19,7 @@ O planejamento completo fica em `PLANEJAMENTO.md` na raiz (local, fora do Git po
 | Física de plataforma | `packages/shared/src/physics.ts` |
 | Protocolo: sala, código, validação de entrada, mensagens de erro | `packages/shared/src/protocol.ts` |
 | Previsão, reconciliação e interpolação | `packages/shared/src/prediction.ts` |
-| Regras da partida: tinta, inimigos, bola, resgate, vidas, ondas (`RULES`) | `packages/shared/src/world.ts` |
+| Regras da partida: tinta, inimigos, bola, resgate, vidas, ondas, capítulo, borrão, métricas (`RULES`, `ArenaReport`) | `packages/shared/src/world.ts` |
 | Sala autoritativa e estado sincronizado | `apps/server/src/ArenaRoom.ts`, `apps/server/src/state.ts` |
 | Cliente online: entrada em sala, sessão, cena | `apps/client/src/online.ts`, `net.ts`, `OnlineScene.ts` |
 | Cliente local (`?local`): ajuste de movimento e medições | `apps/client/src/local.ts`, `ArenaScene.ts`, `tuning.ts`, `metrics.ts` |
@@ -42,6 +43,11 @@ Ainda não há lint. O aviso de bundle acima de 500 kB vem do Phaser e é espera
   - Não depende de Phaser, DOM ou relógio: o tsconfig não inclui DOM e o passo é fixo (`TICK_DT`).
   - `Math.random` não é usado sem semente.
   - A mesma sequência de comandos produz o mesmo estado; um teste cobre isso.
+- **Capítulo.** A sala começa na arena escolhida e segue a ordem de `ARENAS`.
+  - Arena limpa → pausa → virada de página → próxima arena.
+  - Depois da última: resumo, pontos e vidas zerados, volta à primeira.
+  - Todos caídos sem vidas → a mesma arena recomeça.
+  - Cada arena encerrada gera um `ArenaReport`: uma linha JSON no log do servidor e a mensagem `relatorio` para a sala; o painel tem "Copiar métricas".
 - **Partida autoritativa.** `World` (`world.ts`) é a partida inteira, pura e determinística: mesma semente e mesmos comandos dão o mesmo resultado. O servidor chama `applyInput` para cada comando, depois `step` uma vez por tick, e copia o resultado para o schema. Valores de jogo ficam em `RULES`.
 - **Servidor autoritativo.** O cliente envia só `{ seq, buttons }`, validado por `parseInput`. Posição, dano, pontuação e conclusão de fase nunca vêm do navegador.
 - **Fila de comandos no servidor.**
@@ -65,6 +71,9 @@ Ainda não há lint. O aviso de bundle acima de 500 kB vem do Phaser e é espera
   - de qualquer plataforma, um tubo em até 3 s.
 - **Referências.** Nada de recursos, personagens ou layouts de Snow Bros ou do NANQUIM.
 
+## Arte
+A arte final é produzida no Claude Design (claude.ai/design), decisão do usuário em 2026-10-20. Até lá o jogo usa greybox desenhado por código (`apps/client/src/draw.ts`). As cores dos 5 jogadores, a separação jogável × decorativo e a legibilidade vêm do plano (seção 3) e valem também para a arte final.
+
 ## TypeScript executado pelo Node
 O servidor roda `.ts` direto no Node (remoção de tipos, sem build). Em `apps/server` e `packages/shared`:
 - imports relativos com extensão `.ts`;
@@ -74,6 +83,9 @@ O servidor roda `.ts` direto no Node (remoção de tipos, sem build). Em `apps/s
 ## Dependências
 - Usamos `@colyseus/core` + `@colyseus/ws-transport`, não o pacote `colyseus`. O pacote `colyseus` puxa `uWebSockets.js` direto de um repositório git, o que o pnpm bloqueia.
 - Scripts de instalação só rodam se aprovados em `pnpm-workspace.yaml` (`allowBuilds`), com o motivo ao lado.
+
+## Scripts auxiliares e antivírus
+Não rode scripts inline com `node -e` que gravam arquivos e disparam processos (`fs` + `child_process`). O Windows Defender bloqueia esse padrão como `Trojan:Win32/SuspExec.SE`. Scripts auxiliares (por exemplo, quebrar o código de propósito para provar que um teste falha) vão em arquivo na pasta temporária da sessão, sempre restaurando o original no `finally`. Não crie exceções no antivírus.
 
 ## Testes no navegador
 Uma aba ou painel que não está sendo desenhado congela o `requestAnimationFrame`, e o jogo não avança. Medições de tempo e movimento pelo navegador só valem com a aba visível. Para números confiáveis, use os testes (simulação e servidor real com latência simulada). Em desenvolvimento, `window.riscote` expõe o jogo e a sessão.

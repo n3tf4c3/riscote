@@ -4,8 +4,10 @@ import {
   DEFAULT_PARAMS,
   Interpolator,
   MSG_INPUT,
+  MSG_REPORT,
   Predictor,
   type Arena,
+  type ArenaReport,
   type NetPlayer,
   type PlayerState,
   type Positioned,
@@ -35,7 +37,11 @@ export interface NetDrop {
 /** Forma do estado sincronizado (o cliente decodifica por reflexão, sem importar o schema do servidor). */
 export interface NetState {
   arenaId: string;
+  arenaIndex: number;
+  arenaCount: number;
   tick: number;
+  waveTime: number;
+  hurry: boolean;
   phase: number;
   phaseTime: number;
   wave: number;
@@ -62,13 +68,17 @@ export type DropView = Positioned & NetDrop;
 
 /** Liga a sala do Colyseus à previsão do próprio jogador e à interpolação do resto. */
 export class OnlineSession {
-  readonly arena: Arena;
+  arena: Arena;
   readonly params = { ...DEFAULT_PARAMS };
   readonly slot: number;
-  private readonly predictor: Predictor;
-  private readonly players = new Interpolator<PlayerView>();
-  private readonly enemies = new Interpolator<EnemyView>();
-  private readonly drops = new Interpolator<DropView>();
+  /** Relatórios de métricas das arenas encerradas nesta sessão. */
+  readonly reports: ArenaReport[] = [];
+  /** Chamado quando o servidor vira a página para outra arena. */
+  onArenaChange: ((arena: Arena) => void) | null = null;
+  private predictor: Predictor;
+  private players = new Interpolator<PlayerView>();
+  private enemies = new Interpolator<EnemyView>();
+  private drops = new Interpolator<DropView>();
 
   constructor(readonly room: Room) {
     const state = this.state;
@@ -79,6 +89,7 @@ export class OnlineSession {
     this.slot = me.slot;
     this.predictor = new Predictor(arena, this.params, me);
     room.onStateChange((s: NetState) => this.onState(s));
+    room.onMessage(MSG_REPORT, (r: ArenaReport) => this.reports.push(r));
   }
 
   get state(): NetState {
@@ -123,6 +134,21 @@ export class OnlineSession {
   }
 
   private onState(state: NetState): void {
+    const me = state.players.get(this.room.sessionId);
+    if (!me) return;
+    let switched = false;
+    if (state.arenaId !== this.arena.id) {
+      // Página virada: todos foram reposicionados; previsão e interpolação recomeçam do estado novo.
+      const arena = ARENAS.find((a) => a.id === state.arenaId);
+      if (!arena) return;
+      this.arena = arena;
+      this.predictor = new Predictor(arena, this.params, me);
+      this.players = new Interpolator<PlayerView>();
+      this.enemies = new Interpolator<EnemyView>();
+      this.drops = new Interpolator<DropView>();
+      switched = true;
+    }
+
     const now = performance.now();
     const others: PlayerView[] = [];
     state.players.forEach((p, id) => {
@@ -144,7 +170,7 @@ export class OnlineSession {
     state.drops.forEach((d, id) => drops.push({ id, slot: d.slot, x: d.x, y: d.y }));
     this.drops.push(now, drops);
 
-    const me = state.players.get(this.room.sessionId);
-    if (me) this.predictor.reconcile(me);
+    if (switched) this.onArenaChange?.(this.arena);
+    else this.predictor.reconcile(me);
   }
 }

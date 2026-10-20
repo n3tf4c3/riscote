@@ -12,6 +12,7 @@ import {
   Interpolator,
   MAX_PLAYERS,
   MSG_INPUT,
+  MSG_REPORT,
   Predictor,
   ROOM_NAME,
   createPlayer,
@@ -280,4 +281,28 @@ describe("partida com inimigos (etapa 3)", () => {
     await until(() => room.clients.length === 0);
     expect(s.score).toBe(0);
   });
+});
+
+describe('progressão entre arenas (etapa 4)', () => {
+  it('arena limpa: os clientes recebem o relatório e passam juntos para a próxima arena', async () => {
+    const room = (await t.createRoom(ROOM_WITH_ENEMIES, { arenaId: 'compacta' })) as unknown as ArenaRoom;
+    const a = await t.connectTo(room);
+    const b = await t.connectTo(room);
+    const reports: any[] = [];
+    a.onMessage(MSG_REPORT, (r: any) => reports.push(r));
+    expect((a.state as any).arenaId).toBe('compacta');
+    expect((a.state as any).arenaCount).toBe(ARENAS.length);
+    await until(() => (a.state as any).enemiesLeft > 0);
+
+    // Atalho de teste: derrota todos os inimigos direto no mundo do servidor.
+    const world = (room as any).world;
+    world.enemies.clear();
+    world.spawnQueue = 0;
+
+    await until(() => reports.length === 1, 2000);
+    expect(reports[0]).toMatchObject({ arena: 'compacta', position: 1, outcome: 'limpa', players: 2 });
+    await until(() => (a.state as any).arenaId === 'padrao' && (b.state as any).arenaId === 'padrao', 8000);
+    expect((b.state as any).arenaIndex).toBe(1);
+    expect((b.state as any).enemiesLeft).toBe(Math.round(4 + 1.5 * 2));
+  }, 15000);
 });
