@@ -26,6 +26,8 @@ export class Predictor {
   readonly state: PlayerState;
   /** Reconciliações que mudaram a posição prevista. */
   corrections = 0;
+  /** Derrubado no servidor: os comandos seguem sendo enviados, mas o boneco não se move. */
+  frozen = false;
   private seq = 0;
   private pending: InputMessage[] = [];
   private readonly arena: Arena;
@@ -49,7 +51,7 @@ export class Predictor {
   tick(buttons: number): InputMessage {
     const input = { seq: ++this.seq, buttons };
     this.pending.push(input);
-    stepPlayer(this.state, buttons, this.arena, this.params);
+    this.apply(buttons);
     return input;
   }
 
@@ -58,11 +60,18 @@ export class Predictor {
     const beforeX = this.state.x;
     const beforeY = this.state.y;
     copyNetPlayer(server, this.state);
+    this.frozen = server.down;
     this.pending = this.pending.filter((i) => i.seq > server.ack);
-    for (const input of this.pending) stepPlayer(this.state, input.buttons, this.arena, this.params);
+    for (const input of this.pending) this.apply(input.buttons);
     const corrected = Math.abs(this.state.x - beforeX) > 0.01 || Math.abs(this.state.y - beforeY) > 0.01;
     if (corrected) this.corrections++;
     return corrected;
+  }
+
+  /** Mesma regra do servidor (World.applyInput): derrubado só registra os botões. */
+  private apply(buttons: number): void {
+    if (this.frozen) this.state.prevButtons = buttons;
+    else stepPlayer(this.state, buttons, this.arena, this.params);
   }
 }
 
@@ -74,12 +83,19 @@ export interface RemoteView {
   facing: number;
 }
 
+/** Qualquer coisa com posição que chega pela rede e é exibida interpolada. */
+export interface Positioned {
+  id: string;
+  x: number;
+  y: number;
+}
+
 /**
  * Interpolação dos outros jogadores: exibe o passado recente (`delayMs`) entre os dois
  * estados recebidos que o cercam, sem extrapolar.
  */
-export class Interpolator {
-  private snapshots: Array<{ t: number; players: Map<string, RemoteView> }> = [];
+export class Interpolator<T extends Positioned = RemoteView> {
+  private snapshots: Array<{ t: number; players: Map<string, T> }> = [];
 
   private readonly delayMs: number;
   private readonly keepMs: number;
@@ -89,12 +105,12 @@ export class Interpolator {
     this.keepMs = keepMs;
   }
 
-  push(t: number, players: RemoteView[]): void {
+  push(t: number, players: T[]): void {
     this.snapshots.push({ t, players: new Map(players.map((p) => [p.id, { ...p }])) });
     while (this.snapshots.length > 2 && this.snapshots[0]!.t < t - this.keepMs) this.snapshots.shift();
   }
 
-  sample(now: number): RemoteView[] {
+  sample(now: number): T[] {
     const target = now - this.delayMs;
     const snaps = this.snapshots;
     if (snaps.length === 0) return [];

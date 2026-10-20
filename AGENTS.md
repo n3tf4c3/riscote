@@ -5,8 +5,9 @@ Jogo de plataforma 2D arcade, cooperativo e online, jogado no navegador, com sal
 Estado atual:
 - **Etapa 1** (movimento local em greybox) concluída.
 - **Etapa 2** (servidor autoritativo, salas por código, previsão e interpolação) concluída.
+- **Etapa 3** (inimigos, mecânica de encharcar e rolar, tinta com recarga nos tubos, derrubada com resgate, vidas da equipe e ondas) implementada.
 
-Ainda não existem inimigos, mecânica central nem tinta. O planejamento completo fica em `PLANEJAMENTO.md` na raiz (local, fora do Git por decisão do usuário).
+O planejamento completo fica em `PLANEJAMENTO.md` na raiz (local, fora do Git por decisão do usuário).
 
 ## Mapa
 | Assunto | Caminho |
@@ -17,6 +18,7 @@ Ainda não existem inimigos, mecânica central nem tinta. O planejamento complet
 | Física de plataforma | `packages/shared/src/physics.ts` |
 | Protocolo: sala, código, validação de entrada, mensagens de erro | `packages/shared/src/protocol.ts` |
 | Previsão, reconciliação e interpolação | `packages/shared/src/prediction.ts` |
+| Regras da partida: tinta, inimigos, bola, resgate, vidas, ondas (`RULES`) | `packages/shared/src/world.ts` |
 | Sala autoritativa e estado sincronizado | `apps/server/src/ArenaRoom.ts`, `apps/server/src/state.ts` |
 | Cliente online: entrada em sala, sessão, cena | `apps/client/src/online.ts`, `net.ts`, `OnlineScene.ts` |
 | Cliente local (`?local`): ajuste de movimento e medições | `apps/client/src/local.ts`, `ArenaScene.ts`, `tuning.ts`, `metrics.ts` |
@@ -40,6 +42,7 @@ Ainda não há lint. O aviso de bundle acima de 500 kB vem do Phaser e é espera
   - Não depende de Phaser, DOM ou relógio: o tsconfig não inclui DOM e o passo é fixo (`TICK_DT`).
   - `Math.random` não é usado sem semente.
   - A mesma sequência de comandos produz o mesmo estado; um teste cobre isso.
+- **Partida autoritativa.** `World` (`world.ts`) é a partida inteira, pura e determinística: mesma semente e mesmos comandos dão o mesmo resultado. O servidor chama `applyInput` para cada comando, depois `step` uma vez por tick, e copia o resultado para o schema. Valores de jogo ficam em `RULES`.
 - **Servidor autoritativo.** O cliente envia só `{ seq, buttons }`, validado por `parseInput`. Posição, dano, pontuação e conclusão de fase nunca vêm do navegador.
 - **Fila de comandos no servidor.**
   - Cada comando é simulado uma única vez, na ordem; `seq` repetido ou antigo é descartado.
@@ -47,6 +50,9 @@ Ainda não há lint. O aviso de bundle acima de 500 kB vem do Phaser e é espera
   - Sem comandos por mais de 10 ticks, o jogador segue a simulação com os botões soltos.
   - `ack` informa o último comando aplicado; a reconciliação depende dele.
 - **Estado sincronizado.** Os campos de `PlayerSchema` espelham `NetPlayer`, em `float64`, para a reconciliação partir do estado exato do servidor.
+- **Previsão só do próprio movimento.** Inimigos, gotas e derrubadas não são previstos. Derrubado, o `Predictor` congela o boneco como o servidor faz. Renascimento e derrubada geram correções esperadas.
+- **Mensagens desconhecidas.** Fora do modo de desenvolvimento, o Colyseus derruba o cliente que manda um tipo de mensagem não registrado.
+- **Testes de rede.** Usam `QuietRoom`, uma subclasse sem ondas definida só no servidor de teste. Opções do cliente nunca desligam inimigos.
 - **Previsão própria.** Previsão e interpolação ficam em `prediction.ts`. O `Predict` do Colyseus 0.18 não é usado por enquanto (decisão para reavaliar).
 - **Sala cheia.** A sala só fica trancada ao atingir 5 jogadores, por isso `describeJoinError` trata "locked" como sala cheia. Se algum dia a sala for trancada por outro motivo, mude essa tradução.
 - **Física do Phaser.** Não é usada; o Phaser só desenha e lê a entrada.

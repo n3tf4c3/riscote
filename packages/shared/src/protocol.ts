@@ -25,6 +25,11 @@ export interface NetPlayer extends Omit<PlayerState, 'facing'> {
   facing: number;
   slot: number;
   ack: number;
+  ink: number;
+  down: boolean;
+  rescue: number;
+  invuln: number;
+  kills: number;
 }
 
 const MAX_SEQ = 2 ** 31 - 1;
