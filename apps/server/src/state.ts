@@ -22,6 +22,7 @@ export const PlayerSchema = schema(
     rescue: t.float32(),
     invuln: t.float32(),
     kills: t.uint16(),
+    away: t.boolean(),
   },
   'Player',
 );

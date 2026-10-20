@@ -95,6 +95,8 @@ export interface PlayerLook {
   down: boolean;
   rescue: number;
   invuln: number;
+  /** Conexão caiu: desenhado esmaecido até voltar. */
+  away?: boolean;
 }
 
 /** Jogador com medidor de tinta ao lado; derrubado vira mancha com o anel de resgate; invulnerável pisca. */
@@ -121,6 +123,10 @@ export function drawPlayerFull(
       g.arc(cx, cy - 14, 8, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2);
       g.strokePath();
     }
+    return;
+  }
+  if (look.away) {
+    drawPlayer(g, x, y, p, look.facing, color, isLocal, 0.25);
     return;
   }
   const blink = look.invuln > 0 && Math.floor(now / 100) % 2 === 0;

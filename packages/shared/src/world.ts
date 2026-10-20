@@ -167,6 +167,8 @@ export interface WorldPlayer {
   rescue: number;
   invuln: number;
   kills: number;
+  /** Conexão caiu e a vaga está reservada: parado, invulnerável e ignorado pelos inimigos. */
+  away: boolean;
 }
 
 export interface Enemy {
@@ -277,7 +279,7 @@ export class World {
       body: createPlayer(this.arena.playerSpawns[slot]!, this.params),
       ink: RULES.tankSize, cooldown: 0,
       down: false, downTime: 0, rescue: 0,
-      invuln: RULES.invulnTime, kills: 0,
+      invuln: RULES.invulnTime, kills: 0, away: false,
     };
     this.players.set(id, player);
     return player;
@@ -285,6 +287,14 @@ export class World {
 
   removePlayer(id: string): void {
     this.players.delete(id);
+  }
+
+  /** Marca ou desmarca a ausência (queda de conexão com vaga reservada). Ao voltar, ganha invulnerabilidade. */
+  setAway(id: string, away: boolean): void {
+    const p = this.players.get(id);
+    if (!p || p.away === away) return;
+    p.away = away;
+    if (!away) p.invuln = RULES.invulnTime;
   }
 
   /** Aplica um comando de um jogador: movimento, tiro de tinta ou chute. */
@@ -557,7 +567,7 @@ export class World {
     let best: WorldPlayer | null = null;
     let bestDist = Infinity;
     for (const p of this.players.values()) {
-      if (p.down) continue;
+      if (p.down || p.away) continue;
       const d = Math.abs(p.body.x - b.x) + Math.abs(p.body.y - b.y);
       if (d < bestDist) {
         bestDist = d;
@@ -593,7 +603,7 @@ export class World {
 
   private stepDamage(): void {
     for (const p of this.players.values()) {
-      if (p.down || p.invuln > 0) continue;
+      if (p.down || p.away || p.invuln > 0) continue;
       const box = bodyBox(p.body, this.params);
       for (const e of this.enemies.values()) {
         if (e.mode === MODE_WALK && overlaps(box, enemyBox(e))) {
@@ -616,7 +626,7 @@ export class World {
       const area = bodyBox(p.body, this.params, 0.3 * TILE);
       let helped = false;
       for (const o of this.players.values()) {
-        if (o !== p && !o.down && overlaps(area, bodyBox(o.body, this.params))) helped = true;
+        if (o !== p && !o.down && !o.away && overlaps(area, bodyBox(o.body, this.params))) helped = true;
       }
       p.rescue = helped ? p.rescue + dt : 0;
       if (p.rescue >= RULES.rescueTime) {
@@ -698,7 +708,7 @@ export class World {
         this.enemies.clear();
         this.phase = PHASE_CLEAR;
         this.phaseTime = RULES.clearDelay;
-      } else if (this.lives === 0 && this.players.size > 0 && [...this.players.values()].every((p) => p.down)) {
+      } else if (this.lives === 0 && this.players.size > 0 && [...this.players.values()].every((p) => p.down || p.away)) {
         if (this.waveStarted) this.report('recomeço');
         this.phase = PHASE_RESTART;
         this.phaseTime = RULES.restartDelay;
