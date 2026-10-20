@@ -19,7 +19,7 @@ const arena = ARENAS[1]!;
 const params = { ...DEFAULT_PARAMS };
 
 function net(s: PlayerState, ack: number, down = false): NetPlayer {
-  return { ...s, slot: 0, ack, ink: 12, down, rescue: 0, invuln: 0, kills: 0, away: false };
+  return { ...s, slot: 0, ack, ink: 12, down, rescue: 0, invuln: 0, kills: 0, away: false, hp: 1 };
 }
 
 /** Servidor em memória: aplica cada comando uma vez, na ordem, com atraso fixo em ticks nos dois sentidos. */

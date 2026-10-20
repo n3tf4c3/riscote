@@ -1,4 +1,5 @@
 import { BTN_ALL } from './input.ts';
+import { DEFAULT_PARAMS, type MovementParams } from './params.ts';
 import type { PlayerState } from './physics.ts';
 
 export const ROOM_NAME = 'arena';
@@ -21,8 +22,31 @@ export interface InputMessage {
   buttons: number;
 }
 
+/** Modos de dificuldade. Só no difícil a tinta acaba e é preciso recarregar nos tubos. */
+export const DIFFICULTIES = ['facil', 'medio', 'dificil'] as const;
+export type Difficulty = (typeof DIFFICULTIES)[number];
+export const DIFFICULTY_NAMES: Record<Difficulty, string> = { facil: 'Fácil', medio: 'Médio', dificil: 'Difícil' };
+
+/** O que muda entre os modos (valores iniciais, a ajustar em playtest). */
+export const DIFFICULTY_RULES: Record<Difficulty, { limitedInk: boolean; hitsToDown: number; speedMult: number }> = {
+  facil: { limitedInk: false, hitsToDown: 2, speedMult: 1.15 },
+  medio: { limitedInk: false, hitsToDown: 1, speedMult: 1 },
+  dificil: { limitedInk: true, hitsToDown: 1, speedMult: 1 },
+};
+
+/** Parâmetros de movimento do modo. Servidor e previsão do cliente precisam usar os mesmos. */
+export function movementParams(difficulty: Difficulty): MovementParams {
+  return { ...DEFAULT_PARAMS, runSpeed: DEFAULT_PARAMS.runSpeed * DIFFICULTY_RULES[difficulty].speedMult };
+}
+
+/** Valida a escolha vinda do cliente; qualquer outra coisa vira o modo médio. */
+export function parseDifficulty(raw: unknown): Difficulty {
+  return (DIFFICULTIES as readonly unknown[]).includes(raw) ? (raw as Difficulty) : 'medio';
+}
+
 export interface CreateRoomOptions {
   arenaId?: string;
+  difficulty?: Difficulty;
 }
 
 /** Estado de um jogador como o servidor sincroniza: a simulação completa mais o último comando aplicado. */
@@ -37,6 +61,8 @@ export interface NetPlayer extends Omit<PlayerState, 'facing'> {
   invuln: number;
   kills: number;
   away: boolean;
+  /** Toques que ainda aguenta antes de cair (2 no fácil). */
+  hp: number;
 }
 
 const MAX_SEQ = 2 ** 31 - 1;

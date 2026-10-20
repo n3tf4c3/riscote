@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json",
     "test": "echo \"client: sem testes (lógica testada em @riscote/shared)\""
   },

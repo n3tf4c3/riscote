@@ -7,6 +7,7 @@ Estado atual:
 - **Etapa 2** (servidor autoritativo, salas por código, previsão e interpolação) concluída.
 - **Etapa 3** (inimigos, mecânica de encharcar e rolar, tinta com recarga nos tubos, derrubada com resgate, vidas da equipe e ondas) implementada.
 - **Etapa 4** (capítulo com as 3 arenas e virada de página, borrão aos 60 s, relatório de métricas por arena) implementada.
+- **Playtest remoto** por túnel temporário: `docs/playtest-remoto.md`.
 - **Etapa 5** (reconexão com vaga reservada, limite de tentativas de entrada, rede instável e carga medida) implementada. Falta o teste em redes reais, que depende da hospedagem.
 
 O planejamento completo fica em `PLANEJAMENTO.md` na raiz (local, fora do Git por decisão do usuário).
@@ -48,6 +49,13 @@ Ainda não há lint. O aviso de bundle acima de 500 kB vem do Phaser e é espera
   - Não depende de Phaser, DOM ou relógio: o tsconfig não inclui DOM e o passo é fixo (`TICK_DT`).
   - `Math.random` não é usado sem semente.
   - A mesma sequência de comandos produz o mesmo estado; um teste cobre isso.
+- **Dificuldade.** A sala é criada em `facil`, `medio` (padrão) ou `dificil`, validada por `parseDifficulty`.
+  - As diferenças ficam em `DIFFICULTY_RULES` (`protocol.ts`).
+  - Fácil: o boneco aguenta 2 toques (o primeiro só tira a proteção, com invulnerabilidade curta) e corre 15% mais rápido.
+  - Médio: 1 toque e velocidade normal.
+  - Difícil: igual ao médio, mais tinta limitada com recarga nos tubos (`World.limitedInk`).
+  - Fora do difícil, a tinta é infinita, e o cliente não desenha tubos nem medidor.
+  - A velocidade entra na previsão: o cliente usa `movementParams(dificuldade)`, igual ao servidor; com parâmetros diferentes, a previsão corrige o tempo todo.
 - **Aquecimento e anfitrião.** A sala abre em `PHASE_LOBBY`: todos andam, sem inimigos, sem tempo nem métricas.
   - O anfitrião é o primeiro a chegar; se ele sair, assume o seguinte. Só ele encerra o aquecimento (`MSG_START`, botão ou Enter).
   - `World.start` dimensiona a primeira arena com quem está na sala nesse momento.

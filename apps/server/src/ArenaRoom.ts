@@ -10,6 +10,7 @@ import {
   ROOM_CODE_LENGTH,
   TICK_RATE,
   World,
+  parseDifficulty,
   parseInput,
   type CreateRoomOptions,
   type InputMessage,
@@ -60,10 +61,12 @@ export class ArenaRoom extends Room<{ state: GameState }> {
     const found = ARENAS.findIndex((a) => a.id === options.arenaId);
     const first = found >= 0 ? found : 1; // padrão: a arena Padrão
     const chapter = [...ARENAS.slice(first), ...ARENAS.slice(0, first)];
-    this.world = new World(chapter, randomInt(2 ** 31), { waves: this.waves });
+    const difficulty = parseDifficulty(options.difficulty);
+    this.world = new World(chapter, randomInt(2 ** 31), { waves: this.waves, difficulty });
 
     const state = new GameState();
     state.tick = 0;
+    state.difficulty = difficulty;
     state.hostId = '';
     this.state = state;
     this.sync();
@@ -235,4 +238,5 @@ function copyPlayer(p: WorldPlayer, net: PlayerSchema): void {
   net.invuln = p.invuln;
   net.kills = p.kills;
   net.away = p.away;
+  net.hp = p.hp;
 }
