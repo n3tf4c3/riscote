@@ -42,6 +42,7 @@
         padding: 5px 8px; border: 1.5px solid var(--ink); border-radius: 4px; background: #fff; color: var(--ink);
       }
       .status { min-height: 1.4em; margin: 6px 0 0; font-size: 13px; }
+      #lobby-start { margin-top: 10px; }
       .code { font: 700 28px/1 ui-monospace, monospace; letter-spacing: .15em; margin: 0 0 8px; }
       a { color: var(--accent); }
       button {
@@ -92,6 +93,10 @@
           <div class="row">
             <button type="button" id="copy-invite">Copiar convite</button>
             <button type="button" id="leave">Sair da sala</button>
+          </div>
+          <div id="lobby-start" hidden>
+            <button type="button" id="start" class="primary">Começar partida</button>
+            <p id="start-hint" class="keys"></p>
           </div>
           <h2>Partida</h2>
           <dl>

@@ -13,6 +13,9 @@ export const MSG_INPUT = 'i';
 /** Mensagem servidor → sala: relatório de métricas de uma arena encerrada (ArenaReport). */
 export const MSG_REPORT = 'relatorio';
 
+/** Mensagem cliente → servidor: o anfitrião encerra o aquecimento. Ignorada se vier de outro jogador. */
+export const MSG_START = 'comecar';
+
 export interface InputMessage {
   seq: number;
   buttons: number;

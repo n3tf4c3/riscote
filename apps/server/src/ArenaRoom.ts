@@ -5,6 +5,7 @@ import {
   MAX_PLAYERS,
   MSG_INPUT,
   MSG_REPORT,
+  MSG_START,
   ROOM_CODE_ALPHABET,
   ROOM_CODE_LENGTH,
   TICK_RATE,
@@ -41,6 +42,8 @@ export class ArenaRoom extends Room<{ state: GameState }> {
   protected readonly waves: boolean = true;
   private world!: World;
   private seats = new Map<string, Seat>();
+  /** Ordem de chegada: o primeiro é o anfitrião; se ele sair, o seguinte assume. */
+  private arrivals: string[] = [];
 
   async onCreate(options: CreateRoomOptions = {}): Promise<void> {
     let code = randomCode();
@@ -58,11 +61,16 @@ export class ArenaRoom extends Room<{ state: GameState }> {
 
     const state = new GameState();
     state.tick = 0;
+    state.hostId = '';
     this.state = state;
     this.sync();
     this.patchRate = PATCH_RATE_MS;
 
     this.onMessage(MSG_INPUT, (client, raw) => this.receiveInput(client, raw));
+    // Só o anfitrião encerra o aquecimento; de outro jogador, a mensagem é ignorada.
+    this.onMessage(MSG_START, (client) => {
+      if (client.sessionId === this.state.hostId) this.world.start();
+    });
     this.setFixedTimestep(() => this.step(), TICK_RATE);
   }
 
@@ -78,12 +86,16 @@ export class ArenaRoom extends Room<{ state: GameState }> {
     net.ack = 0;
     this.state.players.set(client.sessionId, net);
     copyPlayer(player, net);
+    this.arrivals.push(client.sessionId);
+    this.state.hostId = this.arrivals[0]!;
   }
 
   onLeave(client: Client): void {
     this.world.removePlayer(client.sessionId);
     this.seats.delete(client.sessionId);
     this.state.players.delete(client.sessionId);
+    this.arrivals = this.arrivals.filter((id) => id !== client.sessionId);
+    this.state.hostId = this.arrivals[0] ?? '';
   }
 
   private receiveInput(client: Client, raw: unknown): void {

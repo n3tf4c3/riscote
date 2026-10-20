@@ -56,6 +56,8 @@ export const GameState = schema(
     arenaId: t.string(),
     arenaIndex: t.uint8(),
     arenaCount: t.uint8(),
+    /** Sessão do anfitrião: quem pode encerrar o aquecimento. */
+    hostId: t.string(),
     tick: t.uint32(),
     waveTime: t.float32(),
     hurry: t.boolean(),

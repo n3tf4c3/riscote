@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { PHASE_CHAPTER, PHASE_CLEAR, PHASE_RESTART, PHASE_TURN, RULES, TICK_DT, TILE } from '@riscote/shared';
+import { MAX_PLAYERS, PHASE_CHAPTER, PHASE_CLEAR, PHASE_LOBBY, PHASE_RESTART, PHASE_TURN, RULES, TICK_DT, TILE } from '@riscote/shared';
 import { INK, PLAYER_COLORS, drawArena, drawDrop, drawEnemy, drawPageTurn, drawPlayerFull } from './draw';
 import type { InputSource } from './input';
 import type { OnlineSession } from './net';
@@ -26,7 +26,16 @@ export class OnlineScene extends Phaser.Scene {
     this.gfx = this.add.graphics();
     const w = session.arena.cols * TILE;
     this.banner = this.add
-      .text(w / 2, TILE * 1.5, '', { fontFamily: 'system-ui, sans-serif', fontSize: '20px', color: '#1f1d1a', fontStyle: 'bold', align: 'center' })
+      // Contorno da cor do papel: legível sobre qualquer coisa sem uma caixa cobrindo as plataformas.
+      .text(w / 2, TILE * 1.5, '', {
+        fontFamily: 'system-ui, sans-serif',
+        fontSize: '20px',
+        color: '#1f1d1a',
+        fontStyle: 'bold',
+        align: 'center',
+        stroke: '#f1ead9',
+        strokeThickness: 6,
+      })
       .setOrigin(0.5, 0)
       .setDepth(1);
     this.acc = 0;
@@ -75,12 +84,15 @@ export class OnlineScene extends Phaser.Scene {
       const arena = session.arena;
       drawPageTurn(g, arena.cols * TILE, arena.rows * TILE, 1 - state.phaseTime / RULES.turnDelay);
     }
-    this.banner.setText(bannerText(state));
+    this.banner.setText(bannerText(session));
   }
 }
 
-function bannerText(state: OnlineSession['state']): string {
+function bannerText(session: OnlineSession): string {
+  const state = session.state;
   switch (state.phase) {
+    case PHASE_LOBBY:
+      return `Aquecimento: ${state.players.size}/${MAX_PLAYERS} na sala\n${session.isHost ? 'Aperte Enter para começar' : 'O anfitrião começa quando todos entrarem'}`;
     case PHASE_CLEAR:
       return state.arenaIndex + 1 < state.arenaCount ? 'Arena limpa!' : 'Última arena limpa!';
     case PHASE_CHAPTER:

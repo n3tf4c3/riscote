@@ -48,6 +48,8 @@ export const PHASE_CLEAR = 1;
 export const PHASE_RESTART = 2;
 export const PHASE_TURN = 3;
 export const PHASE_CHAPTER = 4;
+/** Aquecimento antes do início: todos andam pela arena, sem inimigos, até o anfitrião começar. */
+export const PHASE_LOBBY = 5;
 
 export const ENEMY_SIZE = 0.9; // células, nos três modos
 export const BORRAO_SIZE = 1.3; // células
@@ -232,6 +234,14 @@ export class World {
     if (this.chapter.length === 0) throw new Error('capítulo sem arenas');
     this.rng = seededRandom(seed);
     this.autoWaves = options.waves ?? true;
+    this.phase = this.autoWaves ? PHASE_LOBBY : PHASE_PLAYING;
+  }
+
+  /** Sai do aquecimento: a primeira arena é dimensionada com quem está na sala agora. */
+  start(): boolean {
+    if (this.phase !== PHASE_LOBBY || this.players.size === 0) return false;
+    this.startWave();
+    return true;
   }
 
   get arena(): Arena {
@@ -293,9 +303,6 @@ export class World {
   /** Avança o mundo um tick (depois dos comandos do tick). */
   step(): void {
     const dt = TICK_DT;
-    // A primeira onda é dimensionada com quem está na sala no primeiro tick.
-    if (this.autoWaves && !this.waveStarted && this.players.size > 0) this.startWave();
-
     for (const p of this.players.values()) {
       p.cooldown = Math.max(0, p.cooldown - dt);
       p.invuln = Math.max(0, p.invuln - dt);
@@ -683,6 +690,7 @@ export class World {
    * capítulo e volta à primeira. Todos caídos sem vidas → a mesma arena recomeça.
    */
   private stepPhase(dt: number): void {
+    if (this.phase === PHASE_LOBBY) return;
     if (this.phase === PHASE_PLAYING) {
       if (this.waveStarted && this.enemiesLeft === 0) {
         this.report('limpa');
