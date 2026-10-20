@@ -1,0 +1,39 @@
+<!-- @dsCard group="Cenário" -->
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Itens</title>
+<style>
+  body { margin: 0; padding: 20px; background: #ece5d6; color: #141414; font: 13px/1.4 system-ui, sans-serif; }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  p { margin: 0 0 12px; color: #4f4a41; }
+  .row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+  figure { margin: 0; border: 2px solid #141414; border-radius: 4px; background: #f3ede1; padding: 6px; }
+  figcaption { font-size: 11px; color: #4f4a41; margin-top: 4px; }
+  figcaption b { display: block; color: #141414; font-size: 13px; }
+  svg { width: 100%; height: 120px; display: block; }
+  code { font: 11px ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<filter id="tinta" x="-20%" y="-20%" width="140%" height="140%"><feTurbulence type="fractalNoise" baseFrequency="0.08" numOctaves="2" seed="3" result="ruido"/><feDisplacementMap in="SourceGraphic" in2="ruido" scale="3"/></filter>
+<filter id="tecido" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="0.55 0.04" numOctaves="2" seed="8" result="fibras"/><feColorMatrix in="fibras" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  2.6 0 0 0 -0.35" result="mascara"/><feComposite in="SourceGraphic" in2="mascara" operator="in" result="riscado"/><feTurbulence type="fractalNoise" baseFrequency="0.07" numOctaves="2" seed="2" result="borda"/><feDisplacementMap in="riscado" in2="borda" scale="3"/></filter>
+<g id="pote"><ellipse cx="100" cy="146" rx="40" ry="5" fill="#141414" opacity="0.14"/><rect x="84" y="34" width="32" height="18" rx="3" fill="#141414" filter="url(#tinta)"/><path d="M70 62 Q70 50 84 50 L116 50 Q130 50 130 62 L132 128 Q132 142 118 142 L82 142 Q68 142 68 128 Z" fill="#f3ede1"/></g>
+<path id="liquido" d="M71 78 Q100 70 129 78 L131 128 Q131 140 118 140 L82 140 Q69 140 69 128 Z"/>
+<path id="vidro" d="M70 62 Q70 50 84 50 L116 50 Q130 50 130 62 L132 128 Q132 142 118 142 L82 142 Q68 142 68 128 Z"/>
+</defs>
+</svg>
+<h1>Itens — potes de tinta com o líquido na cor do poder</h1>
+<p>Caixa no jogo: 16 × 16 px, flutuando de leve sobre a plataforma; piscam nos últimos 3 s. Força, agilidade, tiro ágil e alcance acumulam até 3 níveis e se perdem quando o riscote é derrubado; a invencibilidade dura 6 s e renova.</p>
+<div class="row">
+<figure><svg viewBox="0 0 200 160" role="img" aria-label="Força"><use href="#pote"/><use href="#liquido" fill="#c8402a" filter="url(#tecido)"/><use href="#vidro" fill="none" stroke="#141414" stroke-width="4" filter="url(#tinta)"/><path d="M92 100 L108 100 M100 92 L100 108" stroke="#f3ede1" stroke-width="7" stroke-linecap="round"/></svg><figcaption><b>Força</b><code>#c8402a</code> · +1 de encharque por gota</figcaption></figure>
+<figure><svg viewBox="0 0 200 160" role="img" aria-label="Agilidade"><use href="#pote"/><use href="#liquido" fill="#d99a1e" filter="url(#tecido)"/><use href="#vidro" fill="none" stroke="#141414" stroke-width="4" filter="url(#tinta)"/><path d="M88 92 L110 92 M92 102 L114 102 M88 112 L108 112" stroke="#f3ede1" stroke-width="5" stroke-linecap="round"/></svg><figcaption><b>Agilidade</b><code>#d99a1e</code> · +12% de corrida</figcaption></figure>
+<figure><svg viewBox="0 0 200 160" role="img" aria-label="Tiro ágil"><use href="#pote"/><use href="#liquido" fill="#2f6fd6" filter="url(#tecido)"/><use href="#vidro" fill="none" stroke="#141414" stroke-width="4" filter="url(#tinta)"/><path d="M90 92 Q84 104 90 110 Q96 104 90 92 Z M110 92 Q104 104 110 110 Q116 104 110 92 Z" fill="#f3ede1"/></svg><figcaption><b>Tiro ágil</b><code>#2f6fd6</code> · cadência −25%, gota +20%</figcaption></figure>
+<figure><svg viewBox="0 0 200 160" role="img" aria-label="Alcance"><use href="#pote"/><use href="#liquido" fill="#1f9e89" filter="url(#tecido)"/><use href="#vidro" fill="none" stroke="#141414" stroke-width="4" filter="url(#tinta)"/><path d="M86 102 L114 102 M114 102 L104 92 M114 102 L104 112" stroke="#f3ede1" stroke-width="5.5" stroke-linecap="round" fill="none"/></svg><figcaption><b>Alcance</b><code>#1f9e89</code> · +35% de distância</figcaption></figure>
+<figure><svg viewBox="0 0 200 160" role="img" aria-label="Invencível"><use href="#pote"/><use href="#liquido" fill="#e8b400" filter="url(#tecido)"/><use href="#vidro" fill="none" stroke="#141414" stroke-width="4" filter="url(#tinta)"/><path d="M100 86 L105 97 L117 98 L108 106 L111 118 L100 112 L89 118 L92 106 L83 98 L95 97 Z" fill="#141414"/></svg><figcaption><b>Invencível</b><code>#e8b400</code> · 6 s sem dano, aura dourada</figcaption></figure>
+</div>
+</body>
+</html>

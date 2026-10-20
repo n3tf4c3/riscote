@@ -1,0 +1,178 @@
+<!-- @dsCard group="Cenário" -->
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Arena Padrão em tinta</title>
+<style>
+  body { margin: 0; padding: 20px; background: #ddd5c3; color: #141414; font: 13px/1.4 system-ui, sans-serif; }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  p { margin: 0 0 12px; color: #4f4a41; }
+  .legend { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: 10px; font-size: 12px; color: #4f4a41; }
+  .legend b { color: #141414; display: block; }
+</style>
+</head>
+<body>
+<h1>Arena Padrão em tinta — escala 2 (1280 × 720)</h1>
+<p>Mesma geometria do jogo (32 × 18 células de 20 px). Fundo de caderno apagado, sem contorno preto; tudo o que se pisa é nanquim. Riscotes na versão do jogo (traço engrossado) e inimigos para dar escala.</p>
+<svg viewBox="0 0 1280 720" style="width:100%;height:auto;display:block;border:2px solid #141414" role="img" aria-label="Arena Padrão desenhada em tinta, com plataformas, tubos de tinta, riscotes e inimigos" style="display: block; border: 2px solid #141414">
+<defs>
+<filter id="seco" x="-60%" y="-8%" width="220%" height="116%" color-interpolation-filters="sRGB">
+<feTurbulence type="fractalNoise" baseFrequency="0.75 0.016" numOctaves="2" seed="5" result="fibras"></feTurbulence>
+<feColorMatrix in="fibras" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  4 0 0 0 -0.95" result="mascara"></feColorMatrix>
+<feComposite in="SourceGraphic" in2="mascara" operator="in" result="riscado"></feComposite>
+<feTurbulence type="fractalNoise" baseFrequency="0.06" numOctaves="2" seed="9" result="borda"></feTurbulence>
+<feDisplacementMap in="riscado" in2="borda" scale="3"></feDisplacementMap>
+</filter>
+<filter id="tinta" x="-20%" y="-20%" width="140%" height="140%">
+<feTurbulence type="fractalNoise" baseFrequency="0.08" numOctaves="2" seed="3" result="ruido"></feTurbulence>
+<feDisplacementMap in="SourceGraphic" in2="ruido" scale="3"></feDisplacementMap>
+</filter>
+<filter id="tecido" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+<feTurbulence type="fractalNoise" baseFrequency="0.55 0.04" numOctaves="2" seed="8" result="fibras"></feTurbulence>
+<feColorMatrix in="fibras" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  2.6 0 0 0 -0.35" result="mascara"></feColorMatrix>
+<feComposite in="SourceGraphic" in2="mascara" operator="in" result="riscado"></feComposite>
+<feTurbulence type="fractalNoise" baseFrequency="0.07" numOctaves="2" seed="2" result="borda"></feTurbulence>
+<feDisplacementMap in="riscado" in2="borda" scale="3"></feDisplacementMap>
+</filter>
+<filter id="borra" x="-30%" y="-30%" width="160%" height="160%">
+<feTurbulence type="fractalNoise" baseFrequency="0.045" numOctaves="3" seed="17" result="ruido"></feTurbulence>
+<feDisplacementMap in="SourceGraphic" in2="ruido" scale="16"></feDisplacementMap>
+</filter>
+<filter id="papel" x="0" y="0" width="100%" height="100%">
+<feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" seed="12" result="grao"></feTurbulence>
+<feColorMatrix in="grao" type="matrix" values="0 0 0 0 0.35  0 0 0 0 0.3  0 0 0 0 0.22  0 0 0 0.09 0"></feColorMatrix>
+</filter>
+<path id="traco" d="M-4.5 1 Q0 -2.5 4.5 1 Q4 50 2.6 96 Q0.4 103 -1.6 97 Q-4 50 -4.5 1 Z"></path>
+<g id="andarJogo">
+<use href="#traco" transform="translate(94 166) rotate(11.3) scale(2.9 1.22)" fill="#141414" filter="url(#tinta)"></use>
+<use href="#traco" transform="translate(70 288) rotate(-98) scale(1.5 0.2)" fill="#141414" filter="url(#tinta)"></use>
+<use href="#traco" transform="translate(98 78) rotate(15.5) scale(2.4 0.75)" fill="#141414" filter="url(#tinta)"></use>
+<use href="#traco" transform="translate(99 56) rotate(2.6) scale(3.4 1.12)" fill="#141414" filter="url(#tinta)"></use>
+<use href="#traco" transform="translate(96 166) rotate(-15.8) scale(2.9 1.25)" fill="#141414" filter="url(#tinta)"></use>
+<use href="#traco" transform="translate(128 289) rotate(-95) scale(1.5 0.2)" fill="#141414" filter="url(#tinta)"></use>
+<use href="#traco" transform="translate(101 78) rotate(-45) scale(2.3 0.74)" fill="#141414" filter="url(#tinta)"></use>
+</g>
+<g id="cabecaJogo"><ellipse cx="101" cy="40" rx="19" ry="22" transform="rotate(-8 101 40)" fill="#141414" filter="url(#tinta)"></ellipse><path d="M109 26 L117 24 M112 35 L119 34.5" stroke="#efe8d8" stroke-width="3.2" stroke-linecap="round"></path></g>
+<path id="faixa" d="M86 156 Q100 151 113 157 L112 166 Q99 161 87 166 Z M90 162 Q75 171 64 190 L70 192 Q80 175 94 165 Z M93 164 Q86 180 85 197 L90 197 Q91 182 97 166 Z"></path>
+<symbol id="j1" viewBox="0 0 200 300"><use href="#andarJogo"></use><use href="#cabecaJogo"></use><g fill="#e0502e"><use href="#faixa" filter="url(#tecido)"></use><path d="M83 27 Q100 19 118 24 L104 -2 Z" filter="url(#tecido)"></path></g></symbol>
+<symbol id="j2" viewBox="0 0 200 300"><use href="#andarJogo"></use><use href="#cabecaJogo"></use><g fill="#3f8fd8"><use href="#faixa" filter="url(#tecido)"></use><path d="M88 55 Q100 62 112 54 L114 63 Q100 71 87 64 Z M90 60 Q64 56 34 74 Q54 70 64 72 Q46 84 34 104 Q60 84 93 66 Z" filter="url(#tecido)"></path></g></symbol>
+<symbol id="j3" viewBox="0 0 200 300"><use href="#andarJogo"></use><use href="#cabecaJogo"></use><g fill="#d99a1e"><use href="#faixa" filter="url(#tecido)"></use><path d="M99 20 L99 16 Q92 14 99 11 Q106 8 99 6" stroke="#141414" stroke-width="3" fill="none" stroke-linecap="round"></path><circle cx="99" cy="5" r="8" filter="url(#tecido)"></circle></g></symbol>
+<symbol id="j4" viewBox="0 0 200 300"><use href="#andarJogo"></use><g fill="#1f9e89"><use href="#faixa" filter="url(#tecido)"></use><path d="M80 44 Q76 12 101 10 Q126 12 124 44 Q122 64 102 64 Q84 63 80 44 Z M86 20 L78 -3 L97 13 Z M116 20 L125 -3 L106 13 Z" filter="url(#tecido)"></path><ellipse cx="106" cy="43" rx="11" ry="14" fill="#141414"></ellipse></g></symbol>
+<symbol id="j5" viewBox="0 0 200 300"><use href="#andarJogo"></use><use href="#cabecaJogo"></use><g fill="#9b4f96"><use href="#faixa" filter="url(#tecido)"></use><circle cx="86" cy="22" r="11" filter="url(#tecido)"></circle><path d="M70 6 L102 32" stroke="#141414" stroke-width="3.5" stroke-linecap="round"></path></g></symbol>
+<g id="traca">
+<use href="#traco" transform="translate(70 128) rotate(16) scale(0.4 0.2)" fill="#3a2c20" filter="url(#seco)"></use>
+<use href="#traco" transform="translate(96 128) rotate(8) scale(0.4 0.2)" fill="#3a2c20" filter="url(#seco)"></use>
+<use href="#traco" transform="translate(122 126) rotate(-6) scale(0.4 0.2)" fill="#3a2c20" filter="url(#seco)"></use>
+<use href="#traco" transform="translate(42 120) rotate(100) scale(0.22 0.34)" fill="#3a2c20" filter="url(#seco)"></use>
+<use href="#traco" transform="translate(42 122) rotate(112) scale(0.22 0.38)" fill="#3a2c20" filter="url(#seco)"></use>
+<use href="#traco" transform="translate(150 114) rotate(85.8) scale(3.4 1.1)" fill="#5b4532" filter="url(#seco)"></use>
+<ellipse cx="156" cy="111" rx="15" ry="12" fill="#3a2c20" filter="url(#tinta)"></ellipse>
+<path d="M158 106 Q163 103 168 106 Q163 108.5 158 106 Z" fill="#efe8d8"></path>
+<use href="#traco" transform="translate(164 101) rotate(-128) scale(0.24 0.5)" fill="#3a2c20" filter="url(#seco)"></use>
+<use href="#traco" transform="translate(167 104) rotate(-112) scale(0.24 0.56)" fill="#3a2c20" filter="url(#seco)"></use>
+</g>
+<g id="saltador">
+<use href="#traco" transform="translate(92 112) rotate(20) scale(1.1 0.22)" fill="#3a3570" filter="url(#seco)"></use>
+<use href="#traco" transform="translate(112 112) rotate(-20) scale(1.1 0.22)" fill="#3a3570" filter="url(#seco)"></use>
+<path d="M104 52 Q132 54 134 84 Q136 112 104 116 Q72 116 72 88 Q72 66 88 58 Q92 46 104 52 Z" fill="#3a3570" filter="url(#tinta)"></path>
+<ellipse cx="112" cy="80" rx="7" ry="8" fill="#efe8d8"></ellipse><circle cx="114" cy="81" r="3.4" fill="#141414"></circle>
+<ellipse cx="96" cy="81" rx="5" ry="6.5" fill="#efe8d8"></ellipse><circle cx="98" cy="82" r="2.8" fill="#141414"></circle>
+</g>
+<g id="borrao">
+<path d="M100 22 Q146 20 152 62 Q160 100 120 112 Q100 120 78 110 Q40 100 48 62 Q54 24 100 22 Z" fill="#0d0c0b" filter="url(#borra)"></path>
+<use href="#traco" transform="translate(82 106) scale(1.2 0.3)" fill="#0d0c0b" filter="url(#seco)"></use>
+<use href="#traco" transform="translate(106 110) scale(1 0.22)" fill="#0d0c0b" filter="url(#seco)"></use>
+<path d="M80 62 Q90 54 100 62 Q90 68 80 62 Z M106 62 Q116 54 126 62 Q116 68 106 62 Z" fill="#d7261e"></path>
+</g>
+<g id="bola">
+<circle cx="0" cy="0" r="20" fill="#2f6fd6" filter="url(#tecido)"></circle>
+<circle cx="0" cy="0" r="20" fill="none" stroke="#141414" stroke-width="3" filter="url(#tinta)"></circle>
+<path d="M-11 -5 Q-2 -15 9 -9 Q2 -2 -5 7" stroke="#efe8d8" stroke-width="2.5" fill="none" stroke-linecap="round" opacity="0.8"></path>
+</g>
+<g id="tubo">
+<rect x="-9" y="2" width="18" height="12" rx="2" fill="#141414" filter="url(#tinta)"></rect>
+<rect x="-5" y="13" width="10" height="7" fill="#141414"></rect>
+<path d="M-15 20 Q0 16 15 20 L13 70 L-13 70 Z" fill="#2f6fd6" filter="url(#tecido)"></path>
+<path d="M-15 20 Q0 16 15 20 L13 70 L-13 70 Z" fill="none" stroke="#141414" stroke-width="2.6" stroke-linejoin="round" filter="url(#tinta)"></path>
+<rect x="-15" y="70" width="30" height="9" fill="#141414" filter="url(#tinta)"></rect>
+<path d="M-11 72 L-11 78 M-5 72 L-5 78 M1 72 L1 78 M7 72 L7 78" stroke="#efe8d8" stroke-width="1.4"></path>
+<path d="M-6 30 Q-8 44 -6 58" stroke="#efe8d8" stroke-width="2.4" fill="none" stroke-linecap="round" opacity="0.7"></path>
+</g>
+</defs>
+
+<rect width="1280" height="720" fill="#efe8d8"></rect>
+<rect width="1280" height="720" filter="url(#papel)"></rect>
+<g stroke="#cfc4ad" stroke-width="1" opacity="0.7">
+<line x1="0" y1="40" x2="1280" y2="40"></line><line x1="0" y1="80" x2="1280" y2="80"></line><line x1="0" y1="120" x2="1280" y2="120"></line><line x1="0" y1="160" x2="1280" y2="160"></line><line x1="0" y1="200" x2="1280" y2="200"></line><line x1="0" y1="240" x2="1280" y2="240"></line><line x1="0" y1="280" x2="1280" y2="280"></line><line x1="0" y1="320" x2="1280" y2="320"></line><line x1="0" y1="360" x2="1280" y2="360"></line><line x1="0" y1="400" x2="1280" y2="400"></line><line x1="0" y1="440" x2="1280" y2="440"></line><line x1="0" y1="480" x2="1280" y2="480"></line><line x1="0" y1="520" x2="1280" y2="520"></line><line x1="0" y1="560" x2="1280" y2="560"></line><line x1="0" y1="600" x2="1280" y2="600"></line><line x1="0" y1="640" x2="1280" y2="640"></line>
+</g>
+<line x1="128" y1="0" x2="128" y2="720" stroke="#d9a79b" stroke-width="1.5" opacity="0.5"></line>
+<g fill="none" stroke="#6d665a" stroke-width="2" opacity="0.13" stroke-linecap="round">
+<path d="M300 150 q20 -30 40 0 t40 0 t40 0"></path>
+<path d="M980 96 a26 26 0 1 1 -1 0 M980 70 v-14 M1006 96 h14 M954 96 h-14 M980 122 v14 M998 78 l10 -10 M962 78 l-10 -10"></path>
+<path d="M620 250 c-30 -10 -30 30 0 20 c30 -10 30 30 0 20"></path>
+<path d="M180 520 l30 -40 l30 40 l26 -30 l30 30"></path>
+<path d="M1090 520 q14 -26 28 0 q14 26 28 0"></path>
+</g>
+<circle cx="1110" cy="610" r="34" fill="none" stroke="#a9845a" stroke-width="7" opacity="0.13" filter="url(#borra)"></circle>
+
+<g fill="#8a8478" opacity="0.42" filter="url(#tecido)">
+<rect x="480" y="84" width="320" height="16"></rect>
+<rect x="40" y="204" width="320" height="16"></rect><rect x="920" y="204" width="320" height="16"></rect>
+<rect x="200" y="324" width="360" height="16"></rect><rect x="720" y="324" width="360" height="16"></rect>
+<rect x="40" y="444" width="240" height="16"></rect><rect x="1000" y="444" width="240" height="16"></rect>
+<rect x="200" y="564" width="320" height="16"></rect><rect x="760" y="564" width="320" height="16"></rect>
+</g>
+<g fill="#141414" filter="url(#seco)">
+<use href="#traco" transform="translate(480 85) rotate(-90) scale(1.25 3.25)"></use>
+<use href="#traco" transform="translate(360 205) rotate(90) scale(1.25 3.25)"></use>
+<use href="#traco" transform="translate(920 205) rotate(-90) scale(1.25 3.25)"></use>
+<use href="#traco" transform="translate(200 325) rotate(-90) scale(1.25 3.65)"></use>
+<use href="#traco" transform="translate(1080 325) rotate(90) scale(1.25 3.65)"></use>
+<use href="#traco" transform="translate(280 445) rotate(90) scale(1.25 2.45)"></use>
+<use href="#traco" transform="translate(1000 445) rotate(-90) scale(1.25 2.45)"></use>
+<use href="#traco" transform="translate(200 565) rotate(-90) scale(1.25 3.25)"></use>
+<use href="#traco" transform="translate(1080 565) rotate(90) scale(1.25 3.25)"></use>
+</g>
+
+<rect x="480" y="440" width="320" height="40" fill="#141414" filter="url(#tinta)"></rect>
+<g fill="#141414" filter="url(#seco)">
+<use href="#traco" transform="translate(476 442) rotate(-90) scale(1.4 3.3)"></use>
+<use href="#traco" transform="translate(804 478) rotate(90) scale(1.4 3.3)"></use>
+</g>
+<rect x="0" y="0" width="40" height="720" fill="#141414" filter="url(#tinta)"></rect>
+<rect x="1240" y="0" width="40" height="720" fill="#141414" filter="url(#tinta)"></rect>
+<rect x="0" y="682" width="1280" height="38" fill="#141414" filter="url(#tinta)"></rect>
+<g fill="#141414" filter="url(#seco)">
+<use href="#traco" transform="translate(42 -4) scale(1.5 7.3)"></use>
+<use href="#traco" transform="translate(1238 724) rotate(180) scale(1.5 7.3)"></use>
+<use href="#traco" transform="translate(-4 683) rotate(-90) scale(1.6 6.5)"></use>
+<use href="#traco" transform="translate(1284 685) rotate(90) scale(1.6 6.5)"></use>
+</g>
+
+<use href="#tubo" transform="translate(60 600)"></use>
+<use href="#tubo" transform="translate(1220 600)"></use>
+
+<ellipse cx="1050" cy="438" rx="34" ry="3" fill="#141414" opacity="0.15"></ellipse>
+<use href="#traca" transform="translate(1000 380) scale(0.4)"></use>
+<use href="#saltador" transform="translate(600 22) scale(0.4)"></use>
+<use href="#borrao" transform="translate(860 104) scale(0.55)"></use>
+<use href="#bola" transform="translate(430 298)"></use>
+<use href="#traco" transform="translate(396 290) rotate(-90) scale(0.3 0.4)" fill="#141414" filter="url(#seco)"></use>
+<use href="#traco" transform="translate(388 304) rotate(-90) scale(0.3 0.5)" fill="#141414" filter="url(#seco)"></use>
+
+<use href="#j1" x="606" y="616" width="44" height="66"></use>
+<use href="#j2" x="300" y="498" width="44" height="66"></use>
+<use href="#j3" x="820" y="258" width="44" height="66"></use>
+<use href="#j4" x="170" y="138" width="44" height="66"></use>
+<use href="#j5" x="1110" y="616" width="44" height="66"></use>
+</svg>
+<div class="legend">
+<div><b>Fundo de caderno</b>pauta, margem e rabiscos de lápis bem apagados</div>
+<div><b>Sólido</b>nanquim pesado com borda de pincel seco</div>
+<div><b>Atravessável</b>pincelada única por cima e aguada cinza embaixo</div>
+<div><b>Tubo de tinta</b>bisnaga azul nos cantos, só no modo difícil</div>
+<div><b>Surgimentos</b>não são desenhados: só existem no mapa</div>
+</div>
+</body>
+</html>
