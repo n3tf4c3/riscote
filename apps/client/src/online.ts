@@ -146,7 +146,8 @@ export function bootOnline(input: InputSource): void {
         scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
         scene,
       });
-      if (import.meta.env.DEV) Object.assign(window, { riscote: { game, scene, session: () => session } });
+      // Inspeção pelo console: em desenvolvimento ou com ?debug (só dados deste cliente).
+      if (import.meta.env.DEV || query.has('debug')) Object.assign(window, { riscote: { game, scene, session: () => session } });
     } else {
       game.scale.setGameSize(arenaWidth(arena), arenaHeight(arena));
       scene.scene.restart();
