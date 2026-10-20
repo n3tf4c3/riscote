@@ -3,39 +3,49 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<title>Cores dos 5 jogadores</title>
+<title>Cores dos jogadores, inimigos e itens</title>
 <style>
-  body { margin: 0; padding: 20px; background: #f1ead9; color: #1f1d1a; font: 13px/1.4 system-ui, sans-serif; }
-  h1 { font-size: 15px; margin: 0 0 4px; }
-  p { margin: 0 0 14px; color: #6d665a; }
-  .row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
-  .p { border: 1.5px solid #1f1d1a; border-radius: 4px; background: #f6f1e6; padding: 8px; }
-  .chip { height: 56px; border: 2px solid #1f1d1a; border-radius: 3px; }
-  b { display: block; margin-top: 6px; }
-  code { font: 12px ui-monospace, monospace; }
-  .s { color: #6d665a; font-size: 11px; }
-  .gray .chip { filter: grayscale(1); }
-  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #6d665a; margin: 16px 0 6px; }
+  body { margin: 0; padding: 20px; background: #ece5d6; color: #141414; font: 13px/1.4 system-ui, sans-serif; }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  p { margin: 0 0 12px; color: #4f4a41; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #4f4a41; margin: 14px 0 6px; }
+  .row { display: grid; gap: 10px; }
+  .five { grid-template-columns: repeat(5, 1fr); }
+  .four { grid-template-columns: repeat(4, 1fr); }
+  .sw { border: 2px solid #141414; border-radius: 4px; background: #f3ede1; overflow: hidden; }
+  .chip { height: 46px; }
+  .meta { padding: 6px 8px; font-size: 12px; }
+  .meta b { display: block; font-size: 13px; }
+  code { font: 11px ui-monospace, monospace; }
+  .s { color: #4f4a41; }
 </style>
 </head>
 <body>
-<h1>Os 5 jogadores — cor + padrão + acessório</h1>
-<p>Cor nunca é o único sinal: cada jogador também tem padrão e silhueta própria (plano, seção 3). Cores do protótipo: <code>PLAYER_COLORS</code>.</p>
-<div class="row">
-  <div class="p"><div class="chip" style="background:#e0502e"></div><b>1 · Vermelhão</b><code>#e0502e</code><div class="s">padrão liso · chapéu pontudo</div></div>
-  <div class="p"><div class="chip" style="background:#3f8fd8"></div><b>2 · Azul</b><code>#3f8fd8</code><div class="s">listras · cachecol longo</div></div>
-  <div class="p"><div class="chip" style="background:#d99a1e"></div><b>3 · Ocre</b><code>#d99a1e</code><div class="s">bolinhas · antena de mola</div></div>
-  <div class="p"><div class="chip" style="background:#1f9e89"></div><b>4 · Verde-azulado</b><code>#1f9e89</code><div class="s">hachura · capuz com orelhas</div></div>
-  <div class="p"><div class="chip" style="background:#9b4f96"></div><b>5 · Púrpura</b><code>#9b4f96</code><div class="s">xadrez · coque com pincel</div></div>
+<h1>Cores com função — cada cor diz quem é ou o que faz</h1>
+<p>Os corpos são todos de nanquim; a cor do jogador aparece só na faixa e no acessório (aguada com textura de tecido). Sem cor, o acessório separa a silhueta.</p>
+<h2>Jogadores</h2>
+<div class="row five">
+  <div class="sw"><div class="chip" style="background:#e0502e"></div><div class="meta"><b>1 · Vermelhão</b><code>#e0502e</code><div class="s">chapéu pontudo</div></div></div>
+  <div class="sw"><div class="chip" style="background:#3f8fd8"></div><div class="meta"><b>2 · Azul</b><code>#3f8fd8</code><div class="s">cachecol longo</div></div></div>
+  <div class="sw"><div class="chip" style="background:#d99a1e"></div><div class="meta"><b>3 · Ocre</b><code>#d99a1e</code><div class="s">antena de mola</div></div></div>
+  <div class="sw"><div class="chip" style="background:#1f9e89"></div><div class="meta"><b>4 · Verde-azulado</b><code>#1f9e89</code><div class="s">capuz com orelhas</div></div></div>
+  <div class="sw"><div class="chip" style="background:#9b4f96"></div><div class="meta"><b>5 · Púrpura</b><code>#9b4f96</code><div class="s">coque com pincel</div></div></div>
 </div>
-<h2>Teste de escala de cinza (os padrões precisam separar o que a cor não separa)</h2>
-<div class="row gray">
-  <div class="p"><div class="chip" style="background:#e0502e"></div></div>
-  <div class="p"><div class="chip" style="background:repeating-linear-gradient(0deg,#3f8fd8 0 6px,#2a6aa8 6px 9px)"></div></div>
-  <div class="p"><div class="chip" style="background:radial-gradient(circle,#8a5f0c 2px,transparent 2.5px) 0 0/9px 9px,#d99a1e"></div></div>
-  <div class="p"><div class="chip" style="background:repeating-linear-gradient(45deg,#1f9e89 0 4px,#126b5c 4px 6px)"></div></div>
-  <div class="p"><div class="chip" style="background:conic-gradient(#9b4f96 25%,#6c3068 0 50%,#9b4f96 0 75%,#6c3068 0) 0 0/12px 12px"></div></div>
+<h2>Inimigos (tintas de outro tom, nunca o preto dos jogadores)</h2>
+<div class="row four">
+  <div class="sw"><div class="chip" style="background:#5b4532"></div><div class="meta"><b>Traça</b><code>#5b4532 / #3a2c20</code><div class="s">sépia</div></div></div>
+  <div class="sw"><div class="chip" style="background:#3a3570"></div><div class="meta"><b>Saltador</b><code>#3a3570</code><div class="s">índigo</div></div></div>
+  <div class="sw"><div class="chip" style="background:#0d0c0b"></div><div class="meta"><b>Borrão</b><code>#0d0c0b</code><div class="s">preto profundo</div></div></div>
+  <div class="sw"><div class="chip" style="background:#d7261e"></div><div class="meta"><b>Olhos do borrão</b><code>#d7261e</code><div class="s">perigo que não se derrota</div></div></div>
 </div>
-<p style="margin-top:12px">A tinta disparada usa o azul de tinta <code>#2f6fd6</code> com contorno na cor do jogador.</p>
+<h2>Itens (líquido do pote) e efeitos</h2>
+<div class="row five">
+  <div class="sw"><div class="chip" style="background:#c8402a"></div><div class="meta"><b>Força</b><code>#c8402a</code></div></div>
+  <div class="sw"><div class="chip" style="background:#d99a1e"></div><div class="meta"><b>Agilidade</b><code>#d99a1e</code></div></div>
+  <div class="sw"><div class="chip" style="background:#2f6fd6"></div><div class="meta"><b>Tiro ágil · tinta dos jogadores</b><code>#2f6fd6</code></div></div>
+  <div class="sw"><div class="chip" style="background:#1f9e89"></div><div class="meta"><b>Alcance</b><code>#1f9e89</code></div></div>
+  <div class="sw"><div class="chip" style="background:#e8b400"></div><div class="meta"><b>Invencível · aura</b><code>#e8b400</code></div></div>
+</div>
+<p style="margin-top:12px">A gota disparada é sempre a tinta azul <code>#2f6fd6</code>, com contorno na cor de quem atirou. Os itens se distinguem pelo símbolo do pote, não só pela cor.</p>
 </body>
 </html>

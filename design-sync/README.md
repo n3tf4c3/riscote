@@ -11,8 +11,10 @@ Cada arquivo é um cartão. A primeira linha (`<!-- @dsCard group="…" -->`) de
 | Marca | `marca/riscote.html`: premissa, linguagem e o que não copiar |
 | Cores | `cores/papel-e-tinta.html`, `cores/jogadores.html` |
 | Fundamentos | `fundamentos/camadas.html`, `fundamentos/escala.html`, `fundamentos/tipografia.html` |
-| Personagens | `personagens/jogadores.html`, `personagens/inimigos.html` |
-| Cenário | `cenario/arena.html` (gerado do layout real), `cenario/efeitos.html` |
+| Personagens | `personagens/jogadores.html` (figuras de pincel seco e estados), `personagens/inimigos.html` (inimigos e ciclo da tinta) |
+| Cenário | `cenario/arena-tinta.html` (arena em tinta, gerada da prancha), `cenario/arena.html` (geometria greybox), `cenario/itens.html`, `cenario/efeitos.html` |
+
+A arte aprovada nasce na prancha "Riscote — personagens" (Claude Design, artifact QnTcq5XpucJxr2GPxGfR3t); os cartões copiam os desenhos de lá com o traço fixo.
 | Interface | `interface/painel.html` |
 
 ## Publicar ou atualizar

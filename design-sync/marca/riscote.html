@@ -42,14 +42,25 @@
       <line x1="0" y1="160" x2="320" y2="160"/><line x1="0" y1="200" x2="320" y2="200"/>
     </g>
     <line x1="40" y1="0" x2="40" y2="240" stroke="#e0a48f" stroke-width="1.5"/>
-    <path d="M70 170 Q140 160 230 172" stroke="#1f1d1a" stroke-width="7" fill="none" stroke-linecap="round"/>
-    <path d="M150 118 q-4 -30 10 -46 q14 -12 22 6 q6 18 -4 40 z" fill="#e0502e" stroke="#1f1d1a" stroke-width="3.5" stroke-linejoin="round"/>
-    <path d="M152 74 l12 -26 l12 22" fill="#1f1d1a"/>
-    <circle cx="172" cy="90" r="3" fill="#1f1d1a"/>
-    <path d="M152 118 l-6 44 M176 116 l8 46" stroke="#1f1d1a" stroke-width="4" stroke-linecap="round"/>
-    <circle cx="236" cy="110" r="9" fill="#2f6fd6" stroke="#1f1d1a" stroke-width="2.5"/>
-    <circle cx="258" cy="104" r="5" fill="#2f6fd6" opacity=".8"/>
-    <text x="60" y="226" font-family="system-ui" font-size="12" fill="#6d665a">esboço de direção — não é arte final</text>
+    <defs>
+      <filter id="seco" x="-60%" y="-8%" width="220%" height="116%" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="0.75 0.016" numOctaves="2" seed="5" result="fibras"/><feColorMatrix in="fibras" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  4 0 0 0 -0.95" result="mascara"/><feComposite in="SourceGraphic" in2="mascara" operator="in" result="riscado"/><feTurbulence type="fractalNoise" baseFrequency="0.06" numOctaves="2" seed="9" result="borda"/><feDisplacementMap in="riscado" in2="borda" scale="3"/></filter>
+      <path id="traco" d="M-4.5 1 Q0 -2.5 4.5 1 Q4 50 2.6 96 Q0.4 103 -1.6 97 Q-4 50 -4.5 1 Z"/>
+    </defs>
+    <g transform="translate(70 22) scale(0.62)">
+      <use href="#traco" transform="translate(26 295) rotate(-90) scale(0.5 1.5)" fill="#141414" filter="url(#seco)"/>
+      <use href="#traco" transform="translate(96 166) rotate(15.6) scale(1.15 1.27)" fill="#141414" filter="url(#seco)"/>
+      <use href="#traco" transform="translate(98 80) rotate(22.6) scale(0.95 0.65)" fill="#141414" filter="url(#seco)"/>
+      <use href="#traco" transform="translate(98 60) rotate(1) scale(1.55 1.08)" fill="#141414" filter="url(#seco)"/>
+      <use href="#traco" transform="translate(96 166) rotate(-17.3) scale(1.15 1.28)" fill="#141414" filter="url(#seco)"/>
+      <use href="#traco" transform="translate(100 80) rotate(-95) scale(0.9 0.67)" fill="#141414" filter="url(#seco)"/>
+      <ellipse cx="98" cy="42" rx="13" ry="16" transform="rotate(-8 98 42)" fill="#141414"/>
+      <path d="M104 31 L109 29.5 M106 37 L111 36.5" stroke="#efe8d8" stroke-width="1.8" stroke-linecap="round"/>
+      <path d="M84 152 Q98 147 111 153 L110 162 Q97 157 85 162 Z M88 158 Q73 167 62 186 L68 188 Q78 171 92 161 Z" fill="#e0502e"/>
+      <path d="M80 33 Q97 25 115 30 L101 3 Z" fill="#e0502e"/>
+      <circle cx="182" cy="72" r="9" fill="#2f6fd6" stroke="#e0502e" stroke-width="2.5"/>
+      <circle cx="196" cy="66" r="3" fill="#2f6fd6"/>
+    </g>
+    <text x="60" y="226" font-family="system-ui" font-size="12" fill="#6d665a">riscote vermelhão atirando tinta</text>
   </svg>
 </div>
 </body>

@@ -3,29 +3,62 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<title>Inimigos e a bola de tinta</title>
+<title>Inimigos e o ciclo da tinta</title>
 <style>
-  body { margin: 0; padding: 20px; background: #f1ead9; color: #1f1d1a; font: 13px/1.4 system-ui, sans-serif; }
-  h1 { font-size: 15px; margin: 0 0 4px; }
-  p { margin: 0 0 12px; color: #6d665a; }
-  .row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
-  figure { margin: 0; border: 1.5px solid #1f1d1a; border-radius: 4px; background: #f6f1e6; padding: 6px; text-align: center; }
-  figcaption { font-size: 11px; color: #6d665a; margin-top: 4px; }
-  figcaption b { color: #1f1d1a; display: block; font-size: 12px; }
-  svg { width: 100%; height: 90px; display: block; }
+  body { margin: 0; padding: 20px; background: #ece5d6; color: #141414; font: 13px/1.4 system-ui, sans-serif; }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  p { margin: 0 0 12px; color: #4f4a41; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #4f4a41; margin: 14px 0 6px; }
+  .row { display: grid; gap: 10px; }
+  .three { grid-template-columns: repeat(3, 1fr); }
+  .five { grid-template-columns: repeat(5, 1fr); }
+  figure { margin: 0; border: 2px solid #141414; border-radius: 4px; background: #f3ede1; padding: 6px; }
+  figcaption { font-size: 11px; color: #4f4a41; margin-top: 4px; }
+  figcaption b { display: block; color: #141414; font-size: 13px; }
+  svg { width: 100%; display: block; }
   code { font: 11px ui-monospace, monospace; }
 </style>
 </head>
 <body>
-<h1>Inimigos — tamanhos, cores de família e o ciclo da mecânica</h1>
-<p>Traça e saltador: caixa de 18 × 18 px (0,9 célula). Borrão: 26 × 26 px. Cada tipo precisa ser reconhecível em preto e branco.</p>
-<div class="row">
-  <figure><svg viewBox="0 0 60 60"><rect x="21" y="24" width="18" height="15" fill="#8b6f4e" stroke="#1f1d1a" stroke-width="2"/><path d="M26 24 l-3 -6 M34 24 l3 -6" stroke="#1f1d1a" stroke-width="2"/><circle cx="35" cy="29" r="3" fill="#fff"/><circle cx="35" cy="29" r="1.5" fill="#1f1d1a"/><line x1="8" y1="40" x2="52" y2="40" stroke="#1f1d1a" stroke-width="3"/></svg><figcaption><b>Traça</b>patrulha, pula e desce · <code>#8b6f4e</code></figcaption></figure>
-  <figure><svg viewBox="0 0 60 60"><rect x="21" y="21" width="18" height="18" rx="6" fill="#5d4f8f" stroke="#1f1d1a" stroke-width="2"/><circle cx="35" cy="29" r="3" fill="#fff"/><circle cx="35" cy="29" r="1.5" fill="#1f1d1a"/><path d="M14 18 q6 -10 12 0" stroke="#6d665a" stroke-dasharray="2 2" fill="none"/><line x1="8" y1="40" x2="52" y2="40" stroke="#1f1d1a" stroke-width="3"/></svg><figcaption><b>Saltador</b>salta rumo ao mais próximo · <code>#5d4f8f</code></figcaption></figure>
-  <figure><svg viewBox="0 0 60 60"><rect x="21" y="24" width="18" height="15" fill="#8b6f4e" stroke="#1f1d1a" stroke-width="2"/><rect x="21" y="31" width="18" height="8" fill="#2f6fd6" fill-opacity=".75"/><rect x="21" y="24" width="18" height="15" fill="none" stroke="#1f1d1a" stroke-width="2"/><line x1="8" y1="40" x2="52" y2="40" stroke="#1f1d1a" stroke-width="3"/></svg><figcaption><b>Encharcado</b>tinta sobe a cada acerto (4, ou 5 com 4–5 jogadores)</figcaption></figure>
-  <figure><svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="10" fill="#2f6fd6" stroke="#1f1d1a" stroke-width="2"/><line x1="25" y1="27" x2="35" y2="33" stroke="#fff" stroke-width="2" opacity=".8"/><line x1="8" y1="40" x2="52" y2="40" stroke="#1f1d1a" stroke-width="3"/></svg><figcaption><b>Bola de tinta</b>parada 5 s; encostar e chutar</figcaption></figure>
-  <figure><svg viewBox="0 0 60 60"><circle cx="34" cy="30" r="10" fill="#2f6fd6" stroke="#1f1d1a" stroke-width="2"/><line x1="29" y1="34" x2="39" y2="26" stroke="#fff" stroke-width="2" opacity=".8"/><path d="M8 26 h12 M6 31 h14 M10 36 h10" stroke="#1f1d1a" stroke-width="2"/><line x1="8" y1="40" x2="52" y2="40" stroke="#1f1d1a" stroke-width="3"/></svg><figcaption><b>Rolando</b>derruba quem estiver no caminho; estoura e respinga</figcaption></figure>
-  <figure><svg viewBox="0 0 60 60"><circle cx="30" cy="28" r="13" fill="#1f1d1a" opacity=".92"/><circle cx="21" cy="35" r="6" fill="#1f1d1a"/><circle cx="40" cy="22" r="5" fill="#1f1d1a"/><rect x="27" y="38" width="3" height="10" fill="#1f1d1a"/><rect x="33" y="39" width="3" height="7" fill="#1f1d1a"/><circle cx="26" cy="26" r="3" fill="#d7261e"/><circle cx="36" cy="26" r="3" fill="#d7261e"/></svg><figcaption><b>Borrão</b>surge aos 60 s, atravessa paredes, não se derrota</figcaption></figure>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<filter id="seco" x="-60%" y="-8%" width="220%" height="116%" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="0.75 0.016" numOctaves="2" seed="5" result="fibras"/><feColorMatrix in="fibras" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  4 0 0 0 -0.95" result="mascara"/><feComposite in="SourceGraphic" in2="mascara" operator="in" result="riscado"/><feTurbulence type="fractalNoise" baseFrequency="0.06" numOctaves="2" seed="9" result="borda"/><feDisplacementMap in="riscado" in2="borda" scale="3"/></filter>
+<filter id="tinta" x="-20%" y="-20%" width="140%" height="140%"><feTurbulence type="fractalNoise" baseFrequency="0.08" numOctaves="2" seed="3" result="ruido"/><feDisplacementMap in="SourceGraphic" in2="ruido" scale="3"/></filter>
+<filter id="tecido" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="0.55 0.04" numOctaves="2" seed="8" result="fibras"/><feColorMatrix in="fibras" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  2.6 0 0 0 -0.35" result="mascara"/><feComposite in="SourceGraphic" in2="mascara" operator="in" result="riscado"/><feTurbulence type="fractalNoise" baseFrequency="0.07" numOctaves="2" seed="2" result="borda"/><feDisplacementMap in="riscado" in2="borda" scale="3"/></filter>
+<filter id="borra" x="-30%" y="-30%" width="160%" height="160%"><feTurbulence type="fractalNoise" baseFrequency="0.045" numOctaves="3" seed="17" result="ruido"/><feDisplacementMap in="SourceGraphic" in2="ruido" scale="16"/></filter>
+<path id="traco" d="M-4.5 1 Q0 -2.5 4.5 1 Q4 50 2.6 96 Q0.4 103 -1.6 97 Q-4 50 -4.5 1 Z"/>
+<g id="chao"><ellipse cx="100" cy="150" rx="66" ry="5" fill="#141414" opacity="0.14"/><use href="#traco" transform="translate(24 153) rotate(-90) scale(0.45 1.52)" fill="#141414" filter="url(#seco)"/></g>
+<g id="traca">
+<use href="#traco" transform="translate(70 128) rotate(16) scale(0.4 0.2)" fill="#3a2c20" filter="url(#seco)"/>
+<use href="#traco" transform="translate(96 128) rotate(8) scale(0.4 0.2)" fill="#3a2c20" filter="url(#seco)"/>
+<use href="#traco" transform="translate(122 126) rotate(-6) scale(0.4 0.2)" fill="#3a2c20" filter="url(#seco)"/>
+<use href="#traco" transform="translate(42 120) rotate(100) scale(0.22 0.34)" fill="#3a2c20" filter="url(#seco)"/>
+<use href="#traco" transform="translate(42 122) rotate(112) scale(0.22 0.38)" fill="#3a2c20" filter="url(#seco)"/>
+<use href="#traco" transform="translate(43 124) rotate(124) scale(0.22 0.32)" fill="#3a2c20" filter="url(#seco)"/>
+<use href="#traco" transform="translate(150 114) rotate(85.8) scale(3.4 1.1)" fill="#5b4532" filter="url(#seco)"/>
+<path d="M72 112 L70 128 M92 110 L91 128 M112 109 L112 127 M131 108 L132 124" stroke="#e9dfc9" stroke-width="1.6" opacity="0.6"/>
+<ellipse cx="156" cy="111" rx="15" ry="12" fill="#3a2c20" filter="url(#tinta)"/>
+<path d="M158 106 Q163 103 168 106 Q163 108.5 158 106 Z" fill="#efe8d8"/>
+<use href="#traco" transform="translate(164 101) rotate(-128) scale(0.24 0.5)" fill="#3a2c20" filter="url(#seco)"/>
+<use href="#traco" transform="translate(167 104) rotate(-112) scale(0.24 0.56)" fill="#3a2c20" filter="url(#seco)"/>
+</g>
+<g id="bola"><circle r="22" fill="#2f6fd6" filter="url(#tecido)"/><circle r="22" fill="none" stroke="#141414" stroke-width="3" filter="url(#tinta)"/><path d="M-12 -6 Q-2 -16 10 -10 Q2 -2 -6 8" stroke="#efe8d8" stroke-width="2.5" fill="none" opacity="0.8"/></g>
+</defs>
+</svg>
+<h1>Inimigos — formas baixas, em outros tons de tinta</h1>
+<p>Jogadores são figuras altas de nanquim preto; inimigos são compridos ou redondos, em sépia, índigo ou no preto profundo do borrão. Caixa no jogo: traça e saltador 18 × 18 px; borrão 26 × 26 px.</p>
+<div class="row three">
+<figure><svg viewBox="0 0 200 160" style="height:150px" role="img" aria-label="Traça"><use href="#chao"/><use href="#traca"/></svg><figcaption><b>Traça</b><code>sépia #5b4532 · cabeça #3a2c20</code> · patrulha, pula e desce</figcaption></figure>
+<figure><svg viewBox="0 0 200 160" style="height:150px" role="img" aria-label="Saltador"><use href="#chao"/><use href="#traco" transform="translate(92 112) rotate(20) scale(1.1 0.22)" fill="#3a3570" filter="url(#seco)"/><use href="#traco" transform="translate(112 112) rotate(-20) scale(1.1 0.22)" fill="#3a3570" filter="url(#seco)"/><path d="M104 52 Q132 54 134 84 Q136 112 104 116 Q72 116 72 88 Q72 66 88 58 Q92 46 104 52 Z" fill="#3a3570" filter="url(#tinta)"/><ellipse cx="112" cy="80" rx="7" ry="8" fill="#efe8d8"/><circle cx="114" cy="81" r="3.4" fill="#141414"/><ellipse cx="96" cy="81" rx="5" ry="6.5" fill="#efe8d8"/><circle cx="98" cy="82" r="2.8" fill="#141414"/></svg><figcaption><b>Saltador</b><code>índigo #3a3570</code> · quica rumo ao jogador mais próximo</figcaption></figure>
+<figure><svg viewBox="0 0 200 160" style="height:150px" role="img" aria-label="Borrão"><path d="M100 22 Q146 20 152 62 Q160 100 120 112 Q100 120 78 110 Q40 100 48 62 Q54 24 100 22 Z" fill="#0d0c0b" filter="url(#borra)"/><use href="#traco" transform="translate(82 106) scale(1.2 0.3)" fill="#0d0c0b" filter="url(#seco)"/><use href="#traco" transform="translate(106 110) scale(1 0.22)" fill="#0d0c0b" filter="url(#seco)"/><path d="M80 62 Q90 54 100 62 Q90 68 80 62 Z M106 62 Q116 54 126 62 Q116 68 106 62 Z" fill="#d7261e"/></svg><figcaption><b>Borrão</b><code>#0d0c0b · olhos #d7261e</code> · aos 60 s; atravessa paredes; não se derrota</figcaption></figure>
+</div>
+<h2>Ciclo da tinta</h2>
+<div class="row five">
+<figure><svg viewBox="0 0 200 160" style="height:90px"><use href="#chao"/><use href="#traca"/></svg><figcaption>1 · andando: encostar derruba</figcaption></figure>
+<figure><svg viewBox="0 0 200 160" style="height:90px"><use href="#chao"/><use href="#traca"/><path d="M48 120 Q90 112 150 116 Q160 122 150 126 Q100 132 52 128 Z" fill="#2f6fd6" opacity="0.85" filter="url(#tecido)"/></svg><figcaption>2 · encharcada: tinta sobe a cada acerto</figcaption></figure>
+<figure><svg viewBox="0 0 200 160" style="height:90px"><use href="#chao"/><use href="#traco" transform="translate(108 100) rotate(-150) scale(0.24 0.36)" fill="#3a2c20" filter="url(#seco)"/><use href="#bola" transform="translate(100 124)"/></svg><figcaption>3 · bola: parada 5 s, chutável</figcaption></figure>
+<figure><svg viewBox="0 0 200 160" style="height:90px"><use href="#chao"/><use href="#traco" transform="translate(30 124) rotate(-90) scale(0.3 0.62)" fill="#141414" filter="url(#seco)"/><use href="#bola" transform="translate(120 124) rotate(60)"/></svg><figcaption>4 · rolando: derruba no caminho</figcaption></figure>
+<figure><svg viewBox="0 0 200 160" style="height:90px"><use href="#chao"/><g fill="#2f6fd6" filter="url(#tecido)"><circle cx="100" cy="118" r="14"/><circle cx="72" cy="104" r="6"/><circle cx="130" cy="100" r="7"/><circle cx="56" cy="122" r="4"/><circle cx="146" cy="126" r="5"/></g></svg><figcaption>5 · estouro: respinga em 2,5 células</figcaption></figure>
 </div>
 </body>
 </html>
