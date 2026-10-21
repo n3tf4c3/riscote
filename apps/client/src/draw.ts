@@ -1,9 +1,14 @@
 import type * as Phaser from 'phaser';
 import {
   BORRAO_SIZE,
+  ENEMY_BORRACHA,
   ENEMY_BORRAO,
+  ENEMY_FIANDEIRA,
+  ENEMY_GRAMPO,
   ENEMY_SALTADOR,
   ENEMY_SIZE,
+  ENEMY_TINTEIRO,
+  ENEMY_TRACA,
   MODE_WALK,
   ONE_WAY,
   RULES,
@@ -25,6 +30,16 @@ export const INK_BLUE = 0x2f6fd6;
 const TUBE = INK_BLUE;
 const TRACA = 0x8b6f4e;
 const SALTADOR = 0x5d4f8f;
+const BORRACHA_FRENTE = 0xd98a8a;
+/** Corpo de cada inimigo no greybox (o borrão tem desenho próprio). */
+const ENEMY_COLORS: Record<number, number> = {
+  [ENEMY_TRACA]: TRACA,
+  [ENEMY_SALTADOR]: SALTADOR,
+  [ENEMY_GRAMPO]: 0x5b6670,
+  [ENEMY_FIANDEIRA]: 0x2b2230,
+  [ENEMY_TINTEIRO]: 0x1f3446,
+  [ENEMY_BORRACHA]: 0x4f6fa8,
+};
 const ENEMY_MARK = 0xc8402a;
 const STAR_GOLD = 0xe8b400;
 /** Cor do líquido de cada item, na ordem ITEM_FORCA..ITEM_INVENCIVEL. */
@@ -204,13 +219,17 @@ export function drawEnemy(g: Phaser.GameObjects.Graphics, x: number, y: number, 
     g.lineStyle(2, 0xffffff, 0.8).lineBetween(cx - Math.cos(a) * r * 0.6, cy - Math.sin(a) * r * 0.6, cx + Math.cos(a) * r * 0.6, cy + Math.sin(a) * r * 0.6);
     return;
   }
-  const body = e.kind === ENEMY_SALTADOR ? SALTADOR : TRACA;
-  if (e.kind === ENEMY_SALTADOR) g.fillStyle(body).fillRoundedRect(x, y, size, size, 6);
+  const body = ENEMY_COLORS[e.kind] ?? TRACA;
+  const round = e.kind === ENEMY_SALTADOR || e.kind === ENEMY_FIANDEIRA || e.kind === ENEMY_TINTEIRO;
+  if (round) g.fillStyle(body).fillRoundedRect(x, y, size, size, 6);
   else g.fillStyle(body).fillRect(x, y + 3, size, size - 3);
+  // Borracha: a frente (o lado que apaga) em rosa.
+  if (e.kind === ENEMY_BORRACHA) g.fillStyle(BORRACHA_FRENTE).fillRect(e.facing > 0 ? x + size / 2 : x, y + 3, size / 2, size - 3);
   const soaked = Math.min(1, e.soak / Math.max(1, soakToBall));
   if (soaked > 0) g.fillStyle(INK_BLUE, 0.75).fillRect(x, y + size * (1 - soaked), size, size * soaked);
   g.lineStyle(2, INK);
-  if (e.kind === ENEMY_SALTADOR) g.strokeRoundedRect(x, y, size, size, 6);
+  if (round) g.strokeRoundedRect(x, y, size, size, 6);
+  else if (e.kind !== ENEMY_TRACA) g.strokeRect(x, y + 3, size, size - 3);
   else {
     g.strokeRect(x, y + 3, size, size - 3);
     // Antenas da traça.

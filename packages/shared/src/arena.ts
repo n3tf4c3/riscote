@@ -10,6 +10,31 @@ export interface CellPos {
   row: number;
 }
 
+/**
+ * Regras de uma fase do capítulo: quem aparece, em que ritmo e quais habilidades valem.
+ * Os tipos são as constantes `ENEMY_*` de world.ts. Valores iniciais, a ajustar em playtest.
+ */
+export interface Stage {
+  /** Posição no capítulo (1 a 4): a dificuldade cresce com ela. */
+  step: number;
+  /** Ordem de surgimento dos tipos; a fila percorre a lista dando a volta. */
+  roster: readonly number[];
+  /** Tipos com a habilidade ligada nesta fase (bote, pancada, cuspe). */
+  skills: readonly number[];
+  /** Inimigos da fase: `base + perPlayer × jogadores`. */
+  base: number;
+  perPlayer: number;
+  maxOnScreen: number;
+  /** Segundos entre um surgimento e outro. */
+  spawnDelay: number;
+  /** Segundos na arena até o borrão aparecer. */
+  hurryTime: number;
+  /** Multiplica o intervalo entre habilidades (abaixo de 1, elas voltam mais rápido). */
+  skillCdMult: number;
+  /** Dicas de tiro, bola e chute na tela (primeira fase de cada capítulo). */
+  hints: boolean;
+}
+
 export interface Arena {
   id: string;
   name: string;
@@ -18,17 +43,22 @@ export interface Arena {
   cells: Uint8Array;
   playerSpawns: CellPos[];
   enemySpawns: CellPos[];
+  /** Pontos de onde a fiandeira se pendura (logo abaixo de uma plataforma ou bloco). */
+  anchors: CellPos[];
   tubes: CellPos[];
   /** Linha do andar mais alto (plataforma fora das paredes e do chão). */
   topFloorRow: number;
+  /** Fase do capítulo; sem ela, o mundo usa as regras padrão (arenas de teste e do modo local). */
+  stage?: Stage;
 }
 
 /**
  * Legenda: `#` sólido, `=` plataforma atravessável por baixo, `.` vazio,
- * `P` surgimento de jogador, `E` surgimento de inimigo, `T` tubo de tinta.
+ * `P` surgimento de jogador, `E` surgimento de inimigo, `T` tubo de tinta,
+ * `A` ponto onde a fiandeira se pendura (embaixo de uma célula cheia).
  * `P`, `E` e `T` ocupam células vazias e ficam apoiados na célula de baixo.
  */
-export function parseArena(id: string, name: string, layout: readonly string[]): Arena {
+export function parseArena(id: string, name: string, layout: readonly string[], stage?: Stage): Arena {
   const rows = layout.length;
   const cols = layout[0]?.length ?? 0;
   if (rows === 0 || cols === 0) throw new Error(`arena ${id}: layout vazio`);
@@ -36,6 +66,7 @@ export function parseArena(id: string, name: string, layout: readonly string[]):
   const cells = new Uint8Array(cols * rows);
   const playerSpawns: CellPos[] = [];
   const enemySpawns: CellPos[] = [];
+  const anchors: CellPos[] = [];
   const tubes: CellPos[] = [];
   let topFloorRow = rows - 1;
 
@@ -64,6 +95,9 @@ export function parseArena(id: string, name: string, layout: readonly string[]):
         case 'T':
           tubes.push(pos);
           break;
+        case 'A':
+          anchors.push(pos);
+          break;
         default:
           throw new Error(`arena ${id}: caractere desconhecido '${ch}' em ${col},${row}`);
       }
@@ -72,7 +106,7 @@ export function parseArena(id: string, name: string, layout: readonly string[]):
     }
   });
 
-  return { id, name, cols, rows, cells, playerSpawns, enemySpawns, tubes, topFloorRow };
+  return { id, name, cols, rows, cells, playerSpawns, enemySpawns, anchors, tubes, topFloorRow, ...(stage ? { stage } : {}) };
 }
 
 /** Fora dos limites conta como sólido: a arena é fechada. */

@@ -2,6 +2,7 @@ import * as Phaser from 'phaser';
 import { CloseCode, ColyseusSDK, type Room } from '@colyseus/sdk';
 import {
   CHAPTERS,
+  CHAPTER_NAMES,
   DIFFICULTIES,
   DIFFICULTY_NAMES,
   MAX_PLAYERS,
@@ -30,7 +31,7 @@ import { setCover } from './capa';
 const INITIAL_STATE_TIMEOUT_MS = 5000;
 
 const DIFFICULTY_HINTS: Record<Difficulty, string> = {
-  facil: 'Cada riscote aguenta 2 toques e corre um pouco mais. Tinta infinita.',
+  facil: 'Cada riscote aguenta 2 toques e corre um pouco mais; os inimigos avisam com mais tempo e vêm em menor número. Tinta infinita.',
   medio: 'Um toque derruba. Tinta infinita.',
   dificil: 'Um toque derruba e a tinta acaba: recarregue nos tubos dos cantos.',
 };
@@ -103,7 +104,8 @@ export function bootOnline(input: InputSource): void {
   let session: OnlineSession | null = null;
   let game: Phaser.Game | null = null;
   const scene = new OnlineScene({ session: () => session, input });
-  let arenaId = 'padrao';
+  // A sala joga o capítulo inteiro a partir da 1ª fase: o menu escolhe o capítulo pela arena de abertura.
+  let arenaId = CHAPTERS[0]![0]!.id;
   let difficulty: Difficulty = 'medio';
   // Recarregar ou fechar a aba derruba a conexão: a vaga guardada precisa sobreviver a isso.
   let unloading = false;
@@ -120,25 +122,20 @@ export function bootOnline(input: InputSource): void {
 
   const arenaButtons = el('online-arenas');
   CHAPTERS.forEach((chapter, i) => {
-    const label = document.createElement('p');
-    label.className = 'keys';
-    label.textContent = `Capítulo ${i + 1}`;
-    arenaButtons.append(label);
-    for (const arena of chapter) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      // "Padrão 32×18": o nome em cima e o tamanho miúdo embaixo.
-      const [, title = arena.name, size] = /^(.*?)(?:\s+(\d+×\d+))?$/.exec(arena.name) ?? [];
-      button.textContent = title;
-      if (size) button.append(Object.assign(document.createElement('small'), { textContent: size }));
-      button.setAttribute('aria-pressed', 'false');
-      button.addEventListener('click', () => {
-        arenaId = arena.id;
-        choose(arenaButtons, button);
-      });
-      arenaButtons.append(button);
-      if (arena.id === arenaId) choose(arenaButtons, button);
-    }
+    const first = chapter[0]!;
+    const button = document.createElement('button');
+    button.type = 'button';
+    // "Capítulo 1 · Caderno" em cima; as fases, pelo nome sem o tamanho, miúdas embaixo.
+    button.textContent = `Capítulo ${i + 1} · ${CHAPTER_NAMES[i] ?? ''}`;
+    const phases = chapter.map((a) => /^(.*?)(?:\s+\d+×\d+)?$/.exec(a.name)?.[1] ?? a.name);
+    button.append(Object.assign(document.createElement('small'), { textContent: `${phases.join(', ')} e o chefe` }));
+    button.setAttribute('aria-pressed', 'false');
+    button.addEventListener('click', () => {
+      arenaId = first.id;
+      choose(arenaButtons, button);
+    });
+    arenaButtons.append(button);
+    if (first.id === arenaId) choose(arenaButtons, button);
   });
 
   const difficultyButtons = el('online-difficulty');

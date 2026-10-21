@@ -44,6 +44,14 @@ export interface NetEnemy {
   soak: number;
   /** Fase da habilidade (SKILL_*). */
   skill: number;
+  /** Fiandeira: y onde o fio se prende; -1 = solta. */
+  anchorY: number;
+}
+
+/** Cuspe do tinteiro. */
+export interface NetSpit {
+  x: number;
+  y: number;
 }
 
 export interface NetStain {
@@ -84,6 +92,7 @@ export interface NetState {
   boss: BossSnapshot;
   hazards: NetMap<Omit<HazardSnapshot, 'id'>>;
   bossNext: boolean;
+  spits: NetMap<NetSpit>;
 }
 
 export interface NetItem {
@@ -111,6 +120,7 @@ export interface PlayerView extends Positioned {
 
 export type EnemyView = Positioned & NetEnemy;
 export type DropView = Positioned & NetDrop;
+export type SpitView = Positioned & NetSpit;
 
 /** Liga a sala do Colyseus à previsão do próprio jogador e à interpolação do resto. */
 export class OnlineSession {
@@ -132,6 +142,7 @@ export class OnlineSession {
   private players = new Interpolator<PlayerView>();
   private enemies = new Interpolator<EnemyView>();
   private drops = new Interpolator<DropView>();
+  private spits = new Interpolator<SpitView>();
   private bossPos = new Interpolator<Positioned>();
   private hazards = new Interpolator<HazardSnapshot>();
 
@@ -212,6 +223,10 @@ export class OnlineSession {
     return this.drops.sample(now);
   }
 
+  spitViews(now: number): SpitView[] {
+    return this.spits.sample(now);
+  }
+
   /** O chefe com a posição interpolada como a dos inimigos; o resto é o último estado. */
   bossView(now: number): BossSnapshot | null {
     const boss = this.state.boss;
@@ -245,6 +260,7 @@ export class OnlineSession {
       this.players = new Interpolator<PlayerView>();
       this.enemies = new Interpolator<EnemyView>();
       this.drops = new Interpolator<DropView>();
+      this.spits = new Interpolator<SpitView>();
       this.bossPos = new Interpolator<Positioned>();
       this.hazards = new Interpolator<HazardSnapshot>();
       switched = true;
@@ -264,13 +280,17 @@ export class OnlineSession {
 
     const enemies: EnemyView[] = [];
     state.enemies.forEach((e, id) => {
-      enemies.push({ id, kind: e.kind, mode: e.mode, x: e.x, y: e.y, facing: e.facing, soak: e.soak, skill: e.skill });
+      enemies.push({ id, kind: e.kind, mode: e.mode, x: e.x, y: e.y, facing: e.facing, soak: e.soak, skill: e.skill, anchorY: e.anchorY ?? -1 });
     });
     this.enemies.push(now, enemies);
 
     const drops: DropView[] = [];
     state.drops.forEach((d, id) => drops.push({ id, slot: d.slot, x: d.x, y: d.y }));
     this.drops.push(now, drops);
+
+    const spits: SpitView[] = [];
+    state.spits?.forEach((s, id) => spits.push({ id, x: s.x, y: s.y }));
+    this.spits.push(now, spits);
 
     const boss = state.boss;
     this.bossPos.push(now, boss && boss.maxHp > 0 ? [{ id: 'chefe', x: boss.x, y: boss.y }] : []);

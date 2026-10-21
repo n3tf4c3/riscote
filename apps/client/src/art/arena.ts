@@ -110,7 +110,23 @@ const MAPA: Tema = {
     `<path transform="${at(0.84, 0.66, 1.3)}" d="M-30 0 h60 l-10 14 h-40 Z M0 0 v-46 l26 30 h-26 M-60 26 q10 -8 20 0 t20 0 t20 0 t20 0 t20 0 t20 0"/>`,
 };
 
-const TEMAS: Record<string, Tema> = { quadriculada: QUADRICULADA, partitura: PARTITURA, mapa: MAPA };
+/** Folha de calendário: grade de sete colunas, a faixa do mês no alto, um dia circulado, um bolo e lembretes. */
+const CALENDARIO: Tema = {
+  pauta: (w, h) => {
+    const out: string[] = [`<rect x="0" y="${C * 2}" width="${w}" height="${C * 2}" fill="#c9bda4" opacity="0.25" stroke="none"/>`];
+    for (let i = 1; i < 7; i++) out.push(`<line x1="${Math.round((i * w) / 7)}" y1="${C * 4}" x2="${Math.round((i * w) / 7)}" y2="${h}"/>`);
+    for (let y = C * 4; y < h; y += C * 3) out.push(`<line x1="0" y1="${y}" x2="${w}" y2="${y}"/>`);
+    return `<g stroke="#c9bda4" stroke-width="1.2" opacity="0.7">${out.join('')}</g>`;
+  },
+  rabiscos: (at) =>
+    `<path transform="${at(0.36, 0.42, 1.4)}" d="M-30 0 a30 24 0 1 0 60 -2 a30 24 0 1 0 -58 -6 M-10 -10 L-4 -16 L-4 10 M6 -12 q10 -8 14 2 q0 6 -14 20 h16"/>` +
+    `<path transform="${at(0.7, 0.62, 1.3)}" d="M-24 0 h48 v-22 h-48 Z M-24 -11 h48 M-14 -22 v-10 M0 -22 v-12 M14 -22 v-10 M-14 -36 q2 -4 0 -6 M0 -38 q2 -4 0 -6 M14 -36 q2 -4 0 -6"/>` +
+    `<path transform="${at(0.14, 0.78, 1.3)}" d="M0 0 l10 12 l24 -30 M48 -10 h50 M48 4 h36"/>` +
+    `<path transform="${at(0.86, 0.36, 1.2)}" d="M0 0 q20 -26 50 -10 M50 -10 l-12 -6 M50 -10 l-8 10 M-10 18 h60 M-10 28 h40"/>` +
+    `<path transform="${at(0.5, 0.12, 1.5)}" d="M-60 0 h22 M-50 -10 v20 M-30 0 q6 -10 12 0 q6 10 12 0 M10 -10 v20 l14 -20 v20 M34 -10 v20 h14"/>`,
+};
+
+const TEMAS: Record<string, Tema> = { quadriculada: QUADRICULADA, partitura: PARTITURA, mapa: MAPA, calendario: CALENDARIO };
 
 /** Página de caderno apagada: grão e manchas do papel, pauta ou papel do tema, margem, rabiscos de lápis e uma borda de café. */
 export function arenaFundoSvg(a: Arena): string {
