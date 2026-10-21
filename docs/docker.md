@@ -40,7 +40,7 @@ Ver `docs/playtest-remoto.md`.
 
 Em uso desde 2026-10-20: Orange Pi 5 (`192.168.15.7`), conta de deploy `codex` (SSH só por chave, `~/.ssh/orangepi5-codex`), projeto em `/home/codex/riscote`. O Pi também roda os containers do XBrainia; as regras dele (baixo consumo, publicações em `127.0.0.1`, filtro nftables) estão em `xbrainia/AGENTS.md` e `xbrainia/docs/SEGURANCA-ORANGEPI.md`.
 
-As imagens são construídas aqui e levadas prontas; o Pi não compila nem baixa nada:
+As imagens do riscote são construídas aqui e levadas prontas; o Pi só baixa a imagem oficial do `cloudflared` (`docker compose --profile dominio pull tunel-dominio`):
 
 ```powershell
 docker buildx build --platform linux/arm64 --target server -t riscote-server:arm64 --load .
@@ -56,8 +56,10 @@ cd ~/riscote
 docker load -i riscote-arm64.tar && rm riscote-arm64.tar
 docker tag riscote-server:arm64 riscote-server:latest
 docker tag riscote-client:arm64 riscote-client:latest
-docker compose up -d --no-build --pull never
+docker compose --profile dominio up -d --no-build --pull never
 ```
+
+Sem o perfil `dominio`, o túnel fica parado e o jogo só responde pelo encaminhamento SSH.
 
 Para jogar a partir do PC sem abrir nada na LAN, encaminhe as portas por SSH e use http://localhost:4173:
 
