@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BTN_ALL, BTN_RIGHT, describeJoinError, normalizeRoomCode, parseDifficulty, parseInput, parseRoomList } from '../src/index.ts';
+import { BTN_ALL, BTN_RIGHT, describeJoinError, normalizeRoomCode, normalizeServerUrl, parseDifficulty, parseInput, parseRoomList, seatForServer } from '../src/index.ts';
 
 describe('parseInput', () => {
   it('aceita seq inteiro e botões dentro da máscara, descartando outros campos', () => {
@@ -75,5 +75,23 @@ describe('parseRoomList', () => {
     expect(parseRoomList(odd)).toEqual([]);
     expect(parseRoomList({ rooms: [open] })).toEqual([]);
     expect(parseRoomList([{ ...open, names: ['<b>x</b>', 'Bia', 3] }])[0]!.names).toEqual(['Bia']);
+  });
+});
+
+describe('seatForServer', () => {
+  const seat = { server: normalizeServerUrl('wss://play.riscote.win'), code: 'ABCD23', token: 'ABCD23:tok' };
+
+  it('devolve a vaga só para o servidor que a emitiu, tolerando barra no fim e maiúsculas', () => {
+    expect(seatForServer(seat, 'wss://play.riscote.win')).toEqual(seat);
+    expect(seatForServer(seat, ' WSS://Play.Riscote.Win/ ')).toEqual(seat);
+  });
+
+  it('não entrega o token a outro servidor, nem a vaga de versão antiga sem servidor', () => {
+    expect(seatForServer(seat, 'wss://atacante.example')).toBeNull();
+    expect(seatForServer(seat, 'wss://play.riscote.win.atacante.example')).toBeNull();
+    expect(seatForServer({ code: 'ABCD23', token: 'ABCD23:tok' }, 'wss://play.riscote.win')).toBeNull();
+    for (const odd of [null, 'texto', { ...seat, token: '' }, { ...seat, token: 5 }, { ...seat, server: 1 }]) {
+      expect(seatForServer(odd, 'wss://play.riscote.win')).toBeNull();
+    }
   });
 });

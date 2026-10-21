@@ -48,8 +48,11 @@ function parseEntry(raw: unknown): RecordEntry | null {
 export class RecordBook {
   private ranking: Ranking = emptyRanking();
   private readonly file: string | null;
+  /** O que está na memória também está no arquivo. Falso sem pasta ou depois de uma gravação que falhou. */
+  saved: boolean;
 
   constructor(dir: string | null) {
+    this.saved = dir !== null && dir !== '';
     if (!dir) {
       this.file = null;
       return;
@@ -110,14 +113,18 @@ export class RecordBook {
     return true;
   }
 
+  /** Grava o placar inteiro; a próxima mudança tenta de novo se esta falhar (`saved` diz o resultado). */
   private save(): void {
     if (!this.file) return;
     const tmp = `${this.file}.tmp`;
     try {
       writeFileSync(tmp, `${JSON.stringify({ version: 1, ranking: this.ranking }, null, 2)}\n`);
       renameSync(tmp, this.file);
+      this.saved = true;
     } catch (err) {
-      // Disco cheio ou sem permissão: o placar continua na memória; a sala não cai por isso.
+      // Disco cheio ou sem permissão: o placar continua na memória e a sala não cai, mas a
+      // mensagem do placar avisa que a linha pode se perder num reinício.
+      this.saved = false;
       console.error(JSON.stringify({ recordes: 'não gravou', erro: String(err) }));
     }
   }
