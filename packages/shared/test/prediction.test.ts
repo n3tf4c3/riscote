@@ -57,6 +57,16 @@ describe('Predictor', () => {
     expect(predictor.state).toEqual(server);
   });
 
+  it('previsão nova (troca de arena, aba recarregada) continua a numeração dos comandos', () => {
+    const start = createPlayer(arena.playerSpawns[0]!, params);
+    const old = new Predictor(arena, params, net(start, 0));
+    for (let i = 0; i < 40; i++) old.tick(BTN_RIGHT);
+    // Troca de arena: o servidor já viu até o 40 e descartaria seq menor ou igual.
+    expect(new Predictor(arena, params, net(start, 37), old.lastSeq).tick(0).seq).toBe(41);
+    // Aba recarregada: só há o ack do servidor.
+    expect(new Predictor(arena, params, net(start, 37)).tick(0).seq).toBe(38);
+  });
+
   it('derrubado no servidor: a previsão para de mover o boneco', () => {
     const start = createPlayer(arena.playerSpawns[0]!, params);
     const predictor = new Predictor(arena, params, net(start, 0));

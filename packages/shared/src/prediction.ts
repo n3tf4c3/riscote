@@ -36,8 +36,13 @@ export class Predictor {
   private params: MovementParams;
   private speedLevel: number;
 
-  constructor(arena: Arena, params: MovementParams | ((speedLevel: number) => MovementParams), initial: NetPlayer) {
+  /**
+   * `lastSeq`: último comando enviado por uma previsão anterior da mesma vaga (troca de arena).
+   * A numeração continua de onde parou, porque o servidor descarta `seq` que já viu.
+   */
+  constructor(arena: Arena, params: MovementParams | ((speedLevel: number) => MovementParams), initial: NetPlayer, lastSeq = 0) {
     this.arena = arena;
+    this.seq = Math.max(lastSeq, initial.ack);
     this.paramsFor = typeof params === 'function' ? params : () => params;
     this.speedLevel = initial.speed ?? 0;
     this.params = this.paramsFor(this.speedLevel);
@@ -50,6 +55,11 @@ export class Predictor {
 
   get pendingCount(): number {
     return this.pending.length;
+  }
+
+  /** Último `seq` enviado. */
+  get lastSeq(): number {
+    return this.seq;
   }
 
   /** Avança um tick com os botões atuais e devolve o comando a enviar ao servidor. */
