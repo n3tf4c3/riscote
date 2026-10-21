@@ -36,6 +36,31 @@ docker compose --profile tunel down
 
 Os endereços deixam de existir.
 
+## Endereço fixo em riscote.win
+
+Um túnel nomeado da Cloudflare (gratuito) publica a página em `https://riscote.win` e o servidor em `wss://play.riscote.win`. Nessa página o cliente já procura o servidor em `play.riscote.win`, sem `?servidor=` no link. O jogo continua rodando neste PC: com os containers parados, o endereço sai do ar.
+
+Uma vez só, no painel da Cloudflare (Zero Trust → Networks → Tunnels):
+1. Crie um túnel do tipo **Cloudflared** (ex.: `riscote`) e copie o token do comando de instalação (o texto longo depois de `--token`). Não instale nada pelo painel.
+2. Adicione duas rotas públicas (*Public hostnames*). O painel cria os registros DNS:
+   - `riscote.win` → HTTP → `client:8080`
+   - `play.riscote.win` → HTTP → `server:2567`
+3. Na raiz do projeto, crie o arquivo `.env` (fora do Git):
+
+   ```
+   CLOUDFLARE_TUNNEL_TOKEN=<token>
+   RISCOTE_IP_HEADER=cf-connecting-ip
+   ```
+
+Para subir e parar:
+
+```powershell
+docker compose --profile dominio up -d --build
+docker compose --profile dominio down
+```
+
+O token dá acesso ao túnel: quem o tiver publica qualquer coisa nesses endereços. Se vazar, gere outro no painel e troque no `.env`.
+
 ## Sem Docker
 
 Ainda funciona com quatro terminais: `pnpm server` (com `RISCOTE_HOST=127.0.0.1` e `RISCOTE_IP_HEADER=cf-connecting-ip`), `pnpm client:build; pnpm client:preview` e dois `cloudflared tunnel --url …` apontando para as portas 2567 e 4173.

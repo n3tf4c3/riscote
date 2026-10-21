@@ -2,42 +2,71 @@
 # Cliente em http://localhost:4173 (RISCOTE_CLIENT_PORT muda), servidor em ws://localhost:2567.
 name: riscote
 
+# Endurecimento comum: nenhum container roda como root, grava na imagem ou ganha privilégios.
+x-endurecido: &endurecido
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  restart: unless-stopped
+
 services:
   server:
+    <<: *endurecido
     build:
       context: .
       target: server
     image: riscote-server
     init: true
-    restart: unless-stopped
     environment:
       # Com túnel da Cloudflare, use cf-connecting-ip; sem proxy na frente, deixe vazio.
       RISCOTE_IP_HEADER: ${RISCOTE_IP_HEADER:-}
       RISCOTE_METRICS: ${RISCOTE_METRICS:-1}
+    tmpfs: [/tmp:size=16m]
+    mem_limit: 384m
+    pids_limit: 64
     ports:
-      # 127.0.0.1: só este computador. Para jogar na rede local (Orange Pi), RISCOTE_BIND=0.0.0.0.
+      # 127.0.0.1: só este computador. RISCOTE_BIND=0.0.0.0 abre para a rede local (nunca no Orange Pi).
       - ${RISCOTE_BIND:-127.0.0.1}:2567:2567
 
   client:
+    <<: *endurecido
     build:
       context: .
       target: client
     image: riscote-client
-    restart: unless-stopped
+    # nginx sem root ouve na 8080 e guarda pid e cache em /tmp.
+    tmpfs: [/tmp:size=16m]
+    mem_limit: 64m
+    pids_limit: 32
     ports:
-      - ${RISCOTE_BIND:-127.0.0.1}:${RISCOTE_CLIENT_PORT:-4173}:80
+      - ${RISCOTE_BIND:-127.0.0.1}:${RISCOTE_CLIENT_PORT:-4173}:8080
 
   # Túneis rápidos da Cloudflare (endereços temporários), só com `--profile tunel`.
   tunel-servidor:
+    <<: *endurecido
     image: cloudflare/cloudflared:2026.10.1
     profiles: [tunel]
     command: tunnel --no-autoupdate --url http://server:2567
-    restart: unless-stopped
+    mem_limit: 128m
     depends_on: [server]
 
   tunel-cliente:
+    <<: *endurecido
     image: cloudflare/cloudflared:2026.10.1
     profiles: [tunel]
-    command: tunnel --no-autoupdate --url http://client:80
-    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://client:8080
+    mem_limit: 128m
     depends_on: [client]
+
+  # Túnel nomeado em riscote.win (endereço fixo), só com `--profile dominio`.
+  # Os endereços (riscote.win → client:8080, play.riscote.win → server:2567) ficam no painel
+  # da Cloudflare; aqui vai só o token, no `.env` local. Ver docs/playtest-remoto.md.
+  tunel-dominio:
+    <<: *endurecido
+    image: cloudflare/cloudflared:2026.10.1
+    profiles: [dominio]
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    mem_limit: 128m
+    depends_on: [server, client]

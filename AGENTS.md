@@ -119,8 +119,9 @@ Não rode scripts inline com `node -e` que gravam arquivos e disparam processos 
 Uma aba ou painel que não está sendo desenhado congela o `requestAnimationFrame`, e o jogo não avança. Medições de tempo e movimento pelo navegador só valem com a aba visível. Para números confiáveis, use os testes (simulação e servidor real com latência simulada). Em desenvolvimento, `window.riscote` expõe o jogo e a sessão.
 
 ## Hospedagem
-Decisão do usuário em 2026-10-20: o servidor sobe em Docker, e não como processo `node` solto. Primeira etapa: Docker Desktop neste PC (em uso). Segunda etapa: um Orange Pi rodando Docker, então as imagens precisam funcionar em `linux/arm64` além de `linux/amd64`.
-- `Dockerfile` (alvos `server` e `client`) e `compose.yaml` na raiz; uso, variáveis e Orange Pi em `docs/docker.md`; playtest pela internet em `docs/playtest-remoto.md` (perfil `tunel`).
+Decisão do usuário em 2026-10-20: o servidor sobe em Docker, e não como processo `node` solto. Primeira etapa: Docker Desktop neste PC. Segunda etapa, em uso desde 2026-10-20: o Orange Pi 5 que também roda o XBrainia, em `linux/arm64`; as imagens precisam funcionar também em `linux/amd64`. Deploy e cuidados do Pi em `docs/docker.md` (seção Orange Pi); lá as portas ficam só em `127.0.0.1`, e a entrada pública é o túnel.
+- Containers endurecidos: sem root, só leitura, sem capabilities, `no-new-privileges` e limites de memória e processos (âncora `x-endurecido` no `compose.yaml`).
+- `Dockerfile` (alvos `server` e `client`) e `compose.yaml` na raiz; uso, variáveis e Orange Pi em `docs/docker.md`; playtest pela internet em `docs/playtest-remoto.md` (perfil `tunel`, endereços temporários; perfil `dominio`, túnel nomeado com a página em `riscote.win` e o servidor em `play.riscote.win`, a pedido do usuário em 2026-10-20). O token do túnel fica só no `.env` local.
 - O servidor roda o TypeScript direto e depende do `@riscote/shared` ligado por link do pnpm. Não troque por `pnpm deploy`: o Node não remove tipos dentro de `node_modules`.
 - As portas publicam em `127.0.0.1` por padrão; abrir para a rede é `RISCOTE_BIND=0.0.0.0`.
 - Ao mudar dependências ou a versão do Node, construa também para `linux/arm64` (`docker buildx build --platform linux/arm64 --target server .`).
