@@ -43,7 +43,7 @@ O planejamento completo fica em `PLANEJAMENTO.md` na raiz (local, fora do Git po
   - `?servidor=ws://…` troca o servidor.
 - `pnpm client:build`
 - `docker compose up -d --build`: servidor e cliente em containers (cliente em http://localhost:4173); `docker compose down` para. Detalhes em `docs/docker.md`.
-- `pnpm --filter ./apps/server carga -- --salas 10 --segundos 30 --servidor ws://localhost:2600`: robôs de carga. Rode antes um servidor separado com `RISCOTE_METRICS=1`, `RISCOTE_JOIN_LIMIT=0` e `PORT=2600`.
+- `pnpm --filter ./apps/server carga -- --salas 10 --segundos 30 --servidor ws://localhost:2600`: robôs de carga. Rode antes um servidor separado com `RISCOTE_METRICS=1`, `RISCOTE_JOIN_LIMIT=0`, `RISCOTE_MAX_ROOMS=0` e `PORT=2600`. Medição e limite de salas em `docs/docker.md` (Capacidade).
 - `node apps/server/scripts/sonda-rede.ts wss://…`: mede o atraso entre enviar um comando e recebê-lo confirmado. Serve para separar problema de rede/túnel de problema no cliente.
 - Variáveis do servidor: ver o comentário no topo de `apps/server/src/index.ts`.
 - `?debug` no link expõe `window.riscote` também na versão compilada, para inspeção pelo console.
@@ -109,6 +109,9 @@ Ainda não há lint. O aviso de bundle acima de 500 kB vem do Phaser e é espera
   - O endereço vem do socket, gravado em `x-riscote-peer` por `markPeerAddress`, que intercepta o `emit('request')` antes do roteador do Colyseus.
   - Nunca use o IP do Colyseus: ele aceita `X-Forwarded-For` forjado.
   - Atrás de um proxy confiável, configure `RISCOTE_IP_HEADER` (ex.: `cf-connecting-ip`).
+- **Limite de salas.** Decisão do usuário em 2026-10-21: no máximo `RISCOTE_MAX_ROOMS` salas abertas (padrão 40, ou seja, 200 jogadores), contadas por `processMetrics.rooms` mais as que estão sendo criadas (`limitRooms` em `joinLimit.ts`).
+  - Acima disso, criar sala responde HTTP 503 com `SERVER_FULL`; entrar pelo código numa sala existente continua valendo.
+  - O número vem da medição com robôs (`docs/docker.md`, seção Capacidade). Antes de subir o padrão, meça no Orange Pi.
 - **Mensagens desconhecidas.** Fora do modo de desenvolvimento, o Colyseus derruba o cliente que manda um tipo de mensagem não registrado.
 - **Testes de rede.** Usam `QuietRoom`, uma subclasse sem ondas definida só no servidor de teste. Opções do cliente nunca desligam inimigos.
 - **Previsão própria.** Previsão e interpolação ficam em `prediction.ts`. O `Predict` do Colyseus 0.18 não é usado por enquanto (decisão para reavaliar).
@@ -134,6 +137,10 @@ Cores dos personagens (decisão do usuário em 2026-10-21, a partir das pincelad
 - Riscotes: o corpo continua de nanquim, para nunca ser confundido com um monstro. A cor do jogador (`PLAYER_COLORS`) vai em degradê até `PLAYER_GLOWS` no acessório, na faixa, nas mãos e numa pincelada no peito.
 - Monstros: a traça vai de magenta a amarelo; o saltador, de índigo a violeta; o grampo, de verde a azul-petróleo; a fiandeira, de vermelho a bordô. O tinteiro é de vidro âmbar, e a borracha tem a frente rosa-choque e as costas lima. O borrão e o cuspe ficam no nanquim, com brilho roxo no borrão.
 - Mata-Borrão: feltro verde → lima e madeira cereja → laranja.
+- Auras (`art/auras.ts`), desenhadas atrás do boneco, com o centro 22 px acima dos pés:
+  - invencível: halo dourado de pincel seco com estrelas; pulsa, solta brilhos e pisca no último 1,5 s;
+  - proteção do fácil: bolha esboçada no degradê do jogador.
+  - O greybox mantém os contornos retangulares como reserva.
 - O azul da tinta (`#2f6fd6`) é só do encharcado, da bola e da gota dos jogadores; nenhum corpo usa essa cor.
 
 ## TypeScript executado pelo Node

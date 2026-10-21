@@ -25,7 +25,8 @@ import {
   tracaSvg,
 } from './enemies';
 import { itemSvg } from './items';
-import { POSES, riscoteSvg, type Pose } from './riscote';
+import { auraEstrelaSvg, auraProtecaoSvg } from './auras';
+import { PLAYER_GLOWS, POSES, riscoteSvg, type Pose } from './riscote';
 import { BOIL, INK, hex } from './svg';
 
 /** Pixels de tela por pixel do mundo: o jogo online roda com a câmera em zoom 2 para a arte não borrar. */
@@ -81,6 +82,14 @@ export function riscoteKey(slot: number, pose: Pose): string {
   return `riscote-${slot}-${pose}`;
 }
 
+/** Bolha de proteção do modo fácil, na cor de cada jogador. */
+export function protecaoKey(slot: number): string {
+  return `aura-protecao-${slot}`;
+}
+
+/** Tamanho das auras no mundo: um pouco maior que o boneco (16 × 26 px). */
+const AURA_K = 0.3;
+
 export function tracaKey(frame: number): string {
   return `traca-${frame % TRACA_FRAMES}`;
 }
@@ -94,7 +103,9 @@ export function commonSpecs(playerColors: readonly number[]): ArtSpec[] {
   const specs: ArtSpec[] = [];
   playerColors.forEach((color, slot) => {
     for (const pose of POSES) specs.push(...boiled(riscoteKey(slot, pose), (v) => riscoteSvg(slot, hex(color), pose, v), 0.11, 100, 290));
+    specs.push(...boiled(protecaoKey(slot), (v) => auraProtecaoSvg(hex(color), PLAYER_GLOWS[slot] ?? hex(color), v), AURA_K, 0, 0));
   });
+  specs.push(...boiled('aura-estrela', auraEstrelaSvg, AURA_K, 0, 0));
   for (let f = 0; f < TRACA_FRAMES; f++) specs.push(...boiled(tracaKey(f), (v) => tracaSvg(f, v), 0.19, 106, 150));
   specs.push(
     ...boiled('traca-bote', (v) => tracaSvg(0, v, true), 0.19, 106, 150),

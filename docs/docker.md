@@ -30,7 +30,27 @@ Os relatórios de cada arena e as métricas do processo saem no log do `server` 
 - `RISCOTE_CLIENT_PORT`: porta do cliente (padrão 4173).
 - `RISCOTE_IP_HEADER`: cabeçalho com o IP real do jogador, só atrás de um proxy confiável (`cf-connecting-ip` com o túnel). Sem ele, o limite de 20 entradas por minuto conta por endereço do socket. No Docker Desktop do Windows, todos os jogadores podem chegar com o mesmo endereço do Docker.
 - `RISCOTE_METRICS`: `1` (padrão) grava métricas do processo a cada 10 s.
+- `RISCOTE_MAX_ROOMS`: salas abertas ao mesmo tempo (padrão 40, ou seja, 200 jogadores). Acima disso, criar sala recebe "servidor cheio"; entrar pelo código numa sala que já existe continua valendo. `0` desliga (só para teste de carga).
 - `CLOUDFLARE_TUNNEL_TOKEN`: token do túnel nomeado em riscote.win (só no `.env`; ver `docs/playtest-remoto.md`).
+
+## Capacidade (limite de salas)
+
+Medição de 2026-10-21 com `apps/server/scripts/carga.ts` (5 robôs por sala, todas na fase mais pesada, o Andaime, com o borrão entrando). Robôs e servidor no mesmo PC de desenvolvimento (i5-12400F, com outras aplicações abertas), servidor em Node fora do Docker:
+
+| Salas (jogadores) | CPU do processo (1 núcleo) | Memória | Tick máximo | Situação |
+| --- | --- | --- | --- | --- |
+| 40 (200) | 25–29% | 130–160 MB | até ~5 ms, um pico de 28 ms (coleta de lixo) | folga |
+| 80 (400) | 32–38% | 165–220 MB | < 1,5 ms | folga |
+| 160 (800) | 88–90% | ~307 MB | ~2 ms | no limite |
+| 200 (1000) | 93–98% | 309–326 MB | 12–35 ms (passa dos 16,7 ms de um tick) | saturado: a partida atrasa |
+
+Cada sala gasta cerca de 0,5% de um núcleo deste PC e 1,5 a 2 MB. A memória não volta toda quando as salas fecham.
+
+O padrão de 40 salas vale para o Orange Pi 5, onde o servidor roda de fato:
+- os núcleos Cortex-A76 do Pi rendem cerca de metade de um núcleo deste PC, então 40 salas ficariam perto de 60% de um núcleo, com folga para o chefe, a coleta de lixo e o túnel;
+- o container tem `mem_limit` de 384 MB, e 160 salas já passariam dos 300 MB.
+
+Para confirmar no Pi, rode o servidor de carga lá com `RISCOTE_MAX_ROOMS=0` e suba o limite só se a CPU ficar abaixo de ~60% de um núcleo e o tick máximo abaixo de 5 ms.
 
 ## Placar de recordes (volume `riscote_dados`)
 
