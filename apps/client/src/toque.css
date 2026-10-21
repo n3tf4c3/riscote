@@ -1,0 +1,66 @@
+/* Controles de toque: direcional à esquerda, Atirar e Pular à direita. Só aparecem com body.toque e fora da capa. */
+#tela { position: absolute; inset: 0; }
+/* Na capa o canvas some sem perder o tamanho: o Phaser nasce antes de a capa sair e, medindo 0×0, ficaria em zero. */
+body.inicio #tela { visibility: hidden; pointer-events: none; }
+
+.toque-controles { display: none; }
+body.toque:not(.inicio) .toque-controles {
+  position: absolute; inset: auto 0 0 0; z-index: 3;
+  display: flex; justify-content: space-between; align-items: flex-end;
+  padding: 0 max(14px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  /* Só o direcional e os botões pegam o toque; o resto do canvas fica livre. */
+  pointer-events: none;
+}
+.toque-direcional, .toque-botao {
+  pointer-events: auto; touch-action: none;
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+}
+/* Desenhos de pincel (art/toque.ts): papel translúcido e anel de tinta, para a arte aparecer por baixo. */
+.toque-direcional, .toque-alavanca, .toque-botao {
+  background: no-repeat center / 100% 100%;
+  /* Sombra deslocada, como a do cartão da capa. */
+  filter: drop-shadow(3px 4px 0 rgba(31, 29, 26, .16));
+}
+.toque-direcional {
+  position: relative; flex-shrink: 0; width: 140px; height: 140px;
+  background-image: var(--toque-base);
+}
+.toque-alavanca {
+  position: absolute; left: 50%; top: 50%; width: 60px; height: 60px; margin: -30px 0 0 -30px;
+  background-image: var(--toque-alavanca);
+}
+.toque-botoes { display: flex; align-items: flex-end; gap: 14px; }
+.toque-botao {
+  display: grid; place-items: end center; width: 84px; height: 84px; padding-bottom: 15px;
+  font: 400 17px/1 var(--titulo); letter-spacing: .06em; color: var(--ink);
+  transition: transform .06s ease-out;
+}
+/* Na diagonal, como num controle: Pular mais alto e à direita; Atirar na tinta azul. */
+.toque-botao[data-botao="pular"] { margin-bottom: 48px; background-image: var(--toque-pular); }
+.toque-botao[data-botao="atirar"] { background-image: var(--toque-atirar); color: #1f4fa3; }
+.toque-botao.apertado { transform: scale(.93); color: var(--panel); filter: none; }
+.toque-botao[data-botao="pular"].apertado { background-image: var(--toque-pular-apertado); }
+.toque-botao[data-botao="atirar"].apertado { background-image: var(--toque-atirar-apertado); }
+
+/* Celular em pé: a arena em cima, os controles numa faixa logo abaixo, sem cobrir nada, e o painel depois. */
+@media (max-width: 760px) and (orientation: portrait) {
+  body.toque:not(.inicio) #game { display: flex; flex-direction: column; height: auto; }
+  body.toque:not(.inicio) #tela {
+    position: relative; inset: auto; width: 100%;
+    aspect-ratio: var(--tela-aspecto, 16 / 9); max-height: 62svh;
+    /* Sem isso a margem de centralização do Phaser estica a caixa e a proporção se perde. */
+    min-height: 0; overflow: hidden;
+  }
+  body.toque:not(.inicio) .toque-controles { position: relative; align-items: center; height: 190px; padding-top: 8px; }
+}
+
+/* Celular deitado: a arena ocupa a tela toda e os controles ficam nos cantos, por cima; o painel desce. */
+@media (orientation: landscape) and (max-height: 500px) {
+  body.toque:not(.inicio) { grid-template-columns: 1fr; }
+  body.toque:not(.inicio) #game { height: 100svh; }
+  body.toque:not(.inicio) aside { height: auto; border-left: 0; border-top: 2px solid var(--ink); }
+  .toque-direcional { width: 120px; height: 120px; }
+  .toque-alavanca { width: 52px; height: 52px; margin: -26px 0 0 -26px; }
+  .toque-botao { width: 70px; height: 70px; padding-bottom: 12px; font-size: 15px; }
+  .toque-botao[data-botao="pular"] { margin-bottom: 40px; }
+}

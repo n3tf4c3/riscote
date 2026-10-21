@@ -58,6 +58,9 @@
       .slider { display: grid; grid-template-columns: 1fr auto; gap: 0 6px; margin-bottom: 6px; font-size: 12px; }
       .slider input { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
       .slider output { font-variant-numeric: tabular-nums; }
+      /* Textos de controles: só os do modo de teclas escolhido; no toque, os do direcional na tela. */
+      body:not([data-teclas="asd"]) .teclas-asd, body[data-teclas="asd"] .teclas-padrao, body:not(.toque) .so-toque { display: none; }
+      body.toque #controles :is(.teclas-padrao, .teclas-asd), body.toque :is(#teclas, .dica-teclas) { display: none; }
       /* Placar do fim de jogo: folha de papel por cima da arena, escrita a nanquim. */
       #game { position: relative; }
       .records {
@@ -145,6 +148,14 @@
   </head>
   <body>
     <div id="game">
+      <div id="tela"></div>
+      <div id="toque" class="toque-controles" aria-hidden="true">
+        <div id="toque-direcional" class="toque-direcional"><div id="toque-alavanca" class="toque-alavanca"></div></div>
+        <div class="toque-botoes">
+          <div class="toque-botao" data-botao="atirar">Atirar</div>
+          <div class="toque-botao" data-botao="pular">Pular</div>
+        </div>
+      </div>
       <div id="capa">
         <header class="capa-topo">
           <h1><span class="sr">Riscote</span><span id="logo-arte" aria-hidden="true"></span></h1>
@@ -154,14 +165,19 @@
         <section class="como-jogar" aria-labelledby="como-jogar-titulo">
           <h2 id="como-jogar-titulo">Como jogar</h2>
           <ul>
-            <li><kbd>←</kbd><kbd>→</kbd> ou <kbd>A</kbd><kbd>D</kbd> andar</li>
-            <li><kbd>Espaço</kbd> ou <kbd>Z</kbd> pular (segure para ir mais alto)</li>
-            <li><kbd>↓</kbd> + pular: descer da plataforma</li>
-            <li><kbd>X</kbd> ou <kbd>J</kbd> atirar tinta e chutar a bola</li>
+            <li class="teclas-padrao"><kbd>←</kbd><kbd>→</kbd> ou <kbd>A</kbd><kbd>D</kbd> andar</li>
+            <li class="teclas-padrao"><kbd>Espaço</kbd> ou <kbd>Z</kbd> pular (segure para ir mais alto)</li>
+            <li class="teclas-padrao"><kbd>↓</kbd> + pular: descer da plataforma</li>
+            <li class="teclas-padrao"><kbd>X</kbd> ou <kbd>J</kbd> atirar tinta e chutar a bola</li>
+            <li class="teclas-asd"><kbd>A</kbd><kbd>D</kbd> andar</li>
+            <li class="teclas-asd"><kbd>J</kbd> ou <kbd>Espaço</kbd> pular (segure para ir mais alto)</li>
+            <li class="teclas-asd"><kbd>S</kbd> + pular: descer da plataforma</li>
+            <li class="teclas-asd"><kbd>K</kbd> atirar tinta e chutar a bola</li>
             <li>Controle: direcional, <kbd>A</kbd> pula, <kbd>X</kbd> ataca</li>
           </ul>
+          <p class="dica dica-teclas">Prefere a mão esquerda no ASD e a direita no J e K? Troque em “Teclas”, no painel.</p>
           <p class="dica">Encharque o inimigo de tinta até ele virar bola, depois chute. Encoste num amigo derrubado por 1 s para levantá-lo.</p>
-          <p class="dica so-teclado">Para jogar é preciso teclado ou controle; pelo celular dá para criar a sala e mandar o convite.</p>
+          <p class="dica so-toque">No celular, a partida mostra um direcional (andar e, para baixo, descer) e os botões Pular e Atirar; dá para usar dois dedos ao mesmo tempo e segurar Pular para ir mais alto, em pé ou deitado.</p>
         </section>
       </div>
       <div id="carregando" class="carregando" hidden role="status" aria-live="polite">
@@ -185,8 +201,12 @@
     <aside>
       <h1>Riscote · protótipo</h1>
       <p class="keys" id="controles">
-        ← → / A D andar · Espaço / Z pular (segure para ir mais alto) · ↓ + pular descer da plataforma ·
-        X / J atirar tinta e chutar a bola · gamepad: direcional + A pula, X ataca
+        <span class="teclas-padrao">← → / A D andar · Espaço / Z / K pular (segure para ir mais alto) · ↓ + pular descer da plataforma ·
+        X / J atirar tinta e chutar a bola ·</span>
+        <span class="teclas-asd">A D andar · J / Espaço pular (segure para ir mais alto) · S + pular descer da plataforma ·
+        K atirar tinta e chutar a bola ·</span>
+        <span class="so-toque">Toque: direcional para andar e, para baixo, descer · Pular (segure para ir mais alto) · Atirar tinta e chutar a bola ·</span>
+        gamepad: direcional + A pula, X ataca
       </p>
 
       <section id="som" aria-labelledby="som-titulo">
@@ -197,6 +217,14 @@
           <button type="button" id="som-musica-liga" aria-pressed="true">Música ligada</button>
           <button type="button" id="som-efeitos-liga" aria-pressed="true">Efeitos ligados</button>
           <button type="button" id="som-mudo" aria-pressed="false">Sem som</button>
+        </div>
+      </section>
+
+      <section id="teclas" aria-labelledby="teclas-titulo">
+        <h2 id="teclas-titulo">Teclas</h2>
+        <div id="teclas-modos" class="row" role="group" aria-labelledby="teclas-titulo">
+          <button type="button" data-modo="padrao" aria-pressed="true">Padrão: setas ou WASD</button>
+          <button type="button" data-modo="asd" aria-pressed="false">ASD + J pula, K atira</button>
         </div>
       </section>
 

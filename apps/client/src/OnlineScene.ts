@@ -83,7 +83,10 @@ const SOAK_KEYS: Record<number, string> = {
 };
 
 /** Dicas da primeira fase de cada capítulo: uma por vez, até a equipe chutar a primeira bola. */
-const HINTS = ['Atire tinta (X ou J) até o bicho virar bola', 'Encoste na bola e atire de novo: é o chute!'] as const;
+const HINTS = [
+  (attack: string) => `Atire tinta (${attack}) até o bicho virar bola`,
+  () => 'Encoste na bola e atire de novo: é o chute!',
+] as const;
 
 /** Modo online: o próprio boneco é previsto; inimigos, gotas e os outros chegam interpolados do servidor. */
 export class OnlineScene extends Phaser.Scene {
@@ -386,7 +389,7 @@ export class OnlineScene extends Phaser.Scene {
       drawPageTurn(g, arena.cols * TILE, arena.rows * TILE, 1 - state.phaseTime / RULES.turnDelay);
       if (state.bossNext) drawBossTurn(g, this.fx, arena.cols * TILE, arena.rows * TILE, 1 - state.phaseTime / RULES.turnDelay, now);
     }
-    this.showBanner(bannerText(session), state.phase);
+    this.showBanner(bannerText(session, this.ctx.input.touchVisible), state.phase);
   }
 
   private drawRiscote(art: ArtLayer, slot: number, x: number, y: number, look: PlayerLook, motion: Motion, now: number, depth: number, isLocal: boolean): void {
@@ -562,7 +565,7 @@ export class OnlineScene extends Phaser.Scene {
       if (this.hintStep === 0 && enemies.some((e) => e.mode !== MODE_WALK)) this.hintStep = 1;
       if (this.hintStep === 1 && enemies.some((e) => e.mode === MODE_ROLL)) this.hintStep = HINTS.length;
     }
-    const text = phase === PHASE_PLAYING && this.hintStep < HINTS.length ? HINTS[this.hintStep]! : '';
+    const text = phase === PHASE_PLAYING && this.hintStep < HINTS.length ? HINTS[this.hintStep]!(this.ctx.input.attackName()) : '';
     if (this.hint.text !== text) this.hint.setText(text);
   }
 
@@ -610,12 +613,14 @@ function drawSpitWarning(g: Phaser.GameObjects.Graphics, x: number, feet: number
   }
 }
 
-function bannerText(session: OnlineSession): string {
+function bannerText(session: OnlineSession, touch: boolean): string {
   const state = session.state;
   if (session.reconnecting) return 'A conexão caiu: reconectando…';
   switch (state.phase) {
-    case PHASE_LOBBY:
-      return `Aquecimento: ${state.players.size}/${MAX_PLAYERS} na sala\n${session.isHost ? 'Aperte Enter para começar' : 'O anfitrião começa quando todos entrarem'}`;
+    case PHASE_LOBBY: {
+      const start = touch ? 'Toque em “Começar partida” abaixo' : 'Aperte Enter para começar';
+      return `Aquecimento: ${state.players.size}/${MAX_PLAYERS} na sala\n${session.isHost ? start : 'O anfitrião começa quando todos entrarem'}`;
+    }
     case PHASE_CLEAR:
       if (state.arenaId === BOSS_ARENA.id) return 'O Mata-Borrão foi derrotado!';
       return state.arenaIndex + 1 < state.arenaCount ? 'Arena limpa!' : 'Última arena limpa!';

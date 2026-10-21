@@ -34,7 +34,7 @@ export function bootLocal(input: InputSource): void {
   const scene = new ArenaScene({ params, input, metrics, arena: currentArena });
   const game = new Phaser.Game({
     type: Phaser.AUTO,
-    parent: 'game',
+    parent: 'tela',
     width: arenaWidth(currentArena()),
     height: arenaHeight(currentArena()),
     backgroundColor: '#e7dfcc',
