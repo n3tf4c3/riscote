@@ -5,6 +5,7 @@ import {
   BTN_RIGHT,
   DEFAULT_PARAMS,
   ENEMY_SALTADOR,
+  ENEMY_SIZE,
   ENEMY_TRACA,
   ITEM_AGILIDADE,
   ITEM_ALCANCE,
@@ -21,6 +22,11 @@ import {
   BTN_JUMP,
   BTN_LEFT,
   ENEMY_BORRAO,
+  SKILL_ACT,
+  SKILL_NONE,
+  SKILL_REST,
+  SKILL_WARN,
+  floorSpan,
   PHASE_CHAPTER,
   PHASE_CLEAR,
   PHASE_LOBBY,
@@ -33,6 +39,7 @@ import {
   TILE,
   World,
   parseArena,
+  type Arena,
   type Enemy,
 } from '../src/index.ts';
 
@@ -73,6 +80,7 @@ function run(world: World, n: number, buttons: Record<string, number> = {}) {
 
 function pin(e: Enemy) {
   e.aiTimer = 1e9;
+  e.skillCd = 1e9;
   pinned.set(e, e.body.x);
 }
 
@@ -84,6 +92,7 @@ function tap(world: World, id: string, button: number) {
 
 function freeze(e: Enemy) {
   e.aiTimer = 1e9;
+  e.skillCd = 1e9;
 }
 
 beforeEach(() => pinned.clear());
@@ -771,5 +780,196 @@ describe('itens que fortalecem o boneco', () => {
       const below = Math.round((item.y + RULES.itemSize * TILE) / TILE);
       expect(cellAt(arena, col, below)).not.toBe(0);
     }
+  });
+});
+describe('habilidades dos inimigos', () => {
+  const FLOOR = 7 * TILE; // altura dos pés no chão da arena de teste
+
+  function traca(world: World, col: number, dir: 1 | -1) {
+    const e = world.spawnEnemy(ENEMY_TRACA, { col, row: 6 });
+    e.dir = dir;
+    e.aiTimer = 1e9;
+    return e;
+  }
+
+  it('traça: vê alguém à frente no mesmo andar, para no aviso, dá o bote rápido, cansa e espera', () => {
+    const world = setup();
+    const p = world.players.get('p0')!;
+    p.invuln = 1e9;
+    p.body.x = 10 * TILE;
+    const e = traca(world, 5, 1);
+    run(world, 2);
+    expect(e.skill).toBe(SKILL_WARN);
+    const x0 = e.body.x;
+    run(world, ticks(RULES.dashWarn) - 3);
+    expect(Math.abs(e.body.x - x0)).toBeLessThan(TILE / 2);
+
+    run(world, 6);
+    expect(e.skill).toBe(SKILL_ACT);
+    let fastest = 0;
+    for (let i = 0; i < ticks(RULES.dashTime) - 7; i++) {
+      run(world, 1);
+      fastest = Math.max(fastest, Math.abs(e.body.vx));
+    }
+    expect(fastest).toBeGreaterThan(3.5 * TILE * (RULES.dashSpeedMult - 0.2));
+
+    run(world, ticks(RULES.dashRest) + 10);
+    expect(e.skill).toBe(SKILL_NONE);
+    expect(e.skillCd).toBeGreaterThan(RULES.dashCooldown - 0.3);
+  });
+
+  it('traça: jogador atrás dela, em outro andar, longe ou do outro lado da parede não provoca o bote', () => {
+    const WALLED = parseArena('parede', 'Parede', [
+      '#..........#',
+      '#.....#....#',
+      '#.P...#..P.#',
+      '############',
+    ]);
+    const cases: Array<[Arena, number, number, number]> = [
+      // [arena, coluna da traça, coluna do jogador, linha dos pés do jogador]
+      [TEST, 9, 5, 7], // atrás
+      [TEST, 4, 7, 3], // na plataforma de cima
+      [TEST, 2, 2 + RULES.dashSight + 3, 7], // longe demais
+      [WALLED, 2, 8, 3], // depois da parede
+    ];
+    for (const [arena, col, playerCol, feetRow] of cases) {
+      const world = new World(arena, 1, { waves: false });
+      const p = world.addPlayer('p0', 0);
+      p.invuln = 1e9;
+      p.body.x = playerCol * TILE;
+      p.body.y = feetRow * TILE - world.params.playerHeight * TILE;
+      const e = traca(world, col, 1);
+      for (let i = 0; i < 15; i++) {
+        run(world, 1);
+        expect(e.skill).toBe(SKILL_NONE);
+      }
+    }
+  });
+
+  it('saltador: a cada tantos saltos agacha no aviso, salta mais alto e, ao cair, solta a onda', () => {
+    const world = setup();
+    const p = world.players.get('p0')!;
+    p.invuln = 1e9;
+    p.body.x = 10 * TILE;
+    const e = world.spawnEnemy(ENEMY_SALTADOR, { col: 12, row: 6 });
+    run(world, 3);
+    e.hops = RULES.slamEvery - 1;
+    e.aiTimer = 0;
+    run(world, 1);
+    expect(e.skill).toBe(SKILL_WARN);
+    const top = e.body.y;
+    run(world, ticks(RULES.slamWarn) - 2);
+    expect(e.body.y).toBe(top);
+    expect(e.body.vx).toBe(0);
+
+    let highest = top;
+    let landedShock = 0;
+    for (let i = 0; i < ticks(3) && e.skill !== SKILL_REST; i++) {
+      run(world, 1);
+      highest = Math.min(highest, e.body.y);
+      landedShock = world.shocks.length;
+    }
+    expect(e.skill).toBe(SKILL_REST);
+    expect(top - highest).toBeGreaterThan((RULES.slamJumpHeight - 0.5) * TILE);
+    expect(landedShock).toBe(1);
+    expect(world.shocks[0]!.y).toBeCloseTo(e.body.y + ENEMY_SIZE * TILE, 5);
+    run(world, ticks(RULES.slamWaveTime) + 1);
+    expect(world.shocks.length).toBe(0);
+    expect(e.hops).toBe(0);
+  });
+
+  it('saltador: a onda derruba quem está de pé no chão, dentro do alcance; quem pulou, quem está longe ou em outro andar escapa', () => {
+    const world = setup(4);
+    const [grounded, jumper, far, upstairs] = ['p0', 'p1', 'p2', 'p3'].map((id) => world.players.get(id)!);
+    for (const p of [grounded, jumper, far, upstairs]) p.invuln = 0;
+    run(world, 2);
+    const x = 9 * TILE;
+    grounded.body.x = x + 2 * TILE;
+    jumper.body.x = x - 2 * TILE;
+    far.body.x = x + (RULES.slamRadius + 1.5) * TILE;
+    upstairs.body.x = 7 * TILE;
+    upstairs.body.y = 3 * TILE - world.params.playerHeight * TILE;
+    run(world, 2);
+    expect(upstairs.body.onGround).toBe(true);
+    const [left, right] = floorSpan(world.arena, x, FLOOR, RULES.slamRadius);
+    world.shocks.push({ x, y: FLOOR, left, right, age: 0 });
+    run(world, 1, { p1: BTN_JUMP });
+    run(world, ticks(RULES.slamWaveTime));
+    expect(grounded.down).toBe(true);
+    expect(jumper.down).toBe(false);
+    expect(far.down).toBe(false);
+    expect(upstairs.down).toBe(false);
+  });
+
+  it('a onda só corre pelo chão contínuo: para no vão e na parede', () => {
+    // Plataforma da linha 3 vai da coluna 5 à 9.
+    expect(floorSpan(TEST, 7.5 * TILE, 3 * TILE, 3)).toEqual([5 * TILE, 10 * TILE]);
+    // No chão, perto da parede esquerda: para na coluna 1.
+    expect(floorSpan(TEST, 2.5 * TILE, FLOOR, 3)).toEqual([TILE, 5.5 * TILE]);
+  });
+
+  it('borrão: contrai no aviso, solta uma mancha que primeiro não machuca, depois derruba e some', () => {
+    const world = setup();
+    const p = world.players.get('p0')!;
+    p.invuln = 1e9;
+    const borrao = world.spawnBorrao();
+    run(world, ticks(RULES.stainEvery - RULES.stainWarnLead) + 1);
+    expect(borrao.skill).toBe(SKILL_WARN);
+    expect(world.stains.size).toBe(0);
+    run(world, ticks(RULES.stainWarnLead));
+    expect(world.stains.size).toBe(1);
+    expect(borrao.skill).toBe(SKILL_NONE);
+    world.enemies.delete(borrao.id);
+
+    const stain = [...world.stains.values()][0]!;
+    stain.x = p.body.x;
+    stain.y = p.body.y;
+    p.invuln = 0;
+    run(world, ticks(RULES.stainWarn) - 3);
+    expect(p.down).toBe(false);
+    run(world, 4);
+    expect(p.down).toBe(true);
+    run(world, ticks(RULES.stainLife));
+    expect(world.stains.size).toBe(0);
+  });
+
+  it('borrão: não deixa mancha dentro da parede e nunca passa do máximo', () => {
+    const world = setup();
+    world.players.get('p0')!.invuln = 1e9;
+    const borrao = world.spawnBorrao();
+    borrao.body.x = TEST.cols * TILE; // dentro da parede direita, fora do alcance do jogador
+    borrao.body.y = 4 * TILE;
+    borrao.skillCd = 0;
+    pinned.set(borrao, borrao.body.x);
+    run(world, 1);
+    expect(world.stains.size).toBe(0);
+    pinned.delete(borrao);
+    for (let i = 0; i < RULES.maxStains + 2; i++) world.stains.set(1000 + i, { id: 1000 + i, x: 0, y: 0, age: 0 });
+    world.stains.delete(1000);
+    world.stains.delete(1001);
+    borrao.body.x = 10 * TILE;
+    borrao.skillCd = 0;
+    run(world, 1);
+    expect(world.stains.size).toBe(RULES.maxStains);
+  });
+
+  it('continua determinístico com bote, pancada e manchas', () => {
+    const snapshot = (seed: number) => {
+      const world = new World(ARENAS[1]!, seed);
+      world.addPlayer('p0', 0);
+      world.addPlayer('p1', 1);
+      world.start();
+      let skills = 0;
+      for (let t = 0; t < ticks(RULES.hurryTime + 15); t++) {
+        world.applyInput('p0', [BTN_RIGHT, BTN_ATTACK, BTN_LEFT | BTN_JUMP][Math.floor(t / 25) % 3]!);
+        world.applyInput('p1', t % 40 < 20 ? BTN_ATTACK : BTN_LEFT);
+        world.step();
+        for (const e of world.enemies.values()) if (e.skill === SKILL_ACT) skills++;
+      }
+      return { skills, json: JSON.stringify({ enemies: [...world.enemies.values()], stains: [...world.stains.values()], shocks: world.shocks, players: [...world.players.values()] }) };
+    };
+    const a = snapshot(9);
+    expect(a.skills).toBeGreaterThan(0);
+    expect(snapshot(9).json).toBe(a.json);
   });
 });

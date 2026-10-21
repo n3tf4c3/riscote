@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import {
+  ARENAS,
   BORRAO_SIZE,
   BTN_ATTACK,
   ENEMY_BORRAO,
@@ -73,8 +74,10 @@ export class OnlineScene extends Phaser.Scene {
   private shotAt: number[] = [];
   private fx = new Effects();
   private riscotes = new RiscoteAnimator(this.fx);
-  private enemyAnim = new EnemyAnimator(this.fx, ENEMY_SIZE * TILE, BORRAO_SIZE * TILE);
+  private enemyAnim = new EnemyAnimator(this.fx, ENEMY_SIZE * TILE, BORRAO_SIZE * TILE, ARENAS[0]!);
   private dropWatch = new DropWatcher(this.fx, RULES.dropSize * TILE);
+  /** Idade de cada mancha no quadro anterior: respingo ao surgir e ao ficar perigosa. */
+  private stainAges = new Map<string, number>();
   /** Itens na tela no quadro anterior, para o brilho de quando alguém pega. */
   private items = new Map<string, { x: number; y: number; kind: number; ttl: number }>();
 
@@ -117,7 +120,8 @@ export class OnlineScene extends Phaser.Scene {
     this.shotAt = [];
     this.fx = new Effects();
     this.riscotes = new RiscoteAnimator(this.fx);
-    this.enemyAnim = new EnemyAnimator(this.fx, ENEMY_SIZE * TILE, BORRAO_SIZE * TILE);
+    this.enemyAnim = new EnemyAnimator(this.fx, ENEMY_SIZE * TILE, BORRAO_SIZE * TILE, arena);
+    this.stainAges.clear();
     this.dropWatch = new DropWatcher(this.fx, RULES.dropSize * TILE);
     this.items.clear();
 
@@ -190,6 +194,7 @@ export class OnlineScene extends Phaser.Scene {
 
     this.fx.step(dt);
     this.watchItems(state, live);
+    this.watchStains(state, live);
     const enemyFrames = this.enemyAnim.frames(enemies, now, dt, live);
     const dropDirs = this.dropWatch.dirs(drops, now);
 
@@ -205,6 +210,11 @@ export class OnlineScene extends Phaser.Scene {
         const bob = Math.sin(now / 220);
         art.draw(`item-${item.kind}`, item.x + s / 2, item.y + s + bob * 1.5, DEPTH_ITEM, { angle: bob * 4 });
       });
+      state.stains.forEach((stain) => {
+        const look = stainLook(stain.age, now);
+        const half = (RULES.stainSize * TILE) / 2;
+        art.draw('mancha', stain.x + half, stain.y + half, DEPTH_ITEM, { alpha: look.alpha, sx: look.scale, sy: look.scale });
+      });
       for (const e of enemies) {
         const f = enemyFrames.get(e.id);
         if (!f) continue;
@@ -219,10 +229,10 @@ export class OnlineScene extends Phaser.Scene {
           art.draw(f.key, e.x + size / 2, e.y + size / 2, DEPTH_ENEMY, { angle: f.angle, sx: f.sx, sy: f.sy });
           continue;
         }
-        art.draw(f.key, e.x + size / 2, e.y + size, DEPTH_ENEMY, { flip, sx: f.sx, sy: f.sy });
+        art.draw(f.key, e.x + size / 2, e.y + size, DEPTH_ENEMY, { flip, sx: f.sx, sy: f.sy, angle: f.angle });
         const soaked = Math.min(1, e.soak / Math.max(1, state.soakToBall));
         const soakKey = f.key.startsWith('traca') ? 'traca-tinta' : 'saltador-tinta';
-        if (soaked > 0) art.draw(soakKey, e.x + size / 2, e.y + size, DEPTH_ENEMY, { flip, alpha: 0.35 + 0.65 * soaked, sx: f.sx, sy: f.sy });
+        if (soaked > 0) art.draw(soakKey, e.x + size / 2, e.y + size, DEPTH_ENEMY, { flip, alpha: 0.35 + 0.65 * soaked, sx: f.sx, sy: f.sy, angle: f.angle });
       }
       const dropSize = RULES.dropSize * TILE;
       for (const d of drops) {
@@ -239,6 +249,11 @@ export class OnlineScene extends Phaser.Scene {
       art.end();
     } else {
       state.items.forEach((item) => drawItem(g, item.x, item.y, item.kind, item.ttl, now));
+      state.stains.forEach((stain) => {
+        const half = (RULES.stainSize * TILE) / 2;
+        const look = stainLook(stain.age, now);
+        g.fillStyle(INK, look.alpha).fillCircle(stain.x + half, stain.y + half, half * look.scale);
+      });
       for (const e of enemies) drawEnemy(g, e.x, e.y, e, state.soakToBall);
       for (const r of remotes) drawPlayerFull(g, r.x, r.y, session.params, { ...r, inkGauge }, PLAYER_COLORS[r.slot] ?? GREY, false, now);
       if (localLook) drawPlayerFull(g, localX, localY, session.params, localLook, PLAYER_COLORS[session.slot] ?? GREY, true, now);
@@ -314,6 +329,24 @@ export class OnlineScene extends Phaser.Scene {
     }
   }
 
+  /** Mancha nova: pingo de nanquim caindo do borrão; ao ficar perigosa, espirra. */
+  private watchStains(state: OnlineSession['state'], live: boolean): void {
+    const seen = new Set<string>();
+    const half = (RULES.stainSize * TILE) / 2;
+    state.stains.forEach((stain, id) => {
+      seen.add(id);
+      const prev = this.stainAges.get(id);
+      const cx = stain.x + half;
+      const cy = stain.y + half;
+      if (live && prev === undefined) this.fx.splat(cx, cy, false, 0.9, INK);
+      else if (live && prev !== undefined && prev < RULES.stainWarn && stain.age >= RULES.stainWarn) {
+        this.fx.droplets(cx, cy, INK, 8, 110);
+      }
+      this.stainAges.set(id, stain.age);
+    });
+    for (const id of this.stainAges.keys()) if (!seen.has(id)) this.stainAges.delete(id);
+  }
+
   /** Faixa com entrada de impacto: cresce e assenta quando o texto muda. */
   private showBanner(text: string, phase: number): void {
     if (text === this.bannerShown) return;
@@ -333,6 +366,19 @@ export class OnlineScene extends Phaser.Scene {
     }
     this.fx.shake(160, 0.004);
   }
+}
+
+/**
+ * Mancha no aviso: clara, crescendo e piscando (ainda não machuca). Firme: escura e cheia.
+ * No último meio segundo, desbota.
+ */
+function stainLook(age: number, now: number): { alpha: number; scale: number } {
+  if (age < RULES.stainWarn) {
+    const t = age / RULES.stainWarn;
+    return { alpha: 0.2 + 0.25 * t + 0.1 * Math.sin(now / 45), scale: 0.45 + 0.5 * t };
+  }
+  const left = RULES.stainWarn + RULES.stainLife - age;
+  return { alpha: 0.95 * Math.min(1, left / 0.5), scale: 1 + 0.03 * Math.sin(now / 200) };
 }
 
 function bannerText(session: OnlineSession): string {

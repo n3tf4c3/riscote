@@ -33,8 +33,20 @@ function rnd(): number {
   return (seed - 1) / 2147483646;
 }
 
+/** Onda da pancada do saltador: duas cristas de tinta correndo rente ao chão. */
+interface Wave {
+  x: number;
+  y: number;
+  left: number;
+  right: number;
+  reach: number;
+  age: number;
+  life: number;
+}
+
 export class Effects {
   private parts: Particle[] = [];
+  private waves: Wave[] = [];
   /** Pedido de chacoalhar a tela, atendido pela cena: [duração em ms, intensidade]. */
   shakeRequest: [number, number] | null = null;
 
@@ -90,7 +102,25 @@ export class Effects {
     }
   }
 
+  /** Onda que sai de `x` para os dois lados, na altura `y` do chão, até `reach` em `life` s, sem passar de [left, right]. */
+  wave(x: number, y: number, left: number, right: number, reach: number, life: number): void {
+    this.waves.push({ x, y, left, right, reach, age: 0, life });
+  }
+
+  private waveFront(w: Wave, side: number): number | null {
+    const px = w.x + side * w.reach * Math.min(1, w.age / w.life);
+    return px < w.left || px > w.right ? null : px;
+  }
+
   step(dt: number): void {
+    for (const w of this.waves) {
+      w.age += dt;
+      for (const side of [-1, 1]) {
+        const px = this.waveFront(w, side);
+        if (px !== null && rnd() < 0.7) this.droplets(px, w.y - 2, 0x141414, 1, 90, side > 0 ? -1.1 : -2, 0.5, true);
+      }
+    }
+    this.waves = this.waves.filter((w) => w.age < w.life + 0.15);
     for (const p of this.parts) {
       p.age += dt;
       p.vy += p.gravity * dt;
@@ -119,6 +149,17 @@ export class Effects {
         const k = (p.size * (1 - t)) / len;
         g.lineStyle(1.6, p.color, alpha).lineBetween(p.x, p.y, p.x - p.vx * k, p.y - p.vy * k);
       } else g.fillStyle(p.color, alpha).fillCircle(p.x, p.y, p.size * (1 - t * 0.5));
+    }
+    for (const w of this.waves) {
+      const fade = w.age > w.life ? 1 - (w.age - w.life) / 0.15 : 1;
+      for (const side of [-1, 1]) {
+        const px = this.waveFront(w, side);
+        if (px === null) continue;
+        // Rastro raso atrás da crista e a crista em pé, inclinada para fora.
+        front.fillStyle(0x141414, 0.3 * fade).fillRect(Math.min(w.x, px), w.y - 3, Math.abs(px - w.x), 3);
+        front.fillStyle(0x141414, 0.9 * fade).fillTriangle(px - side * 18, w.y, px - side * 4, w.y - 15, px + side * 3, w.y);
+        front.lineStyle(1.6, 0x2f6fd6, 0.8 * fade).lineBetween(px - side * 15, w.y - 1, px - side * 4, w.y - 13);
+      }
     }
   }
 }

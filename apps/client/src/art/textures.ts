@@ -6,6 +6,7 @@ import {
   bolaSvg,
   borraoSvg,
   gotaSvg,
+  manchaSvg,
   poeiraSvg,
   respingoSvg,
   saltadorSoakSvg,
@@ -82,12 +83,15 @@ export function commonSpecs(playerColors: readonly number[]): ArtSpec[] {
   });
   for (let f = 0; f < TRACA_FRAMES; f++) specs.push(...boiled(tracaKey(f), (v) => tracaSvg(f, v), 0.19, 106, 150));
   specs.push(
+    ...boiled('traca-bote', (v) => tracaSvg(0, v, true), 0.19, 106, 150),
     ...boiled('traca-tinta', tracaSoakSvg, 0.19, 106, 150),
     ...boiled('saltador', (v) => saltadorSvg(false, v), 0.3, 103, 134),
+    ...boiled('saltador-carga', (v) => saltadorSvg(false, v, true), 0.3, 103, 134),
     ...boiled('saltador-ar', (v) => saltadorSvg(true, v), 0.3, 103, 134),
     ...boiled('saltador-tinta', saltadorSoakSvg, 0.3, 103, 134),
     ...boiled('bola', bolaSvg, 10 / 22, 0, 0),
     ...boiled('borrao', borraoSvg, 0.3, 100, 67),
+    ...boiled('mancha', manchaSvg, 0.44, 0, 0),
     ...boiled('gota', gotaSvg, 0.75, 0, 0),
     spec('tubo', tuboSvg(), 0.5, 0, 80),
     spec('poeira', poeiraSvg(), 0.35, 0, 0),

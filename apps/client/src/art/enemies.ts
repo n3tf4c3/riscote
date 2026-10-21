@@ -22,8 +22,11 @@ const SEGMENTS: Array<[number, number, number, number]> = [
   [142, 114, 13, 11],
 ];
 
-/** Traça: corpo em segmentos com hachura, seis patas em trípode alternado e antenas que balançam. */
-export function tracaSvg(frame: number, variant = 0): string {
+/**
+ * Traça: corpo em segmentos com hachura, seis patas em trípode alternado e antenas que balançam.
+ * `alert` é o aviso do bote: antenas em pé, sobrancelha franzida e boca aberta.
+ */
+export function tracaSvg(frame: number, variant = 0, alert = false): string {
   const t = (frame / TRACA_FRAMES) * Math.PI * 2;
   const bob = frame === 1 ? -1.5 : 0;
   let legs = '';
@@ -40,6 +43,17 @@ export function tracaSvg(frame: number, variant = 0): string {
       `${e} fill="none" stroke="${SEPIA_DARK}" stroke-width="2.2" filter="url(#tinta)"/>`;
   }
   const sway = 6 * Math.sin(t);
+  const antennae = alert
+    ? `<path d="M162 100 Q166 76 176 56 M166 102 Q178 80 194 66" stroke="${SEPIA_DARK}" stroke-width="2.6" fill="none" stroke-linecap="round" filter="url(#tinta)"/>` +
+      `<circle cx="176" cy="56" r="3" fill="${SEPIA_DARK}"/><circle cx="194" cy="66" r="3" fill="${SEPIA_DARK}"/>`
+    : `<path d="M162 100 Q182 ${80 - sway} 204 ${76 - sway * 1.4} M166 102 Q190 ${88 + sway} 212 ${90 + sway * 1.2}" stroke="${SEPIA_DARK}" stroke-width="2.2" fill="none" stroke-linecap="round" filter="url(#tinta)"/>`;
+  const face = alert
+    ? `<ellipse cx="163" cy="107" rx="7" ry="6.5" fill="${PAPER}"/><circle cx="166" cy="107.5" r="2.4" fill="#c8402a"/>` +
+      `<path d="M153 98 L171 104" stroke="${INK}" stroke-width="3" stroke-linecap="round"/>` +
+      `<path d="M166 119 Q174 117 175 126 Q168 128 164 123 Z" fill="${INK}"/>`
+    : `<path d="M168 120 Q176 122 172 128 M162 122 Q166 128 160 130" stroke="${INK}" stroke-width="2.4" fill="none" stroke-linecap="round"/>` +
+      `<ellipse cx="163" cy="107" rx="6.5" ry="5.5" fill="${PAPER}"/><circle cx="165" cy="107.5" r="3" fill="${INK}"/>` +
+      `<path d="M155 101 L169 99" stroke="${INK}" stroke-width="2.6" stroke-linecap="round"/>`;
   return svgDoc(
     TRACA_VB,
     `<clipPath id="baixo"><rect x="30" y="117" width="200" height="40"/></clipPath>` +
@@ -48,10 +62,8 @@ export function tracaSvg(frame: number, variant = 0): string {
       `<g transform="translate(0 ${bob})">${legs}${body}` +
       `<path d="M66 110 Q100 100 140 104" stroke="${PAPER}" stroke-width="2.4" fill="none" stroke-linecap="round" opacity="0.55"/>` +
       `<ellipse cx="158" cy="112" rx="16" ry="13" fill="${SEPIA_DARK}" filter="url(#tinta)"/>` +
-      `<path d="M168 120 Q176 122 172 128 M162 122 Q166 128 160 130" stroke="${INK}" stroke-width="2.4" fill="none" stroke-linecap="round"/>` +
-      `<ellipse cx="163" cy="107" rx="6.5" ry="5.5" fill="${PAPER}"/><circle cx="165" cy="107.5" r="3" fill="${INK}"/>` +
-      `<path d="M155 101 L169 99" stroke="${INK}" stroke-width="2.6" stroke-linecap="round"/>` +
-      `<path d="M162 100 Q182 ${80 - sway} 204 ${76 - sway * 1.4} M166 102 Q190 ${88 + sway} 212 ${90 + sway * 1.2}" stroke="${SEPIA_DARK}" stroke-width="2.2" fill="none" stroke-linecap="round" filter="url(#tinta)"/>` +
+      face +
+      antennae +
       `</g>`,
     variant,
   );
@@ -60,8 +72,11 @@ export function tracaSvg(frame: number, variant = 0): string {
 const SALTADOR_VB = '60 40 84 110';
 const BLOB = 'M104 52 Q132 54 134 84 Q136 112 104 116 Q72 116 72 88 Q72 66 88 58 Q92 46 104 52 Z';
 
-/** Saltador: bolota índigo com hachura e olhos grandes; no ar encolhe os pés e abre a boca. */
-export function saltadorSvg(air: boolean, variant = 0): string {
+/**
+ * Saltador: bolota índigo com hachura e olhos grandes; no ar encolhe os pés e abre a boca.
+ * `charge` é o aviso da pancada: olhos apertados, sobrancelhas baixas e dentes cerrados.
+ */
+export function saltadorSvg(air: boolean, variant = 0, charge = false): string {
   const feet = air
     ? `<ellipse cx="94" cy="117" rx="8" ry="5" fill="${INK}" filter="url(#tinta)"/><ellipse cx="116" cy="117" rx="8" ry="5" fill="${INK}" filter="url(#tinta)"/>`
     : stroke(92, 110, 20, 1.3, 0.2, INDIGO_DARK, 'seco') + stroke(114, 110, -20, 1.3, 0.2, INDIGO_DARK, 'seco') +
@@ -69,6 +84,16 @@ export function saltadorSvg(air: boolean, variant = 0): string {
   const mouth = air
     ? `<ellipse cx="113" cy="100" rx="5" ry="6" fill="${INK}"/><ellipse cx="113" cy="102" rx="3" ry="2.4" fill="#c8402a"/>`
     : `<path d="M104 99 Q112 104 122 98" stroke="${INK}" stroke-width="2.6" fill="none" stroke-linecap="round"/>`;
+  const face = charge
+    ? `<path d="M106 82 Q114 77 123 82 Q114 85 106 82 Z" fill="${PAPER}"/><circle cx="116" cy="82" r="2.6" fill="${INK}"/>` +
+      `<path d="M89 83 Q96 78 103 83 Q96 86 89 83 Z" fill="${PAPER}"/><circle cx="97" cy="82.5" r="2.3" fill="${INK}"/>` +
+      `<path d="M104 70 L123 78 M86 74 L102 78" stroke="${INK}" stroke-width="3" stroke-linecap="round"/>` +
+      `<rect x="102" y="95" width="21" height="8" rx="2" fill="${PAPER}" stroke="${INK}" stroke-width="2"/>` +
+      `<path d="M109 95 V103 M116 95 V103" stroke="${INK}" stroke-width="1.6"/>`
+    : `<ellipse cx="114" cy="80" rx="8.5" ry="${air ? 10 : 9}" fill="${PAPER}"/><circle cx="116.5" cy="${air ? 79 : 81}" r="4" fill="${INK}"/><circle cx="118" cy="${air ? 77 : 79}" r="1.3" fill="${PAPER}"/>` +
+      `<ellipse cx="96" cy="81" rx="6" ry="${air ? 8.5 : 7.5}" fill="${PAPER}"/><circle cx="98.5" cy="${air ? 80 : 82}" r="3.3" fill="${INK}"/>` +
+      `<path d="M${air ? '104 66 L122 63' : '105 70 L123 71'}" stroke="${INK}" stroke-width="2.4" stroke-linecap="round"/>` +
+      mouth;
   return svgDoc(
     SALTADOR_VB,
     feet +
@@ -78,10 +103,7 @@ export function saltadorSvg(air: boolean, variant = 0): string {
       `<path d="${BLOB}" fill="none" stroke="${INDIGO_DARK}" stroke-width="2.6" filter="url(#tinta)"/>` +
       `<path d="M84 72 Q86 62 96 60" stroke="${PAPER}" stroke-width="2.6" fill="none" stroke-linecap="round" opacity="0.8"/>` +
       `<path d="M80 80 Q81 76 83 74" stroke="${PAPER}" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.6"/>` +
-      `<ellipse cx="114" cy="80" rx="8.5" ry="${air ? 10 : 9}" fill="${PAPER}"/><circle cx="116.5" cy="${air ? 79 : 81}" r="4" fill="${INK}"/><circle cx="118" cy="${air ? 77 : 79}" r="1.3" fill="${PAPER}"/>` +
-      `<ellipse cx="96" cy="81" rx="6" ry="${air ? 8.5 : 7.5}" fill="${PAPER}"/><circle cx="98.5" cy="${air ? 80 : 82}" r="3.3" fill="${INK}"/>` +
-      `<path d="M${air ? '104 66 L122 63' : '105 70 L123 71'}" stroke="${INK}" stroke-width="2.4" stroke-linecap="round"/>` +
-      mouth,
+      face,
     variant,
   );
 }
@@ -141,6 +163,22 @@ export function borraoSvg(variant = 0): string {
       `<path d="M78 52 L98 57 M128 52 L108 57" stroke="${BORRAO}" stroke-width="4" stroke-linecap="round"/>` +
       `<path d="M84 80 L90 86 L95 80 L100 87 L105 80 L110 86 L116 80 Q100 92 84 80 Z" fill="${PAPER}" opacity="0.92"/>` +
       `<circle cx="40" cy="44" r="3.4" fill="${BORRAO}"/><circle cx="164" cy="40" r="2.6" fill="${BORRAO}"/><circle cx="160" cy="118" r="2" fill="${BORRAO}"/><circle cx="34" cy="96" r="2" fill="${BORRAO}"/>`,
+    variant,
+  );
+}
+
+/** Mancha do borrão: poça de nanquim que escorre, com dois olhinhos acesos — encostar derruba. */
+export function manchaSvg(variant = 0): string {
+  const blob = 'M0 -24 Q16 -26 22 -12 Q30 -2 22 10 Q18 24 2 22 Q-12 28 -20 16 Q-30 4 -22 -10 Q-16 -24 0 -24 Z';
+  return svgDoc(
+    '-34 -34 68 68',
+    `<path d="${blob}" fill="${INK}" opacity="0.22" filter="url(#borra)" transform="scale(1.18)"/>` +
+      `<path d="${blob}" fill="${BORRAO}" filter="url(#borra)"/>` +
+      `<circle cx="-27" cy="-14" r="2.6" fill="${BORRAO}"/><circle cx="26" cy="18" r="2.2" fill="${BORRAO}"/><circle cx="-4" cy="29" r="1.8" fill="${BORRAO}"/>` +
+      stroke(-8, 14, 0, 0.6, 0.14, BORRAO, 'seco') +
+      stroke(8, 16, 0, 0.5, 0.1, BORRAO, 'seco') +
+      `<path d="M-11 -3 Q-6 -8 -1 -3 Q-6 0 -11 -3 Z M3 -3 Q8 -8 13 -3 Q8 0 3 -3 Z" fill="${BORRAO_EYES}"/>` +
+      `<path d="M-12 -9 L-2 -6 M14 -9 L4 -6" stroke="${BORRAO}" stroke-width="2.4" stroke-linecap="round"/>`,
     variant,
   );
 }

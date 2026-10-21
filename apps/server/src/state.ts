@@ -43,10 +43,23 @@ export const EnemySchema = schema(
     y: t.float32(),
     facing: t.int8(),
     soak: t.uint8(),
+    /** Fase da habilidade (SKILL_*): o cliente desenha o aviso antes de ela acontecer. */
+    skill: t.uint8(),
   },
   'Enemy',
 );
 export type EnemySchema = SchemaType<typeof EnemySchema>;
+
+/** Mancha do borrão; `age` abaixo de RULES.stainWarn ainda não machuca. */
+export const StainSchema = schema(
+  {
+    x: t.float32(),
+    y: t.float32(),
+    age: t.float32(),
+  },
+  'Stain',
+);
+export type StainSchema = SchemaType<typeof StainSchema>;
 
 export const DropSchema = schema(
   {
@@ -92,6 +105,7 @@ export const GameState = schema(
     enemies: t.map(EnemySchema),
     drops: t.map(DropSchema),
     items: t.map(ItemSchema),
+    stains: t.map(StainSchema),
   },
   'GameState',
 );

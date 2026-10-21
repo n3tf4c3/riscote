@@ -17,7 +17,7 @@ import {
   type WorldPlayer,
 } from '@riscote/shared';
 import { recordTick, processMetrics } from './metrics.ts';
-import { DropSchema, EnemySchema, GameState, ItemSchema, PlayerSchema } from './state.ts';
+import { DropSchema, EnemySchema, GameState, ItemSchema, PlayerSchema, StainSchema } from './state.ts';
 
 /** Fila acima disto descarta os comandos mais antigos: limita o atraso acumulado (~130 ms). */
 const MAX_QUEUE = 8;
@@ -202,6 +202,20 @@ export class ArenaRoom extends Room<{ state: GameState }> {
       net.y = e.body.y;
       net.facing = e.dir;
       net.soak = e.soak;
+      net.skill = e.skill;
+    }
+
+    for (const id of [...s.stains.keys()]) if (!w.stains.has(Number(id))) s.stains.delete(id);
+    for (const stain of w.stains.values()) {
+      const key = String(stain.id);
+      let net = s.stains.get(key);
+      if (!net) {
+        net = new StainSchema();
+        net.x = stain.x;
+        net.y = stain.y;
+        s.stains.set(key, net);
+      }
+      net.age = stain.age;
     }
 
     for (const id of [...s.items.keys()]) if (!w.items.has(Number(id))) s.items.delete(id);

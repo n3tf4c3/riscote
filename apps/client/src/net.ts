@@ -30,6 +30,14 @@ export interface NetEnemy {
   y: number;
   facing: number;
   soak: number;
+  /** Fase da habilidade (SKILL_*). */
+  skill: number;
+}
+
+export interface NetStain {
+  x: number;
+  y: number;
+  age: number;
 }
 
 export interface NetDrop {
@@ -59,6 +67,7 @@ export interface NetState {
   enemies: NetMap<NetEnemy>;
   drops: NetMap<NetDrop>;
   items: NetMap<NetItem>;
+  stains: NetMap<NetStain>;
 }
 
 export interface NetItem {
@@ -200,7 +209,7 @@ export class OnlineSession {
 
     const enemies: EnemyView[] = [];
     state.enemies.forEach((e, id) => {
-      enemies.push({ id, kind: e.kind, mode: e.mode, x: e.x, y: e.y, facing: e.facing, soak: e.soak });
+      enemies.push({ id, kind: e.kind, mode: e.mode, x: e.x, y: e.y, facing: e.facing, soak: e.soak, skill: e.skill });
     });
     this.enemies.push(now, enemies);
 
