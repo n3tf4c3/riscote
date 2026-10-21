@@ -1,7 +1,14 @@
-import { INK, PAPER, shade, stroke, strokeEnd, svgDoc } from './svg';
+import { INK, PAPER, gradient, shade, stroke, strokeEnd, svgDoc } from './svg';
 
 // Versão do jogo dos riscotes: figuras de pincel seco com o traço engrossado para não sumir
 // no tamanho da tela, cabeça com rosto e expressão, tronco com volume, mãos e pés de mancha.
+// O corpo é sempre de nanquim (separa jogador de monstro); a cor do jogador vira um degradê vivo,
+// como as pinceladas de docs/texturas, no acessório, na faixa, nas mãos e numa pincelada no tronco.
+
+/** Segunda tinta do degradê de cada jogador (a primeira é a cor dele, PLAYER_COLORS). */
+export const PLAYER_GLOWS = ['#ffb02e', '#4fe0f0', '#ffe14a', '#a6e35a', '#f048b0'] as const;
+/** Preenchimento com o degradê do jogador, definido em cada desenho como `cor`. */
+const PAINT = 'url(#cor)';
 
 export const RUN_FRAMES = 6;
 const RUN = Array.from({ length: RUN_FRAMES }, (_, i) => `corre${i}` as const);
@@ -152,8 +159,9 @@ function colored(d: string, color: string, outline = 2.2): string {
  * Acessório de cada jogador (na ordem dos slots), em coordenadas da cabeça.
  * `face` desenha o rosto; o capuz o põe menor, dentro da abertura.
  */
-function headArt(slot: number, color: string, face: string, flow: number): string {
-  const dark = shade(color, 0.6);
+function headArt(slot: number, base: string, face: string, flow: number): string {
+  const dark = shade(base, 0.6);
+  const color = PAINT;
   const head = HEAD + SHINE + face;
   switch (slot) {
     case 0:
@@ -219,9 +227,11 @@ function figure(slot: number, color: string, s: Skeleton): string {
   const torso =
     `<g transform="translate(${nx} ${ny}) rotate(${nr})"><path d="${TORSO}" fill="${INK}" filter="url(#tinta)"/>` +
     stroke(10, 10, 4, 0.75, 0.55, PAPER, 'seco', 0.5) +
+    // Pincelada seca da cor do jogador atravessando o peito.
+    stroke(-14, 12, -58, 1.9, 0.4, PAINT, 'tecido') +
     `<path d="M-14 30 l8 -6 M-15 42 l9 -7 M-15 54 l9 -7 M-13 66 l8 -6" stroke="${PAPER}" stroke-width="2.6" stroke-linecap="round" opacity="0.4"/></g>`;
   const belt =
-    `<g transform="translate(${bx} ${by}) rotate(${br}) scale(1.35)"><path d="${BELT}" fill="${color}" filter="url(#tecido)"/>` +
+    `<g transform="translate(${bx} ${by}) rotate(${br}) scale(1.35)"><path d="${BELT}" fill="${PAINT}" filter="url(#tecido)"/>` +
     `<path d="M-12 1 Q0 -3 13 2 L13 6 Q0 1 -12 6 Z" fill="${shade(color, 0.62)}" opacity="0.85"/>` +
     `<path d="M-13 -4 Q1 -9 14 -3" stroke="${INK}" stroke-width="1.6" fill="none"/></g>`;
   const face = EYES[s.face[0]] + MOUTHS[s.face[1]];
@@ -230,11 +240,11 @@ function figure(slot: number, color: string, s: Skeleton): string {
     `${headArt(slot, color, face, s.flow)}</g>`;
   return (
     backLeg.svg + foot(backLeg.tip, 5) +
-    backArm.svg + `<circle cx="${backArm.tip[0]}" cy="${backArm.tip[1]}" r="7" fill="${INK}" filter="url(#tinta)"/>` +
+    backArm.svg + `<circle cx="${backArm.tip[0]}" cy="${backArm.tip[1]}" r="7" fill="${PAINT}" stroke="${INK}" stroke-width="2.6" filter="url(#tinta)"/>` +
     torso + belt +
     frontLeg.svg + foot(frontLeg.tip, 6) +
     frontArm.svg +
-    `<circle cx="${frontArm.tip[0]}" cy="${frontArm.tip[1]}" r="8.5" fill="${PAPER}"/><circle cx="${frontArm.tip[0]}" cy="${frontArm.tip[1]}" r="7" fill="${INK}" filter="url(#tinta)"/>` +
+    `<circle cx="${frontArm.tip[0]}" cy="${frontArm.tip[1]}" r="8.5" fill="${PAPER}"/><circle cx="${frontArm.tip[0]}" cy="${frontArm.tip[1]}" r="7" fill="${PAINT}" stroke="${INK}" stroke-width="2.6" filter="url(#tinta)"/>` +
     head
   );
 }
@@ -244,7 +254,7 @@ function knockedDown(color: string): string {
   return (
     `<ellipse cx="100" cy="282" rx="66" ry="12" fill="${INK}" filter="url(#tinta)"/>` +
     stroke(36, 279, -90, 2.2, 1.25) +
-    `<path d="M58 283 Q100 273 142 281 L141 289 Q100 282 59 291 Z" fill="${color}" filter="url(#tecido)"/>` +
+    `<path d="M58 283 Q100 273 142 281 L141 289 Q100 282 59 291 Z" fill="${PAINT}" filter="url(#tecido)"/>` +
     `<path d="M58 286 Q100 279 141 285 L141 289 Q100 282 59 291 Z" fill="${shade(color, 0.6)}"/>` +
     `<path d="M76 272 L84 280 M84 272 L76 280 M94 272 L102 280 M102 272 L94 280" stroke="${PAPER}" stroke-width="3" stroke-linecap="round"/>` +
     `<circle cx="28" cy="270" r="4" fill="${INK}"/><circle cx="170" cy="274" r="5" fill="${INK}"/><circle cx="182" cy="284" r="2.6" fill="${INK}"/><circle cx="18" cy="284" r="2" fill="${INK}"/>`
@@ -253,7 +263,8 @@ function knockedDown(color: string): string {
 
 /** SVG de um riscote numa pose (viewBox 200 × 340; pés em y ≈ 290; olhando para a direita). */
 export function riscoteSvg(slot: number, color: string, pose: Pose, variant = 0): string {
-  if (pose === 'derrubado') return svgDoc(VIEWBOX, knockedDown(color), variant);
+  const paint = gradient('cor', color, PLAYER_GLOWS[slot] ?? color, 35);
+  if (pose === 'derrubado') return svgDoc(VIEWBOX, paint + knockedDown(color), variant);
   const s = pose.startsWith('corre') ? runSkeleton(Number(pose.slice(5))) : SKELETONS[pose as keyof typeof SKELETONS];
-  return svgDoc(VIEWBOX, figure(slot, color, s), variant);
+  return svgDoc(VIEWBOX, paint + figure(slot, color, s), variant);
 }

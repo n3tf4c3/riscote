@@ -1,6 +1,10 @@
 import {
+  ENEMY_BORRACHA,
   ENEMY_BORRAO,
+  ENEMY_FIANDEIRA,
+  ENEMY_GRAMPO,
   ENEMY_SALTADOR,
+  ENEMY_TINTEIRO,
   MODE_BALL,
   MODE_ROLL,
   MODE_WALK,
@@ -11,9 +15,10 @@ import {
   TILE,
   floorSpan,
   type Arena,
+  type WarnTimes,
 } from '@riscote/shared';
 import { runPose, type Pose } from './art/riscote';
-import { tracaKey } from './art/textures';
+import { grampoKey, tracaKey } from './art/textures';
 import { INK_BLUE, INK } from './draw';
 import type { Effects } from './fx';
 
@@ -142,6 +147,8 @@ export interface EnemyLike {
   facing: number;
   soak: number;
   skill: number;
+  /** Fiandeira: y onde o fio se prende; -1 = solta. */
+  anchorY: number;
 }
 
 export interface EnemyFrame {
@@ -149,6 +156,8 @@ export interface EnemyFrame {
   sx: number;
   sy: number;
   angle: number;
+  /** Espelhar o desenho; sem valor, segue o lado para onde o inimigo olha (a borracha vira no meio do giro). */
+  flip?: boolean;
 }
 
 interface EnemyState {
@@ -180,7 +189,16 @@ export class EnemyAnimator {
     private readonly size: number,
     private readonly borraoSize: number,
     private readonly arena: Arena,
+    /** Avisos no modo da sala: o mesmo tempo que a simulação espera. */
+    private readonly warnTimes: WarnTimes,
   ) {}
+
+  private warnFor(kind: number): number {
+    if (kind === ENEMY_SALTADOR) return this.warnTimes.slam;
+    if (kind === ENEMY_TINTEIRO) return this.warnTimes.spit;
+    if (kind === ENEMY_BORRACHA) return RULES.eraserTurn;
+    return this.warnTimes.dash;
+  }
 
   /** Entrada numa fase de habilidade: respingos, poeira e a onda da pancada. */
   private skillChanged(e: EnemyLike, prev: number, cx: number): void {
@@ -196,6 +214,15 @@ export class EnemyAnimator {
         this.fx.dust(cx, floor, 1);
         this.fx.shake(220, 0.007);
       }
+    } else if (e.kind === ENEMY_TINTEIRO) {
+      if (e.skill === SKILL_WARN) this.fx.sparkle(cx + e.facing * this.size * 0.3, e.y - 2, 0xc8402a, 6, 7);
+      else if (e.skill === SKILL_ACT) {
+        // Cuspiu: o nanquim espirra da boca, rente ao chão.
+        this.fx.droplets(cx + e.facing * this.size * 0.5, feet - 4, INK, 8, 140, e.facing > 0 ? -0.15 : Math.PI + 0.15, 0.7, true);
+        this.fx.dust(cx, feet, 0.4);
+      }
+    } else if (e.kind === ENEMY_BORRACHA) {
+      if (e.skill === SKILL_WARN) this.fx.dust(cx, feet, 0.5);
     } else if (e.kind !== ENEMY_BORRAO) {
       if (e.skill === SKILL_WARN) this.fx.sparkle(cx + e.facing * this.size * 0.4, e.y - 2, 0xc8402a, 6, 7);
       else if (e.skill === SKILL_ACT) {
@@ -251,12 +278,13 @@ export class EnemyAnimator {
         s.skillAt = now;
       }
       /** 0 → 1 ao longo do aviso. */
-      const warn = Math.min(1, (now - s.skillAt) / (1000 * (e.kind === ENEMY_SALTADOR ? RULES.slamWarn : RULES.dashWarn)));
+      const warn = Math.min(1, (now - s.skillAt) / (1000 * this.warnFor(e.kind)));
 
       let key: string;
       let sx = 1;
       let sy = 1;
       let angle = 0;
+      let flip: boolean | undefined;
       if (e.kind === ENEMY_BORRAO) {
         key = 'borrao';
         const w = Math.sin(now / 170);
@@ -285,6 +313,38 @@ export class EnemyAnimator {
         if (now - s.lastTrail > 45) {
           s.lastTrail = now;
           this.fx.droplets(cx, e.y + this.size - 2, INK_BLUE, 2, 50, -Math.PI / 2, 1.2);
+        }
+      } else if (e.kind === ENEMY_GRAMPO) {
+        // Corre aos saltinhos curtos: as pontas trocam e o arco quica.
+        key = grampoKey(Math.floor(s.dist / 4));
+        sy = 1 + 0.05 * Math.sin(s.dist / 3);
+      } else if (e.kind === ENEMY_FIANDEIRA) {
+        key = `fiandeira-${Math.floor(now / 240) % 2}`;
+        // No fio, balança devagar; solta, anda com as patas.
+        if (e.anchorY >= 0) angle = 7 * Math.sin(now / 320);
+        else key = `fiandeira-${Math.floor(s.dist / 6) % 2}`;
+      } else if (e.kind === ENEMY_TINTEIRO) {
+        if (e.skill === SKILL_WARN) {
+          // Aviso do cuspe: inclina para a frente cada vez mais, tremendo.
+          key = 'tinteiro-carga';
+          angle = e.facing * (24 * warn + 3 * Math.sin(now / 26));
+          sx = 1 + 0.08 * warn;
+          sy = 1 - 0.06 * warn;
+        } else if (e.skill === SKILL_ACT) {
+          key = 'tinteiro-carga';
+          angle = e.facing * 30;
+        } else {
+          key = `tinteiro-${Math.floor(s.dist / 6) % 2}`;
+          if (e.skill === SKILL_REST) angle = e.facing * 10;
+        }
+      } else if (e.kind === ENEMY_BORRACHA) {
+        key = 'borracha';
+        if (e.skill === SKILL_WARN) {
+          // Gira parada: estreita até ficar de lado e volta já do outro lado.
+          sx = Math.max(0.12, Math.abs(Math.cos(Math.PI * warn)));
+          flip = warn < 0.5 ? e.facing < 0 : e.facing > 0;
+        } else {
+          sy = 1 + 0.03 * Math.sin(s.dist / 5);
         }
       } else if (e.kind === ENEMY_SALTADOR) {
         const air = Math.abs(s.vy) > 25;
@@ -336,7 +396,7 @@ export class EnemyAnimator {
       } else {
         key = tracaKey(Math.floor(s.dist / 5));
       }
-      out.set(e.id, { key, sx, sy, angle });
+      out.set(e.id, { key, sx, sy, angle, ...(flip === undefined ? {} : { flip }) });
     }
 
     // Quem sumiu: bola que estourou, inimigo derrubado pela bola.
@@ -361,7 +421,15 @@ export class EnemyAnimator {
   }
 }
 
-/** Gotas: direção de voo para o desenho, rastro e o respingo quando somem. */
+/** Frente de uma borracha: a gota que some ali foi apagada, não espirrou. */
+export interface EraserFront {
+  x: number;
+  y: number;
+}
+
+const ERASER_PINK = 0xff6f9e;
+
+/** Gotas: direção de voo para o desenho, rastro e o respingo quando somem (ou o farelo, se a borracha apagou). */
 export class DropWatcher {
   private states = new Map<string, { x: number; y: number; dir: number; seen: number; trail: number }>();
 
@@ -370,7 +438,7 @@ export class DropWatcher {
     private readonly size: number,
   ) {}
 
-  dirs(drops: Array<{ id: string; x: number; y: number }>, now: number): Map<string, number> {
+  dirs(drops: Array<{ id: string; x: number; y: number }>, now: number, erasers: readonly EraserFront[] = []): Map<string, number> {
     const out = new Map<string, number>();
     const half = this.size / 2;
     for (const d of drops) {
@@ -392,7 +460,13 @@ export class DropWatcher {
     for (const [id, s] of this.states) {
       if (s.seen === now) continue;
       this.states.delete(id);
-      this.fx.splat(s.x + half, s.y + half, true, 0.45, INK_BLUE);
+      const cx = s.x + half;
+      const cy = s.y + half;
+      if (erasers.some((f) => Math.abs(f.x - cx) < TILE * 1.1 && Math.abs(f.y - cy) < TILE)) {
+        // Apagada: farelo de borracha caindo, sem mancha azul.
+        this.fx.droplets(cx, cy, ERASER_PINK, 6, 70, Math.PI / 2, 1.6);
+        this.fx.dust(cx, cy + 6, 0.3);
+      } else this.fx.splat(cx, cy, true, 0.45, INK_BLUE);
     }
     return out;
   }

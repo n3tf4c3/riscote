@@ -1,4 +1,4 @@
-import { EMPTY, SOLID, cellAt, type Arena, type CellPos } from './arena.ts';
+import { EMPTY, SOLID, cellAt, type Arena, type CellPos, type Stage } from './arena.ts';
 import { BTN_ATTACK, BTN_DOWN, BTN_JUMP, BTN_LEFT, BTN_RIGHT } from './input.ts';
 import { DEFAULT_PARAMS, TICK_DT, TILE, type MovementParams } from './params.ts';
 import { createPlayer, stepPlayer, touchesTube, type PlayerState } from './physics.ts';
@@ -51,15 +51,15 @@ export const RULES = {
   ratePerLevel: 0.75, // multiplica a cadência de tiro por nível
   dropSpeedPerLevel: 0.2, // +20% de velocidade da gota por nível
   rangePerLevel: 0.35, // +35% de alcance da gota por nível
-  // Habilidades dos inimigos: cada uma tem um aviso antes de acontecer.
+  // Habilidades dos inimigos: cada uma tem um aviso antes de acontecer (no mínimo 0,6 s; mais longo no fácil).
   dashSight: 6, // células à frente, no mesmo andar, para a traça dar o bote
-  dashWarn: 0.5, // s parada, tremendo, antes do bote
+  dashWarn: 0.6, // s parada, tremendo, antes do bote
   dashTime: 0.6, // s de bote
   dashRest: 0.6, // s cansada depois do bote
   dashCooldown: 2.5, // s até poder dar outro bote
   dashSpeedMult: 2.5,
   slamEvery: 3, // a cada tantos saltos, o saltador dá uma pancada
-  slamWarn: 0.5, // s agachado antes do salto alto
+  slamWarn: 0.6, // s agachado antes do salto alto
   slamJumpHeight: 5, // células
   slamRadius: 3, // células que a onda percorre para cada lado, rente ao chão
   slamWaveTime: 0.3, // s até a onda chegar ao fim
@@ -71,6 +71,20 @@ export const RULES = {
   stainLife: 5, // s machucando depois do aviso
   stainSize: 1.1, // células
   maxStains: 4,
+  // Inimigos da progressão de fases.
+  threadReach: 4, // células que a fiandeira desce no fio, no máximo
+  threadSpeed: 2.2, // células/s no fio
+  threadPauseDown: 0.8, // s parada embaixo
+  threadPauseUp: 1.2, // s parada em cima
+  spitSight: 10, // células, no mesmo andar, para o tinteiro cuspir
+  spitWarn: 0.7, // s inclinado, com a gota crescendo na boca
+  spitAct: 0.2, // s cuspindo
+  spitRest: 0.5,
+  spitCooldown: 3.5,
+  spitSpeed: 7, // células/s, rente ao chão
+  spitRange: 9, // células até a gota secar
+  spitSize: 0.6, // células
+  eraserTurn: 0.8, // s que a borracha leva para virar (enquanto gira, não apaga nada)
 } as const;
 
 export const ITEM_FORCA = 0;
@@ -85,10 +99,21 @@ export const ENEMY_TRACA = 0;
 export const ENEMY_SALTADOR = 1;
 /** A ameaça de tempo: persegue o jogador mais próximo, atravessa paredes e não é encharcada. */
 export const ENEMY_BORRAO = 2;
+/** Grampo de papel: corre reto e rápido, nunca pula, desce pelos vãos e só vira na parede. */
+export const ENEMY_GRAMPO = 3;
+/** Aranha de traço fino: sobe e desce num fio preso embaixo de uma plataforma; encharcada, o fio arrebenta. */
+export const ENEMY_FIANDEIRA = 4;
+/** Pote de nanquim: anda devagar no próprio andar e cospe uma gota rente ao chão depois de um aviso. */
+export const ENEMY_TINTEIRO = 5;
+/** Borracha de apagar: lenta, vira para quem está mais perto e apaga a tinta que bate na frente. */
+export const ENEMY_BORRACHA = 6;
 export const MODE_WALK = 0;
 export const MODE_BALL = 1;
 export const MODE_ROLL = 2;
-/** Fase da habilidade de um inimigo: aviso, em ação e recuperação (o borrão só usa o aviso). */
+/**
+ * Fase da habilidade de um inimigo: aviso, em ação e recuperação. O borrão só usa o aviso;
+ * a borracha usa o aviso enquanto gira para o outro lado.
+ */
 export const SKILL_NONE = 0;
 export const SKILL_WARN = 1;
 export const SKILL_ACT = 2;
@@ -161,6 +186,23 @@ const ENEMY_BASE: Record<number, MovementParams> = {
     ...DEFAULT_PARAMS, playerWidth: ENEMY_SIZE, playerHeight: ENEMY_SIZE,
     runSpeed: 5, airAccel: 40, jumpHeight: 3.8, jumpCutMult: 1,
   },
+  [ENEMY_GRAMPO]: {
+    ...DEFAULT_PARAMS, playerWidth: ENEMY_SIZE, playerHeight: ENEMY_SIZE,
+    runSpeed: 6, groundAccel: 80, groundDecel: 80, airAccel: 30, jumpCutMult: 1,
+  },
+  // Solta do fio, anda como uma traça sem bote.
+  [ENEMY_FIANDEIRA]: {
+    ...DEFAULT_PARAMS, playerWidth: ENEMY_SIZE, playerHeight: ENEMY_SIZE,
+    runSpeed: 3, groundAccel: 60, groundDecel: 60, airAccel: 20, jumpHeight: 3.6, jumpCutMult: 1,
+  },
+  [ENEMY_TINTEIRO]: {
+    ...DEFAULT_PARAMS, playerWidth: ENEMY_SIZE, playerHeight: ENEMY_SIZE,
+    runSpeed: 2, groundAccel: 40, groundDecel: 60, airAccel: 10, jumpCutMult: 1,
+  },
+  [ENEMY_BORRACHA]: {
+    ...DEFAULT_PARAMS, playerWidth: ENEMY_SIZE, playerHeight: ENEMY_SIZE,
+    runSpeed: 2.5, groundAccel: 40, groundDecel: 80, airAccel: 10, jumpCutMult: 1,
+  },
 };
 
 /** Encharcado anda mais devagar: um parâmetro por nível de tinta. */
@@ -189,6 +231,36 @@ export const BALL_PARAMS: MovementParams = {
   runSpeed: RULES.rollSpeed, groundAccel: 2000, groundDecel: 30, airAccel: 2000, jumpCutMult: 1,
 };
 
+/**
+ * Regras de onda das arenas sem fase (testes e modo local): o comportamento de antes da progressão,
+ * com traças e saltadores de habilidade ligada.
+ */
+export const DEFAULT_STAGE: Stage = {
+  step: 0,
+  roster: [ENEMY_TRACA, ENEMY_TRACA, ENEMY_SALTADOR],
+  skills: [ENEMY_TRACA, ENEMY_SALTADOR],
+  base: 4,
+  perPlayer: 1.5,
+  maxOnScreen: RULES.maxEnemiesOnScreen,
+  spawnDelay: RULES.spawnDelay,
+  hurryTime: RULES.hurryTime,
+  skillCdMult: 1,
+  hints: false,
+};
+
+/** Segundos de aviso de cada habilidade no modo; o cliente usa os mesmos números para desenhar o aviso. */
+export interface WarnTimes {
+  dash: number;
+  slam: number;
+  spit: number;
+  stain: number;
+}
+
+export function warnTimes(difficulty: Difficulty): WarnTimes {
+  const k = DIFFICULTY_RULES[difficulty].warnMult;
+  return { dash: RULES.dashWarn * k, slam: RULES.slamWarn * k, spit: RULES.spitWarn * k, stain: RULES.stainWarn * k };
+}
+
 export interface Box {
   x: number;
   y: number;
@@ -206,6 +278,11 @@ function bodyBox(b: PlayerState, p: MovementParams, grow = 0): Box {
 
 export function stainBox(s: { x: number; y: number }): Box {
   const size = RULES.stainSize * TILE;
+  return { x: s.x, y: s.y, w: size, h: size };
+}
+
+export function spitBox(s: { x: number; y: number }): Box {
+  const size = RULES.spitSize * TILE;
   return { x: s.x, y: s.y, w: size, h: size };
 }
 
@@ -302,6 +379,22 @@ export interface Enemy {
   skillCd: number;
   /** Saltos do saltador desde a última pancada. */
   hops: number;
+  /** A habilidade (bote, pancada, cuspe) vale para este inimigo: depende da fase. */
+  skilled: boolean;
+  /** Fiandeira: y do ponto onde o fio se prende (-1 = solta, andando) e o y mais baixo do corpo no fio. */
+  anchorY: number;
+  threadEnd: number;
+  /** Fiandeira: 1 descendo, -1 subindo. */
+  vdir: 1 | -1;
+}
+
+/** Gota de nanquim cuspida pelo tinteiro: corre rente ao chão; o tiro de tinta a desmancha. */
+export interface Spit {
+  id: number;
+  x: number;
+  y: number;
+  vx: number;
+  life: number;
 }
 
 /** Mancha deixada pelo borrão: inofensiva no aviso, depois machuca ao toque. */
@@ -353,7 +446,18 @@ export class World {
   readonly enemies = new Map<number, Enemy>();
   readonly drops = new Map<number, Drop>();
   readonly stains = new Map<number, Stain>();
+  readonly spits = new Map<number, Spit>();
   shocks: Shock[] = [];
+  /** Regras da fase atual (quem aparece, ritmo e habilidades ligadas). */
+  stage: Stage = DEFAULT_STAGE;
+  /** Avisos das habilidades no modo da sala. */
+  readonly warn: WarnTimes;
+  /** Segundos na arena até o borrão aparecer, já com o piso do modo. */
+  hurryTime: number = RULES.hurryTime;
+  /** Multiplica o intervalo entre habilidades: modo × fase. */
+  private cdMult = 1;
+  private spawnPoint = 0;
+  private minionCount = 0;
   /** O Mata-Borrão, só na página dele (`BOSS_ARENA`). */
   boss: Boss | null = null;
   lives: number = RULES.teamLives;
@@ -388,7 +492,17 @@ export class World {
     this.hitsToDown = DIFFICULTY_RULES[this.difficulty].hitsToDown;
     this.params = movementParams(this.difficulty);
     this.speedParams = Array.from({ length: POWER_MAX_LEVEL + 1 }, (_, level) => movementParams(this.difficulty, level));
+    this.warn = warnTimes(this.difficulty);
     this.phase = this.autoWaves ? PHASE_LOBBY : PHASE_PLAYING;
+    this.applyStage();
+  }
+
+  /** Lê as regras da fase da arena atual, deslocadas pelo modo da sala. */
+  private applyStage(): void {
+    const mode = DIFFICULTY_RULES[this.difficulty];
+    this.stage = this.arena.stage ?? DEFAULT_STAGE;
+    this.cdMult = mode.skillCdMult * this.stage.skillCdMult;
+    this.hurryTime = Math.max(this.stage.hurryTime, mode.minHurry);
   }
 
   /** Sai do aquecimento: a primeira arena é dimensionada com quem está na sala agora. */
@@ -515,7 +629,7 @@ export class World {
       this.waveTime += dt;
       this.measure(dt);
       // Na luta com o chefe não há borrão: o próprio chefe é a pressão.
-      if (this.autoWaves && !this.hurry && !this.boss && this.waveTime >= RULES.hurryTime) this.spawnBorrao();
+      if (this.autoWaves && !this.hurry && !this.boss && this.waveTime >= this.hurryTime) this.spawnBorrao();
     }
 
     this.stepItems(dt);
@@ -529,7 +643,11 @@ export class World {
     this.stepPhase(dt);
   }
 
-  spawnEnemy(kind: number, cell: CellPos): Enemy {
+  /**
+   * Coloca um inimigo apoiado na célula de baixo de `cell`. A fiandeira, em vez disso, fica pendurada
+   * com o topo do corpo em `cell`, que deve estar logo abaixo de uma célula cheia. `skilled` liga a habilidade.
+   */
+  spawnEnemy(kind: number, cell: CellPos, skilled = true): Enemy {
     // O borrão não usa física: os parâmetros só posicionam o corpo inicial.
     const params = ENEMY_PARAMS[kind]?.[0] ?? BALL_PARAMS;
     const enemy: Enemy = {
@@ -539,9 +657,23 @@ export class World {
       soak: 0, soakTimer: 0, ballTime: 0, rollTime: 0, bounces: 0, combo: 0, kicker: null,
       aiTimer: 1 + this.rng() * 2, edgeDecided: false, wasBlocked: false,
       skill: SKILL_NONE, skillTimer: 0, skillCd: 0, hops: 0,
+      skilled, anchorY: -1, threadEnd: 0, vdir: 1,
     };
+    if (kind === ENEMY_FIANDEIRA) this.hangFrom(enemy, cell);
     this.enemies.set(enemy.id, enemy);
     return enemy;
+  }
+
+  /** Prende a fiandeira no ponto: desce até perto do primeiro chão embaixo dele, no máximo RULES.threadReach. */
+  private hangFrom(e: Enemy, cell: CellPos): void {
+    const size = ENEMY_SIZE * TILE;
+    let floor = cell.row + 1;
+    while (floor < this.arena.rows && cellAt(this.arena, cell.col, floor) === EMPTY) floor++;
+    e.anchorY = cell.row * TILE;
+    e.threadEnd = Math.max(e.anchorY, Math.min(floor * TILE - size - 2, e.anchorY + RULES.threadReach * TILE));
+    e.body.y = e.anchorY;
+    e.vdir = 1;
+    e.aiTimer = RULES.threadPauseUp;
   }
 
   /** Coloca um item sobre a célula sólida ou atravessável `cell` (o item fica na célula de cima). */
@@ -711,10 +843,19 @@ export class World {
         this.drops.delete(d.id);
         continue;
       }
+      // Tinta contra o cuspe do tinteiro: as duas gotas se desmancham.
+      const spit = [...this.spits.values()].find((s) => overlaps(box, spitBox(s)));
+      if (spit) {
+        this.spits.delete(spit.id);
+        this.drops.delete(d.id);
+        continue;
+      }
       for (const e of this.enemies.values()) {
         // A tinta não pega no borrão nem na bola rolando.
         if (e.mode === MODE_ROLL || e.kind === ENEMY_BORRAO || !overlaps(box, enemyBox(e))) continue;
         this.drops.delete(d.id);
+        // A borracha apaga a gota que vem de frente; de costas, ou enquanto gira, encharca.
+        if (e.kind === ENEMY_BORRACHA && e.mode === MODE_WALK && e.skill !== SKILL_WARN && Math.sign(d.vx) === -e.dir) break;
         this.soak(e, d.power);
         break;
       }
@@ -726,10 +867,11 @@ export class World {
     e.soakTimer = RULES.soakDecay;
     if (e.mode === MODE_BALL) e.ballTime = RULES.ballTime;
     else if (e.mode === MODE_WALK && e.soak >= this.soakToBall) {
-      // Virar bola interrompe a habilidade.
+      // Virar bola interrompe a habilidade; a fiandeira cai do fio.
       e.mode = MODE_BALL;
       e.ballTime = RULES.ballTime;
       e.skill = SKILL_NONE;
+      e.anchorY = -1;
     }
   }
 
@@ -742,9 +884,14 @@ export class World {
           e.soak--;
           e.soakTimer = RULES.soakDecay;
         }
+        if (e.anchorY >= 0) {
+          this.hang(e, dt);
+          continue;
+        }
         const buttons = this.think(e, dt);
-        const params = e.skill === SKILL_ACT ? SKILL_PARAMS : ENEMY_PARAMS;
-        stepPlayer(e.body, buttons, this.arena, params[e.kind]![e.soak]!);
+        // Bote e salto alto têm parâmetros próprios; o cuspe do tinteiro não muda o passo.
+        const params = (e.skill === SKILL_ACT ? SKILL_PARAMS[e.kind] : undefined) ?? ENEMY_PARAMS[e.kind]!;
+        stepPlayer(e.body, buttons, this.arena, params[e.soak]!);
         e.wasBlocked = e.body.vx === 0 && (buttons & (BTN_LEFT | BTN_RIGHT)) !== 0;
       } else if (e.mode === MODE_BALL) {
         stepPlayer(e.body, 0, this.arena, BALL_PARAMS);
@@ -779,13 +926,47 @@ export class World {
     }
   }
 
-  /** Manchas envelhecem e somem; ondas da pancada correm e acabam. */
+  /** Fiandeira no fio: parada em cima, desce, parada embaixo, sobe. Encharcada, fica mais lenta. */
+  private hang(e: Enemy, dt: number): void {
+    const b = e.body;
+    b.vx = 0;
+    b.vy = 0;
+    b.onGround = false;
+    if (e.aiTimer > 0) {
+      e.aiTimer -= dt;
+      return;
+    }
+    const step = RULES.threadSpeed * TILE * Math.max(0.4, 1 - 0.15 * e.soak) * dt;
+    if (e.vdir > 0) {
+      b.y = Math.min(e.threadEnd, b.y + step);
+      if (b.y >= e.threadEnd) {
+        e.vdir = -1;
+        e.aiTimer = RULES.threadPauseDown;
+      }
+    } else {
+      b.y = Math.max(e.anchorY, b.y - step);
+      if (b.y <= e.anchorY) {
+        e.vdir = 1;
+        e.aiTimer = RULES.threadPauseUp;
+      }
+    }
+  }
+
+  /** Manchas envelhecem e somem; ondas da pancada correm e acabam; o cuspe corre até secar ou bater. */
   private stepHazards(dt: number): void {
     for (const s of this.stains.values()) {
-      if ((s.age += dt) >= RULES.stainWarn + RULES.stainLife) this.stains.delete(s.id);
+      if ((s.age += dt) >= this.warn.stain + RULES.stainLife) this.stains.delete(s.id);
     }
     for (const w of this.shocks) w.age += dt;
     this.shocks = this.shocks.filter((w) => w.age < RULES.slamWaveTime);
+    const half = (RULES.spitSize * TILE) / 2;
+    for (const s of this.spits.values()) {
+      s.x += s.vx * dt;
+      s.life -= dt;
+      if (s.life <= 0 || cellAt(this.arena, Math.floor((s.x + half) / TILE), Math.floor((s.y + half) / TILE)) === SOLID) {
+        this.spits.delete(s.id);
+      }
+    }
   }
 
   /**
@@ -822,19 +1003,24 @@ export class World {
   }
 
   /**
-   * IA simples: a traça patrulha e às vezes pula ou desce; o saltador pula na direção do jogador mais próximo.
-   * Habilidades: a traça dá o bote em quem estiver à frente no mesmo andar; o saltador, a cada tantos saltos,
-   * salta alto e cai com uma onda rente ao chão. As duas param num aviso antes.
+   * IA simples: a traça (e a fiandeira solta do fio) patrulha e às vezes pula ou desce; o saltador pula na
+   * direção do jogador mais próximo; o grampo corre reto; o tinteiro anda no próprio andar; a borracha segue
+   * quem está mais perto. Habilidades, só quando ligadas na fase: a traça dá o bote em quem estiver à frente
+   * no mesmo andar; o saltador, a cada tantos saltos, salta alto e cai com uma onda rente ao chão; o tinteiro
+   * cospe. Todas param num aviso antes.
    */
   private think(e: Enemy, dt: number): number {
     const b = e.body;
     const dirButton = e.dir > 0 ? BTN_RIGHT : BTN_LEFT;
     e.skillCd = Math.max(0, e.skillCd - dt);
-    if (e.kind === ENEMY_TRACA) {
+    if (e.kind === ENEMY_GRAMPO) return this.grampo(e);
+    if (e.kind === ENEMY_TINTEIRO) return this.tinteiro(e, dt);
+    if (e.kind === ENEMY_BORRACHA) return this.borracha(e, dt);
+    if (e.kind === ENEMY_TRACA || e.kind === ENEMY_FIANDEIRA) {
       if (e.skill !== SKILL_NONE) return this.dash(e, dt);
-      if (b.onGround && e.skillCd === 0 && this.preyAhead(e)) {
+      if (e.skilled && e.kind === ENEMY_TRACA && b.onGround && e.skillCd === 0 && this.preyInLine(e, RULES.dashSight, true)) {
         e.skill = SKILL_WARN;
-        e.skillTimer = RULES.dashWarn;
+        e.skillTimer = this.warn.dash;
         return 0;
       }
       let buttons = 0;
@@ -860,13 +1046,83 @@ export class World {
       e.dir = target.body.x > b.x ? 1 : -1;
       if (target.body.y - b.y > 2 * TILE && b.onOneWay) return BTN_DOWN | BTN_JUMP;
     }
-    if (++e.hops >= RULES.slamEvery) {
+    if (e.skilled && ++e.hops >= Math.max(2, Math.round(RULES.slamEvery * this.cdMult))) {
       e.hops = 0;
       e.skill = SKILL_WARN;
-      e.skillTimer = RULES.slamWarn;
+      e.skillTimer = this.warn.slam;
       return 0;
     }
     return BTN_JUMP | (e.dir > 0 ? BTN_RIGHT : BTN_LEFT);
+  }
+
+  /** Grampo: corre reto, nunca pula, desce pelos vãos e só vira na parede. */
+  private grampo(e: Enemy): number {
+    if (e.body.onGround && e.wasBlocked) e.dir = e.dir > 0 ? -1 : 1;
+    return e.dir > 0 ? BTN_RIGHT : BTN_LEFT;
+  }
+
+  /** Tinteiro: anda devagar sem sair do andar; vendo alguém nele, vira, inclina (aviso) e cospe. */
+  private tinteiro(e: Enemy, dt: number): number {
+    const b = e.body;
+    if (e.skill !== SKILL_NONE) {
+      if ((e.skillTimer -= dt) > 0) return 0;
+      if (e.skill === SKILL_WARN) {
+        this.launchSpit(e);
+        e.skill = SKILL_ACT;
+        e.skillTimer = RULES.spitAct;
+      } else if (e.skill === SKILL_ACT) {
+        e.skill = SKILL_REST;
+        e.skillTimer = RULES.spitRest;
+      } else {
+        e.skill = SKILL_NONE;
+        e.skillCd = RULES.spitCooldown * this.cdMult;
+      }
+      return 0;
+    }
+    if (!b.onGround) return 0;
+    const prey = e.skilled && e.skillCd === 0 ? this.preyInLine(e, RULES.spitSight, false) : null;
+    if (prey) {
+      e.dir = prey.body.x > b.x ? 1 : -1;
+      e.skill = SKILL_WARN;
+      e.skillTimer = this.warn.spit;
+      return 0;
+    }
+    if (e.wasBlocked || this.edgeAhead(e)) e.dir = e.dir > 0 ? -1 : 1;
+    return e.dir > 0 ? BTN_RIGHT : BTN_LEFT;
+  }
+
+  /** A gota sai da boca do tinteiro, rente ao chão, na direção em que ele olha. */
+  private launchSpit(e: Enemy): void {
+    const size = RULES.spitSize * TILE;
+    const box = enemyBox(e);
+    const id = this.nextId++;
+    this.spits.set(id, {
+      id,
+      x: e.dir > 0 ? box.x + box.w : box.x - size,
+      y: box.y + box.h - size - 1,
+      vx: e.dir * RULES.spitSpeed * TILE,
+      life: RULES.spitRange / RULES.spitSpeed,
+    });
+  }
+
+  /** Borracha: vai devagar atrás de quem está mais perto; para virar, gira parada por RULES.eraserTurn. */
+  private borracha(e: Enemy, dt: number): number {
+    const b = e.body;
+    if (e.skill === SKILL_WARN) {
+      if ((e.skillTimer -= dt) > 0) return 0;
+      e.skill = SKILL_NONE;
+      e.dir = e.dir > 0 ? -1 : 1;
+    }
+    const target = this.nearestPlayer(b);
+    if (!target || !b.onGround) return 0;
+    const dx = target.body.x - b.x;
+    if (Math.abs(dx) > TILE && Math.sign(dx) !== e.dir) {
+      e.skill = SKILL_WARN;
+      e.skillTimer = RULES.eraserTurn;
+      return 0;
+    }
+    if (Math.abs(dx) <= TILE / 2) return 0;
+    return e.dir > 0 ? BTN_RIGHT : BTN_LEFT;
   }
 
   /** Bote da traça: aviso parada → corrida rápida (até bater) → cansada → espera. */
@@ -881,14 +1137,17 @@ export class World {
         e.skillTimer = RULES.dashRest;
       } else {
         e.skill = SKILL_NONE;
-        e.skillCd = RULES.dashCooldown;
+        e.skillCd = RULES.dashCooldown * this.cdMult;
       }
     }
     return e.skill === SKILL_ACT ? (e.dir > 0 ? BTN_RIGHT : BTN_LEFT) : 0;
   }
 
-  /** Jogador de pé no mesmo andar da traça, à frente dela, perto e sem parede no meio. */
-  private preyAhead(e: Enemy): boolean {
+  /**
+   * Jogador de pé no mesmo andar do inimigo, a até `sight` células e sem parede no meio;
+   * com `aheadOnly`, só à frente dele.
+   */
+  private preyInLine(e: Enemy, sight: number, aheadOnly: boolean): WorldPlayer | null {
     const b = e.body;
     const size = ENEMY_SIZE * TILE;
     const feet = b.y + size;
@@ -897,17 +1156,18 @@ export class World {
     for (const p of this.players.values()) {
       if (p.down || p.away) continue;
       if (Math.abs(p.body.y + this.params.playerHeight * TILE - feet) > 0.6 * TILE) continue;
-      const gap = e.dir > 0 ? p.body.x - (b.x + size) : b.x - (p.body.x + pw);
-      if (gap < -size / 2 || gap > RULES.dashSight * TILE) continue;
+      const side = aheadOnly ? e.dir : p.body.x + pw / 2 > b.x + size / 2 ? 1 : -1;
+      const gap = side > 0 ? p.body.x - (b.x + size) : b.x - (p.body.x + pw);
+      if (gap < -size / 2 || gap > sight * TILE) continue;
       const from = Math.floor((b.x + size / 2) / TILE);
       const to = Math.floor((p.body.x + pw / 2) / TILE);
       let clear = true;
       for (let col = Math.min(from, to); col <= Math.max(from, to); col++) {
         if (cellAt(this.arena, col, row) === SOLID) clear = false;
       }
-      if (clear) return true;
+      if (clear) return p;
     }
-    return false;
+    return null;
   }
 
   /** Pancada do saltador: agachado (aviso) → salto alto rumo ao jogador → ao cair, onda → parado. */
@@ -1016,9 +1276,12 @@ export class World {
         return best;
       },
       minions: () => [...this.enemies.values()].filter((e) => e.kind !== ENEMY_BORRAO).length,
-      spawnMinion: (cell) => {
+      spawnMinion: (cell, phase) => {
+        if (this.enemies.size >= RULES.maxEnemiesOnScreen) return;
+        // Os fiapos repassam o capítulo: na fase 1 só andam, na 2 dão o bote, na 3 vêm grampos junto.
+        const kind = phase >= 3 && this.minionCount++ % 2 === 1 ? ENEMY_GRAMPO : ENEMY_TRACA;
         // O fiapo acabou de sair do chefe: espera um pouco antes do primeiro bote.
-        if (this.enemies.size < RULES.maxEnemiesOnScreen) this.spawnEnemy(ENEMY_TRACA, cell).skillCd = RULES.dashCooldown;
+        this.spawnEnemy(kind, cell, phase >= 2).skillCd = RULES.dashCooldown * this.cdMult;
       },
     });
   }
@@ -1052,7 +1315,10 @@ export class World {
     p.body.vy = 0;
   }
 
-  /** Inimigo andando, mancha já firme ou a frente da onda da pancada (só pega quem está no chão). */
+  /**
+   * Inimigo andando, mancha já firme, cuspe do tinteiro (que se desfaz no golpe) ou a frente da onda
+   * da pancada (só pega quem está no chão).
+   */
   private touchesHazard(p: WorldPlayer): boolean {
     const box = bodyBox(p.body, this.params);
     for (const e of this.enemies.values()) {
@@ -1060,7 +1326,12 @@ export class World {
     }
     if (this.boss?.hurts(box)) return true;
     for (const s of this.stains.values()) {
-      if (s.age >= RULES.stainWarn && overlaps(box, stainBox(s))) return true;
+      if (s.age >= this.warn.stain && overlaps(box, stainBox(s))) return true;
+    }
+    for (const s of this.spits.values()) {
+      if (!overlaps(box, spitBox(s))) continue;
+      this.spits.delete(s.id);
+      return true;
     }
     if (!p.body.onGround) return false;
     for (const w of this.shocks) {
@@ -1132,21 +1403,45 @@ export class World {
     return best;
   }
 
-  private stepSpawns(dt: number): void {
-    if (this.phase !== PHASE_PLAYING || this.spawnQueue === 0) return;
-    if (this.enemies.size >= RULES.maxEnemiesOnScreen) return;
-    if ((this.spawnTimer -= dt) > 0) return;
-    this.spawnNext();
-    this.spawnTimer = RULES.spawnDelay;
+  private get maxOnScreen(): number {
+    return Math.min(RULES.maxEnemiesOnScreen, this.stage.maxOnScreen);
   }
 
+  private stepSpawns(dt: number): void {
+    if (this.phase !== PHASE_PLAYING || this.spawnQueue === 0) return;
+    if (this.enemies.size >= this.maxOnScreen) return;
+    if ((this.spawnTimer -= dt) > 0) return;
+    this.spawnNext();
+    this.spawnTimer = this.stage.spawnDelay;
+  }
+
+  /** Próximo da fila da fase. A fiandeira vai para um ponto de fio livre; sem nenhum, vem uma traça no lugar. */
   private spawnNext(): void {
-    const points = this.arena.enemySpawns;
-    const cell = points[this.spawnCount % points.length]!;
-    const kind = this.spawnCount % 3 === 2 ? ENEMY_SALTADOR : ENEMY_TRACA;
+    const stage = this.stage;
+    let kind = stage.roster[this.spawnCount % stage.roster.length]!;
     this.spawnCount++;
     this.spawnQueue--;
-    this.spawnEnemy(kind, cell);
+    if (kind === ENEMY_FIANDEIRA) {
+      const anchor = this.freeAnchor();
+      if (anchor) {
+        this.spawnEnemy(kind, anchor, stage.skills.includes(kind));
+        return;
+      }
+      kind = ENEMY_TRACA;
+    }
+    const points = this.arena.enemySpawns;
+    this.spawnEnemy(kind, points[this.spawnPoint++ % points.length]!, stage.skills.includes(kind));
+  }
+
+  /** Um ponto de fio sem fiandeira pendurada, a partir de um diferente a cada surgimento. */
+  private freeAnchor(): CellPos | null {
+    const anchors = this.arena.anchors;
+    for (let i = 0; i < anchors.length; i++) {
+      const a = anchors[(this.spawnCount + i) % anchors.length]!;
+      const taken = [...this.enemies.values()].some((e) => e.anchorY === a.row * TILE && Math.floor((e.body.x + (ENEMY_SIZE * TILE) / 2) / TILE) === a.col);
+      if (!taken) return a;
+    }
+    return null;
   }
 
   /**
@@ -1161,6 +1456,7 @@ export class World {
         // O borrão vai embora junto com a arena, e as manchas com ele.
         this.enemies.clear();
         this.stains.clear();
+        this.spits.clear();
         this.shocks = [];
         this.phase = PHASE_CLEAR;
         this.phaseTime = RULES.clearDelay;
@@ -1224,7 +1520,10 @@ export class World {
     this.startWave();
   }
 
-  /** Nova onda: quantidade e resistência calculadas com quem está na sala agora (plano, seção 2.6). */
+  /**
+   * Nova onda: tipos, ritmo e habilidades vêm da fase; quantidade e resistência, de quem está na sala
+   * agora (plano, seção 2.6). O modo tira inimigos no fácil, nunca abaixo de 3.
+   */
   private startWave(): void {
     this.waveStarted = true;
     this.phase = PHASE_PLAYING;
@@ -1236,16 +1535,21 @@ export class World {
     this.drops.clear();
     this.items.clear();
     this.stains.clear();
+    this.spits.clear();
     this.shocks = [];
     this.nextItemAt = RULES.itemFirstAt;
+    this.applyStage();
     const n = Math.max(1, this.players.size);
     this.soakToBall = n >= 4 ? RULES.soakToBallBigTeam : RULES.soakToBall;
     // Na página do chefe não há fila de inimigos: os fiapos saem dele.
     this.boss = isBossArena(this.arena) ? this.createBoss(n) : null;
-    this.spawnQueue = this.boss ? 0 : Math.round(4 + 1.5 * n);
+    const count = Math.round(this.stage.base + this.stage.perPlayer * n);
+    this.spawnQueue = this.boss ? 0 : Math.max(Math.min(count, 3), count - DIFFICULTY_RULES[this.difficulty].fewerEnemies);
     this.spawnCount = 0;
-    this.spawnTimer = RULES.spawnDelay;
-    const initial = Math.min(this.spawnQueue, RULES.maxEnemiesOnScreen, this.arena.enemySpawns.length);
+    this.spawnPoint = 0;
+    this.minionCount = 0;
+    this.spawnTimer = this.stage.spawnDelay;
+    const initial = Math.min(this.spawnQueue, this.maxOnScreen, this.arena.enemySpawns.length);
     for (let i = 0; i < initial; i++) this.spawnNext();
   }
 }

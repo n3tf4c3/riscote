@@ -96,7 +96,8 @@ export interface BossHost {
   /** Centro do jogador de pé mais próximo, ou null. */
   nearestTarget(x: number, y: number): { x: number; y: number } | null;
   minions(): number;
-  spawnMinion(cell: CellPos): void;
+  /** Um fiapo no chão, em `cell`; `phase` (1 a 3) é a fase do chefe, que escolhe o tipo. */
+  spawnMinion(cell: CellPos, phase: number): void;
 }
 
 export function bossMaxHp(players: number): number {
@@ -393,7 +394,7 @@ export class Boss {
   private spawnMinion(side: number): void {
     const center = Math.floor((this.x + this.w / 2) / TILE);
     const col = Math.min(this.arena.cols - 3, Math.max(2, center + side * 2));
-    this.host.spawnMinion({ col, row: this.arena.rows - 2 });
+    this.host.spawnMinion({ col, row: this.arena.rows - 2 }, this.phase);
   }
 }
 

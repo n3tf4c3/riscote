@@ -1,6 +1,6 @@
 import type { IncomingMessage, Server as HttpServer } from 'node:http';
 import { matchMaker, ServerError } from '@colyseus/core';
-import { TOO_MANY_JOINS } from '@riscote/shared';
+import { SERVER_FULL, TOO_MANY_JOINS } from '@riscote/shared';
 
 /**
  * Cabeçalho interno com o endereço de quem fez a requisição. É sempre sobrescrito pelo
@@ -71,6 +71,32 @@ export function limitJoins(limiter: AttemptLimiter): () => void {
       if (!limiter.allow(key)) throw new ServerError(429, TOO_MANY_JOINS);
     }
     return original.call(this, method, roomName, clientOptions, auth);
+  };
+  return () => {
+    controller.invokeMethod = original;
+  };
+}
+
+const CREATING_METHODS = new Set(['create', 'joinOrCreate']);
+
+/**
+ * Limita as salas abertas ao mesmo tempo no processo (capacidade medida com os robôs de carga).
+ * Com `max` salas (contando as que estão sendo criadas), criar responde HTTP 503 antes de a sala
+ * existir; entrar numa sala que já existe continua valendo. Devolve a função que desfaz a instalação.
+ */
+export function limitRooms(max: number, openRooms: () => number): () => void {
+  const controller = matchMaker.controller;
+  const original = controller.invokeMethod;
+  let creating = 0;
+  controller.invokeMethod = async function (method, roomName, clientOptions, auth) {
+    if (!CREATING_METHODS.has(method)) return original.call(this, method, roomName, clientOptions, auth);
+    if (openRooms() + creating >= max) throw new ServerError(503, SERVER_FULL);
+    creating++;
+    try {
+      return await original.call(this, method, roomName, clientOptions, auth);
+    } finally {
+      creating--;
+    }
   };
   return () => {
     controller.invokeMethod = original;
