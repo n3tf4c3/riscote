@@ -16,7 +16,6 @@ body.inicio {
   background-image: var(--grao), radial-gradient(ellipse at 45% 40%, transparent 50%, rgba(122, 96, 64, .2) 100%);
   background-attachment: fixed;
 }
-body.inicio #game > canvas { display: none; }
 body.inicio #capa {
   position: absolute;
   inset: 0;
@@ -64,7 +63,6 @@ body.inicio #capa {
 .como-jogar ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 26px; }
 .como-jogar li { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; font-size: 14px; }
 .como-jogar .dica { margin: 10px 0 0; color: var(--muted); font-size: 13px; }
-.como-jogar .so-teclado { display: none; }
 kbd {
   display: inline-block; min-width: 26px; padding: 5px 6px 3px;
   font: 700 12px/1 ui-monospace, monospace; text-align: center; color: var(--ink);
@@ -82,6 +80,8 @@ body.inicio aside {
   padding: 28px 28px 28px 4px;
 }
 body.inicio aside > h1, body.inicio #controles { display: none; }
+/* Espaço para a fita do cartão não cobrir os botões de cima (teclas ou som). */
+body.inicio #panel-online { margin-top: 22px; }
 body.inicio #panel-online > p.keys { margin-top: 18px; text-align: center; }
 body.inicio #panel-online > p.keys a { color: var(--muted); text-decoration-style: dotted; }
 
@@ -185,7 +185,6 @@ body.inicio #panel-online > p.keys a { color: var(--muted); text-decoration-styl
   body.inicio #palco { order: 2; width: auto; min-width: 0; margin: 4px 16px 0; }
   body.inicio aside { order: 3; height: auto; border-top: 0; padding: 24px 16px 8px; }
   body.inicio .como-jogar { order: 4; width: auto; padding: 16px 16px 28px; }
-  .como-jogar .so-teclado { display: block; }
   .atalho { display: none; }
   #lobby { transform: none; }
 }
