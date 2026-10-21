@@ -109,9 +109,9 @@ Ainda não há lint. O aviso de bundle acima de 500 kB vem do Phaser e é espera
   - O endereço vem do socket, gravado em `x-riscote-peer` por `markPeerAddress`, que intercepta o `emit('request')` antes do roteador do Colyseus.
   - Nunca use o IP do Colyseus: ele aceita `X-Forwarded-For` forjado.
   - Atrás de um proxy confiável, configure `RISCOTE_IP_HEADER` (ex.: `cf-connecting-ip`).
-- **Limite de salas.** Decisão do usuário em 2026-10-21: no máximo `RISCOTE_MAX_ROOMS` salas abertas (padrão 40, ou seja, 200 jogadores), contadas por `processMetrics.rooms` mais as que estão sendo criadas (`limitRooms` em `joinLimit.ts`).
+- **Limite de salas.** Decisão do usuário em 2026-10-21: no máximo `RISCOTE_MAX_ROOMS` salas abertas (padrão 20, ou seja, 100 jogadores, escolhido pelo usuário com folga sobre a medição no Orange Pi), contadas por `processMetrics.rooms` mais as que estão sendo criadas (`limitRooms` em `joinLimit.ts`).
   - Acima disso, criar sala responde HTTP 503 com `SERVER_FULL`; entrar pelo código numa sala existente continua valendo.
-  - O número vem da medição com robôs (`docs/docker.md`, seção Capacidade). Antes de subir o padrão, meça no Orange Pi.
+  - O número vem da medição com robôs no próprio Pi (`docs/docker.md`, seção Capacidade). Para subir o padrão, meça de novo lá.
 - **Mensagens desconhecidas.** Fora do modo de desenvolvimento, o Colyseus derruba o cliente que manda um tipo de mensagem não registrado.
 - **Testes de rede.** Usam `QuietRoom`, uma subclasse sem ondas definida só no servidor de teste. Opções do cliente nunca desligam inimigos.
 - **Previsão própria.** Previsão e interpolação ficam em `prediction.ts`. O `Predict` do Colyseus 0.18 não é usado por enquanto (decisão para reavaliar).
