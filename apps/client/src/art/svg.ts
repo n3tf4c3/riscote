@@ -31,6 +31,22 @@ export function svgDoc(viewBox: string, body: string, variant = 0): string {
 }
 
 /**
+ * Degradê de duas tintas, como as pinceladas de referência (docs/texturas): passa de `from` para `to`
+ * na direção `angle` (graus; 0 = da esquerda para a direita), medido em cada forma. Com `line`
+ * ([x1, y1, x2, y2] nas unidades do desenho), o degradê atravessa o desenho inteiro, de uma ponta à outra
+ * (corpo feito de várias partes). Use com `url(#id)`.
+ */
+export function gradient(id: string, from: string, to: string, angle = 25, line?: readonly [number, number, number, number]): string {
+  const stops = `<stop offset="0" stop-color="${from}"/><stop offset="1" stop-color="${to}"/></linearGradient>`;
+  if (line) return `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${line[0]}" y1="${line[1]}" x2="${line[2]}" y2="${line[3]}">${stops}`;
+  const a = (angle * Math.PI) / 180;
+  const dx = Math.cos(a) / 2;
+  const dy = Math.sin(a) / 2;
+  const p = (v: number) => (0.5 + v).toFixed(3);
+  return `<linearGradient id="${id}" x1="${p(-dx)}" y1="${p(-dy)}" x2="${p(dx)}" y2="${p(dy)}">${stops}`;
+}
+
+/**
  * Uma pincelada: parte de (x, y), gira `rot` graus (0 = para baixo), largura `w` (× 9 unidades)
  * e comprimento `len` (× 100 unidades).
  */

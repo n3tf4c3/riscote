@@ -427,7 +427,7 @@ export interface EraserFront {
   y: number;
 }
 
-const ERASER_PINK = 0xd98a8a;
+const ERASER_PINK = 0xff6f9e;
 
 /** Gotas: direção de voo para o desenho, rastro e o respingo quando somem (ou o farelo, se a borracha apagou). */
 export class DropWatcher {
