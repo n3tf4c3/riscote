@@ -15,6 +15,8 @@ import {
   TICK_RATE,
   World,
   chapterFrom,
+  isBossArena,
+  withBoss,
   parseDifficulty,
   parseInput,
   parseRecordName,
@@ -27,7 +29,7 @@ import {
 } from '@riscote/shared';
 import { recordTick, processMetrics } from './metrics.ts';
 import { RecordBook } from './records.ts';
-import { DropSchema, EnemySchema, GameState, ItemSchema, PlayerSchema, StainSchema } from './state.ts';
+import { BossSchema, DropSchema, EnemySchema, GameState, HazardSchema, ItemSchema, PlayerSchema, StainSchema } from './state.ts';
 
 /** Fila acima disto descarta os comandos mais antigos: limita o atraso acumulado (~130 ms). */
 const MAX_QUEUE = 8;
@@ -78,8 +80,9 @@ export class ArenaRoom extends Room<{ state: GameState }> {
     this.maxClients = MAX_PLAYERS;
     // 60 comandos/s mais folga; acima disso o cliente é desconectado.
     this.maxMessagesPerSecond = 120;
-    // Capítulo da arena escolhida na criação da sala, começando por ela.
-    const chapter = chapterFrom(options.arenaId);
+    // Capítulo da arena escolhida na criação da sala, começando por ela; o chefe fecha o capítulo.
+    const arenas = chapterFrom(options.arenaId);
+    const chapter = withBoss(arenas, arenas.length);
     const difficulty = parseDifficulty(options.difficulty);
     this.world = new World(chapter, randomInt(2 ** 31), { waves: this.waves, difficulty });
 
@@ -87,6 +90,7 @@ export class ArenaRoom extends Room<{ state: GameState }> {
     state.tick = 0;
     state.difficulty = difficulty;
     state.hostId = '';
+    state.boss = new BossSchema();
     this.state = state;
     this.sync();
     this.patchRate = PATCH_RATE_MS;
@@ -235,6 +239,44 @@ export class ArenaRoom extends Room<{ state: GameState }> {
     if (this.pending && this.world.phase !== PHASE_RESTART && this.world.phase !== PHASE_CHAPTER) this.pending = null;
   }
 
+  /** O chefe e os perigos dele; fora da página do chefe (ou depois da queda), `maxHp` 0. */
+  private syncBoss(): void {
+    const b = this.world.boss;
+    const net = this.state.boss!;
+    const hazards = this.state.hazards;
+    const live = b && !b.gone ? b : null;
+    net.maxHp = live ? live.maxHp : 0;
+    if (live) {
+      net.state = live.state;
+      net.attack = live.attack;
+      net.x = live.x;
+      net.y = live.y;
+      net.dir = live.dir;
+      net.hp = live.hp;
+      net.soak = live.soak;
+      net.soakMax = live.soakMax;
+      net.timer = live.timer;
+      net.targetX = live.targetX;
+      net.impacts = live.impacts;
+      net.hits = live.hits;
+    }
+    for (const id of [...hazards.keys()]) if (!live?.hazards.has(Number(id))) hazards.delete(id);
+    for (const z of live?.hazards.values() ?? []) {
+      const key = String(z.id);
+      let h = hazards.get(key);
+      if (!h) {
+        h = new HazardSchema();
+        h.kind = z.kind;
+        h.w = z.w;
+        h.h = z.h;
+        hazards.set(key, h);
+      }
+      h.x = z.x;
+      h.y = z.y;
+      h.wait = Math.max(0, z.wait);
+    }
+  }
+
   /** Copia o mundo para o estado sincronizado. */
   private sync(): void {
     const w = this.world;
@@ -251,6 +293,9 @@ export class ArenaRoom extends Room<{ state: GameState }> {
     s.score = w.score;
     s.enemiesLeft = w.enemiesLeft;
     s.soakToBall = w.soakToBall;
+    const next = w.chapter[w.arenaIndex + 1];
+    s.bossNext = next !== undefined && isBossArena(next);
+    this.syncBoss();
 
     for (const [id, p] of w.players) {
       const net = s.players.get(id);

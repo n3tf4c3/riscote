@@ -2,6 +2,7 @@ export * from './params.ts';
 export * from './input.ts';
 export * from './arena.ts';
 export * from './arenas.ts';
+export * from './boss.ts';
 export * from './physics.ts';
 export * from './protocol.ts';
 export * from './prediction.ts';
