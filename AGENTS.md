@@ -29,6 +29,7 @@ O planejamento completo fica em `PLANEJAMENTO.md` na raiz (local, fora do Git po
 | Métricas do processo e teste de carga | `apps/server/src/metrics.ts`, `apps/server/scripts/carga.ts` |
 | Cliente online: entrada em sala, sessão, cena | `apps/client/src/online.ts`, `net.ts`, `OnlineScene.ts` |
 | Arte, animação e efeitos do cliente | `apps/client/src/art/`, `anim.ts`, `fx.ts` |
+| Chefe (Mata-Borrão): regras, página e capítulo; desenho no cliente | `packages/shared/src/boss.ts`; `apps/client/src/bossView.ts`, `art/boss.ts` |
 | Cliente local (`?local`): ajuste de movimento e medições | `apps/client/src/local.ts`, `ArenaScene.ts`, `tuning.ts`, `metrics.ts` |
 | Testes | `packages/shared/test/`, `apps/server/test/` |
 
@@ -74,6 +75,11 @@ Ainda não há lint. O aviso de bundle acima de 500 kB vem do Phaser e é espera
   - Depois da última: resumo, pontos e vidas zerados, volta à primeira.
   - Todos caídos sem vidas → fim de jogo: pontos zerados e a mesma arena recomeça.
   - Cada arena encerrada gera um `ArenaReport`: uma linha JSON no log do servidor e a mensagem `relatorio` para a sala; o painel tem "Copiar métricas".
+- **Chefe.** Decisões do usuário em 2026-10-20: o Mata-Borrão fecha cada capítulo, numa página própria (`BOSS_ARENA`, id `mesa`, fora de `ARENAS`); o servidor monta o capítulo com `withBoss`. Regras e valores em `boss.ts` (`BOSS_RULES`).
+  - Vida 6 + 3 por jogador. Só bola chutada tira vida (1 + inimigos levados no caminho). A tinta enche o medidor de encharcado; cheio, ele fica pesado 3 s: parado, inofensivo e levando o dobro.
+  - Fases aos 60% e 25% da vida. Carimbada, onda e chuva (só da fase 2) sempre têm um aviso de 0,7 s ou mais antes de machucar. Na entrada ninguém toma dano.
+  - Na página dele não há fila de inimigos nem borrão de tempo; os fiapos (traças) saem dele e somem quando ele cai.
+  - O cliente desenha o chefe em `bossView.ts` (avisos, barra de vida, letreiro, virada da página) com a arte de `art/boss.ts`.
 - **Placar de recordes.** Decisões do usuário em 2026-10-20: entra no placar o capítulo concluído e a equipe sem vidas, quando há pontos.
   - `World.endRun` gera um `RunEnd` e a pausa vira `RULES.recordDelay` (40 s); o servidor chama `closeRecords` quando todos escreveram, e a pausa cai para `RULES.recordShow`.
   - A linha é da equipe: pontuação da sala e um nome por jogador, na ordem de chegada; quem não escreve fica como "Jogador N".

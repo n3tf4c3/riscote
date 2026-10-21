@@ -1,6 +1,7 @@
 import * as Phaser from 'phaser';
 import {
   ARENAS,
+  BOSS_ARENA,
   BORRAO_SIZE,
   BTN_ATTACK,
   ENEMY_BORRAO,
@@ -19,6 +20,7 @@ import {
   tubeRect,
 } from '@riscote/shared';
 import { DropWatcher, EnemyAnimator, RiscoteAnimator, type Motion } from './anim';
+import { bossSpecs } from './art/boss';
 import { ITEM_LIQUIDS } from './art/items';
 import { ArtLayer } from './art/layer';
 import { RES, arenaSpecs, artSize, commonSpecs, loadArt, riscoteKey, type ArtSpec } from './art/textures';
@@ -35,6 +37,7 @@ import {
   playerAlpha,
   type PlayerLook,
 } from './draw';
+import { BossView, drawBossTurn } from './bossView';
 import { Effects } from './fx';
 import type { InputSource } from './input';
 import type { OnlineSession } from './net';
@@ -69,6 +72,8 @@ export class OnlineScene extends Phaser.Scene {
   private bannerShown = '';
   /** Arte de pincel; enquanto as texturas não ficam prontas, a cena desenha o greybox. */
   private art: ArtLayer | null = null;
+  /** Só na página do chefe. */
+  private bossView: BossView | null = null;
   private generation = 0;
   /** Último disparo visto de cada jogador (por slot), para a pose de tiro. */
   private shotAt: number[] = [];
@@ -124,10 +129,12 @@ export class OnlineScene extends Phaser.Scene {
     this.stainAges.clear();
     this.dropWatch = new DropWatcher(this.fx, RULES.dropSize * TILE);
     this.items.clear();
+    const bossPage = arena.id === BOSS_ARENA.id;
+    this.bossView = bossPage ? new BossView(this, this.fx, arena, { boss: DEPTH_ENEMY - 0.2, hazard: DEPTH_ENEMY + 0.4, text: DEPTH_BANNER }) : null;
 
     this.art = null;
     const generation = ++this.generation;
-    const common = commonSpecs(PLAYER_COLORS);
+    const common = [...commonSpecs(PLAYER_COLORS), ...(bossPage ? bossSpecs() : [])];
     // Primeiro a variação 0 de cada desenho; as outras da linha viva carregam depois, sem segurar o jogo.
     const first = common.filter((s) => !s.key.includes('~'));
     const later = common.filter((s) => s.key.includes('~'));
@@ -246,6 +253,7 @@ export class OnlineScene extends Phaser.Scene {
       if (localLook) {
         this.drawRiscote(art, session.slot, localX, localY, localLook, { x: localX, y: localY, vx: local.vx, vy: local.vy, onGround: local.onGround }, now, DEPTH_PLAYER + 0.5, true);
       }
+      this.bossView?.draw(art, this.fxBack, g, session.bossView(now), session.hazardViews(now), now, dt);
       art.end();
     } else {
       state.items.forEach((item) => drawItem(g, item.x, item.y, item.kind, item.ttl, now));
@@ -259,6 +267,7 @@ export class OnlineScene extends Phaser.Scene {
       if (localLook) drawPlayerFull(g, localX, localY, session.params, localLook, PLAYER_COLORS[session.slot] ?? GREY, true, now);
       for (const d of drops) drawDrop(g, d.x, d.y, PLAYER_COLORS[d.slot] ?? INK);
       this.fx.draw(null, this.fxBack, this.fxFront, DEPTH_FX, DEPTH_FX_FRONT);
+      this.bossView?.draw(null, this.fxBack, g, session.bossView(now), session.hazardViews(now), now, dt);
     }
 
     if (this.fx.shakeRequest) {
@@ -268,6 +277,7 @@ export class OnlineScene extends Phaser.Scene {
     if (state.phase === PHASE_TURN) {
       const arena = session.arena;
       drawPageTurn(g, arena.cols * TILE, arena.rows * TILE, 1 - state.phaseTime / RULES.turnDelay);
+      if (state.bossNext) drawBossTurn(g, this.fx, arena.cols * TILE, arena.rows * TILE, 1 - state.phaseTime / RULES.turnDelay, now);
     }
     this.showBanner(bannerText(session), state.phase);
   }
@@ -388,6 +398,7 @@ function bannerText(session: OnlineSession): string {
     case PHASE_LOBBY:
       return `Aquecimento: ${state.players.size}/${MAX_PLAYERS} na sala\n${session.isHost ? 'Aperte Enter para começar' : 'O anfitrião começa quando todos entrarem'}`;
     case PHASE_CLEAR:
+      if (state.arenaId === BOSS_ARENA.id) return 'O Mata-Borrão foi derrotado!';
       return state.arenaIndex + 1 < state.arenaCount ? 'Arena limpa!' : 'Última arena limpa!';
     case PHASE_CHAPTER:
       return `Capítulo concluído!\n${state.score} pontos`;
@@ -395,7 +406,7 @@ function bannerText(session: OnlineSession): string {
       // Com pontos é fim de jogo: o placar aparece por cima e a arena recomeça do zero.
       return session.records ? 'Fim de jogo!' : 'Sem vidas: recomeçando a arena…';
     case PHASE_TURN:
-      return '';
+      return state.bossNext ? 'Cuidado: o Mata-Borrão!' : '';
   }
   if (state.hurry && state.waveTime < RULES.hurryTime + 3) return 'O borrão chegou: depressa!';
   return '';

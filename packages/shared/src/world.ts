@@ -4,6 +4,7 @@ import { DEFAULT_PARAMS, TICK_DT, TILE, type MovementParams } from './params.ts'
 import { createPlayer, stepPlayer, touchesTube, type PlayerState } from './physics.ts';
 import { DIFFICULTY_RULES, POWER_MAX_LEVEL, movementParams, type Difficulty } from './protocol.ts';
 import type { RunEndReason } from './records.ts';
+import { BOSS_RULES, Boss, isBossArena } from './boss.ts';
 
 /** Regras da etapa 3 (plano, seções 2.3 a 2.7). Valores iniciais, a ajustar em playtest. */
 export const RULES = {
@@ -353,6 +354,8 @@ export class World {
   readonly drops = new Map<number, Drop>();
   readonly stains = new Map<number, Stain>();
   shocks: Shock[] = [];
+  /** O Mata-Borrão, só na página dele (`BOSS_ARENA`). */
+  boss: Boss | null = null;
   lives: number = RULES.teamLives;
   score = 0;
   phase = PHASE_PLAYING;
@@ -399,10 +402,11 @@ export class World {
     return this.chapter[this.arenaIndex]!;
   }
 
-  /** Inimigos que faltam derrotar; o borrão não conta (não pode ser derrotado). */
+  /** Inimigos que faltam derrotar; o borrão não conta (não pode ser derrotado). Na página do chefe, só ele importa. */
   get enemiesLeft(): number {
     let count = this.spawnQueue;
     for (const e of this.enemies.values()) if (e.kind !== ENEMY_BORRAO) count++;
+    if (this.boss) return this.boss.gone ? 0 : 1 + count;
     return count;
   }
 
@@ -494,13 +498,15 @@ export class World {
     if (this.phase === PHASE_PLAYING && this.waveStarted) {
       this.waveTime += dt;
       this.measure(dt);
-      if (this.autoWaves && !this.hurry && this.waveTime >= RULES.hurryTime) this.spawnBorrao();
+      // Na luta com o chefe não há borrão: o próprio chefe é a pressão.
+      if (this.autoWaves && !this.hurry && !this.boss && this.waveTime >= RULES.hurryTime) this.spawnBorrao();
     }
 
     this.stepItems(dt);
     this.stepDrops(dt);
     this.stepHazards(dt);
     this.stepEnemies(dt);
+    if (this.boss && this.phase === PHASE_PLAYING) this.boss.step(dt);
     this.stepDamage();
     this.stepRescue(dt);
     this.stepSpawns(dt);
@@ -685,6 +691,10 @@ export class World {
         continue;
       }
       const box = { x: d.x, y: d.y, w: size, h: size };
+      if (this.boss?.soakHit(box, d.power)) {
+        this.drops.delete(d.id);
+        continue;
+      }
       for (const e of this.enemies.values()) {
         // A tinta não pega no borrão nem na bola rolando.
         if (e.mode === MODE_ROLL || e.kind === ENEMY_BORRAO || !overlaps(box, enemyBox(e))) continue;
@@ -742,6 +752,11 @@ export class World {
             if (e.combo === 2) this.stats.combos++;
             this.defeat(other, e.kicker, e.combo);
           }
+        }
+        const damage = this.boss?.ballHit(box, e.combo) ?? 0;
+        if (damage > 0) {
+          this.hitBoss(e, damage);
+          continue;
         }
         if (e.bounces >= RULES.rollMaxBounces || e.rollTime >= RULES.rollMaxTime) this.burst(e);
       }
@@ -954,6 +969,44 @@ export class World {
     }
   }
 
+  /** Bola rolando acertou o chefe: estoura nele; derrotado, os fiapos secam junto. */
+  private hitBoss(ball: Enemy, damage: number): void {
+    const boss = this.boss!;
+    this.score += BOSS_RULES.scorePerHit * damage;
+    this.burst(ball);
+    if (boss.alive) return;
+    this.score += BOSS_RULES.scoreDefeat;
+    for (const e of this.enemies.values()) if (e.kind !== ENEMY_BORRAO) this.enemies.delete(e.id);
+  }
+
+  /** O chefe vê o mundo só por aqui: sorteio da partida, alvo mais próximo e os fiapos (traças). */
+  private createBoss(players: number): Boss {
+    return new Boss(this.arena, players, {
+      rng: this.rng,
+      nextId: () => this.nextId++,
+      nearestTarget: (x, y) => {
+        let best: { x: number; y: number } | null = null;
+        let bestDist = Infinity;
+        for (const p of this.players.values()) {
+          if (p.down || p.away) continue;
+          const cx = p.body.x + (this.params.playerWidth * TILE) / 2;
+          const cy = p.body.y + (this.params.playerHeight * TILE) / 2;
+          const d = Math.abs(cx - x) + Math.abs(cy - y);
+          if (d < bestDist) {
+            bestDist = d;
+            best = { x: cx, y: cy };
+          }
+        }
+        return best;
+      },
+      minions: () => [...this.enemies.values()].filter((e) => e.kind !== ENEMY_BORRAO).length,
+      spawnMinion: (cell) => {
+        // O fiapo acabou de sair do chefe: espera um pouco antes do primeiro bote.
+        if (this.enemies.size < RULES.maxEnemiesOnScreen) this.spawnEnemy(ENEMY_TRACA, cell).skillCd = RULES.dashCooldown;
+      },
+    });
+  }
+
   private stepDamage(): void {
     for (const p of this.players.values()) {
       if (p.down || p.away || p.invuln > 0 || p.star > 0) continue;
@@ -985,6 +1038,7 @@ export class World {
     for (const e of this.enemies.values()) {
       if (e.mode === MODE_WALK && overlaps(box, enemyBox(e))) return true;
     }
+    if (this.boss?.hurts(box)) return true;
     for (const s of this.stains.values()) {
       if (s.age >= RULES.stainWarn && overlaps(box, stainBox(s))) return true;
     }
@@ -1169,7 +1223,9 @@ export class World {
     this.nextItemAt = RULES.itemFirstAt;
     const n = Math.max(1, this.players.size);
     this.soakToBall = n >= 4 ? RULES.soakToBallBigTeam : RULES.soakToBall;
-    this.spawnQueue = Math.round(4 + 1.5 * n);
+    // Na página do chefe não há fila de inimigos: os fiapos saem dele.
+    this.boss = isBossArena(this.arena) ? this.createBoss(n) : null;
+    this.spawnQueue = this.boss ? 0 : Math.round(4 + 1.5 * n);
     this.spawnCount = 0;
     this.spawnTimer = RULES.spawnDelay;
     const initial = Math.min(this.spawnQueue, RULES.maxEnemiesOnScreen, this.arena.enemySpawns.length);

@@ -1,6 +1,7 @@
 import type { Room } from '@colyseus/sdk';
 import {
   ARENAS,
+  BOSS_ARENA,
   Interpolator,
   MSG_INPUT,
   MSG_NAME,
@@ -21,6 +22,12 @@ import {
   type Positioned,
   type RecordsMessage,
 } from '@riscote/shared';
+import type { BossSnapshot, HazardSnapshot } from './bossView';
+
+/** Arenas do capítulo e a página do chefe. */
+function arenaById(id: string): Arena | undefined {
+  return id === BOSS_ARENA.id ? BOSS_ARENA : ARENAS.find((a) => a.id === id);
+}
 
 interface NetMap<T> {
   get(id: string): T | undefined;
@@ -73,6 +80,10 @@ export interface NetState {
   drops: NetMap<NetDrop>;
   items: NetMap<NetItem>;
   stains: NetMap<NetStain>;
+  /** `maxHp` 0 = sem chefe nesta página. */
+  boss: BossSnapshot;
+  hazards: NetMap<Omit<HazardSnapshot, 'id'>>;
+  bossNext: boolean;
 }
 
 export interface NetItem {
@@ -121,10 +132,12 @@ export class OnlineSession {
   private players = new Interpolator<PlayerView>();
   private enemies = new Interpolator<EnemyView>();
   private drops = new Interpolator<DropView>();
+  private bossPos = new Interpolator<Positioned>();
+  private hazards = new Interpolator<HazardSnapshot>();
 
   constructor(readonly room: Room) {
     const state = this.state;
-    const arena = ARENAS.find((a) => a.id === state.arenaId);
+    const arena = arenaById(state.arenaId);
     const me = state.players.get(room.sessionId);
     if (!arena || !me) throw new Error('estado inicial da sala incompleto');
     this.arena = arena;
@@ -199,6 +212,21 @@ export class OnlineSession {
     return this.drops.sample(now);
   }
 
+  /** O chefe com a posição interpolada como a dos inimigos; o resto é o último estado. */
+  bossView(now: number): BossSnapshot | null {
+    const boss = this.state.boss;
+    const pos = this.bossPos.sample(now)[0];
+    if (!boss || boss.maxHp === 0 || !pos) return null;
+    return {
+      state: boss.state, attack: boss.attack, x: pos.x, y: pos.y, dir: boss.dir, hp: boss.hp, maxHp: boss.maxHp,
+      soak: boss.soak, soakMax: boss.soakMax, timer: boss.timer, targetX: boss.targetX, impacts: boss.impacts, hits: boss.hits,
+    };
+  }
+
+  hazardViews(now: number): HazardSnapshot[] {
+    return this.hazards.sample(now);
+  }
+
   private onState(state: NetState): void {
     // A mensagem do placar pode chegar antes do estado com a pausa: só some quando a pausa termina.
     const paused = state.phase === PHASE_RESTART || state.phase === PHASE_CHAPTER;
@@ -210,13 +238,15 @@ export class OnlineSession {
     if (state.arenaId !== this.arena.id) {
       // Página virada: todos foram reposicionados; previsão e interpolação recomeçam do estado novo.
       // A numeração dos comandos continua: o servidor descartaria seq repetido e o boneco travaria.
-      const arena = ARENAS.find((a) => a.id === state.arenaId);
+      const arena = arenaById(state.arenaId);
       if (!arena) return;
       this.arena = arena;
       this.predictor = new Predictor(arena, (level) => movementParams(this.difficulty, level), me, this.predictor.lastSeq);
       this.players = new Interpolator<PlayerView>();
       this.enemies = new Interpolator<EnemyView>();
       this.drops = new Interpolator<DropView>();
+      this.bossPos = new Interpolator<Positioned>();
+      this.hazards = new Interpolator<HazardSnapshot>();
       switched = true;
     }
 
@@ -241,6 +271,12 @@ export class OnlineSession {
     const drops: DropView[] = [];
     state.drops.forEach((d, id) => drops.push({ id, slot: d.slot, x: d.x, y: d.y }));
     this.drops.push(now, drops);
+
+    const boss = state.boss;
+    this.bossPos.push(now, boss && boss.maxHp > 0 ? [{ id: 'chefe', x: boss.x, y: boss.y }] : []);
+    const hazards: HazardSnapshot[] = [];
+    state.hazards?.forEach((z, id) => hazards.push({ id, kind: z.kind, x: z.x, y: z.y, w: z.w, h: z.h, wait: z.wait }));
+    this.hazards.push(now, hazards);
 
     if (switched) this.onArenaChange?.(this.arena);
     else this.predictor.reconcile(me);
