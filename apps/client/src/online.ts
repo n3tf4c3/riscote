@@ -29,6 +29,7 @@ import { bindRecords } from './records';
 import { RES, commonSpecs, prepareArt } from './art/textures';
 import { PLAYER_COLORS } from './draw';
 import { setCover } from './capa';
+import { som } from './audio/som';
 
 const INITIAL_STATE_TIMEOUT_MS = 5000;
 /** Tempo para o segundo clique em Desistir confirmar. */
@@ -101,6 +102,8 @@ function clearSeat(): void {
 export function bootOnline(input: InputSource): void {
   el('panel-online').hidden = false;
   setCover(true);
+  // A trilha da capa começa no primeiro gesto (regra de autoplay dos navegadores).
+  som.music('capa');
   const query = new URLSearchParams(location.search);
   // Em riscote.win o servidor de partidas fica em play.riscote.win (túnel nomeado da Cloudflare).
   const defaultServer =
@@ -195,6 +198,8 @@ export function bootOnline(input: InputSource): void {
     statusOut.textContent = message;
     showLoading(1, 1);
     setCover(true);
+    som.music('capa');
+    som.localSlot = -1;
   }
 
   function startGame(arena: Arena): void {
@@ -208,6 +213,8 @@ export function bootOnline(input: InputSource): void {
         height: arenaHeight(arena) * RES,
         // Transparente: até o primeiro quadro aparece o papel da página, não o preto do WebGL.
         transparent: true,
+        // O som é do módulo audio/som.ts; o Phaser não precisa abrir outro contexto de áudio.
+        audio: { noAudio: true },
         scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
         scene,
       });

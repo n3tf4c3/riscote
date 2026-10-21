@@ -189,6 +189,17 @@
         X / J atirar tinta e chutar a bola · gamepad: direcional + A pula, X ataca
       </p>
 
+      <section id="som" aria-labelledby="som-titulo">
+        <h2 id="som-titulo">Som</h2>
+        <label class="slider">Música <output id="som-musica-valor"></output><input id="som-musica" type="range" min="0" max="100" step="5" /></label>
+        <label class="slider">Efeitos <output id="som-efeitos-valor"></output><input id="som-efeitos" type="range" min="0" max="100" step="5" /></label>
+        <div class="row">
+          <button type="button" id="som-musica-liga" aria-pressed="true">Música ligada</button>
+          <button type="button" id="som-efeitos-liga" aria-pressed="true">Efeitos ligados</button>
+          <button type="button" id="som-mudo" aria-pressed="false">Sem som</button>
+        </div>
+      </section>
+
       <section id="panel-online" hidden>
         <div id="lobby">
           <h2>Nova sala</h2>
