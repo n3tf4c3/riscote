@@ -28,6 +28,7 @@ O planejamento completo fica em `PLANEJAMENTO.md` na raiz (local, fora do Git po
 | Placar de recordes: nome, mensagens, arquivo, tela de fim de jogo | `packages/shared/src/records.ts`, `apps/server/src/records.ts`, `apps/client/src/records.ts` |
 | Métricas do processo e teste de carga | `apps/server/src/metrics.ts`, `apps/server/scripts/carga.ts` |
 | Cliente online: entrada em sala, sessão, cena | `apps/client/src/online.ts`, `net.ts`, `OnlineScene.ts` |
+| Entrada: modos de teclas, gamepad, controles de toque (direcional e botões) e o desenho deles | `apps/client/src/input.ts`, `toque.ts`, `toque.css`, `art/toque.ts` |
 | Capa (tela antes de entrar numa sala): logotipo, cena animada, cartão do menu | `apps/client/src/capa.ts`, `capa.css`, `art/capa.ts` |
 | Arte, animação e efeitos do cliente | `apps/client/src/art/`, `anim.ts`, `fx.ts` |
 | Chefe (Mata-Borrão): regras, página e capítulo; desenho no cliente | `packages/shared/src/boss.ts`; `apps/client/src/bossView.ts`, `art/boss.ts` |
@@ -100,6 +101,12 @@ Ainda não há lint. O aviso de bundle acima de 500 kB vem do Phaser e é espera
   - Arquivo `recordes.json` em `RISCOTE_DATA_DIR` (no Docker, o volume `riscote_dados` em `/dados`), gravado por troca atômica; linhas inválidas são descartadas ao carregar.
 - **Partida autoritativa.** `World` (`world.ts`) é a partida inteira, pura e determinística: mesma semente e mesmos comandos dão o mesmo resultado. O servidor chama `applyInput` para cada comando, depois `step` uma vez por tick, e copia o resultado para o schema. Valores de jogo ficam em `RULES`.
 - **Servidor autoritativo.** O cliente envia só `{ seq, buttons }`, validado por `parseInput`. Posição, dano, pontuação e conclusão de fase nunca vêm do navegador.
+- **Controles.** Teclado, gamepad e toque viram a mesma máscara `BTN_*` em `InputSource.buttons()`; nenhum deles muda simulação ou protocolo.
+  - Modos de teclas no painel ("Teclas"), salvos por navegador em `localStorage` (`riscote.teclas.v1`). Padrão: setas ou WASD, Espaço/Z/K pulam, X/J atiram. ASD (decisão do usuário em 2026-10-21): A/D andam, S desce, J e Espaço pulam, K atira; setas, Z e X ficam de fora. Trocar de modo zera as teclas seguradas.
+  - Os textos de controles da capa e do painel seguem o modo por `body[data-teclas]` (classes `teclas-padrao`, `teclas-asd`); no toque valem os de `.so-toque`. As dicas da fase 1 e o letreiro do aquecimento perguntam ao `InputSource` (`attackName`, `touchVisible`).
+  - Toque (`toque.ts`): direcional (lados e baixo; o jogo não usa o `BTN_UP`) e botões Pular e Atirar por cima do canvas, só com `body.toque` e fora da capa. Aparecem sozinhos em `pointer: coarse` ou no primeiro toque e somem ao apertar uma tecla do jogo. Cada dedo é um ponteiro com captura, então andar, pular e atirar juntos funcionam, e segurar Pular pula mais alto. Um toque nos botões dura pelo menos 50 ms (`MIN_TAP_MS`), para não se perder entre ticks.
+  - Layout: o Phaser desenha em `#tela`, dentro do `#game`. No celular em pé, `#tela` segue a proporção da arena (`--tela-aspecto`, definido em `startGame`), os controles ficam numa faixa logo abaixo e o painel vem depois. Deitado (altura até 500 px), a arena ocupa a tela, os controles ficam nos cantos e o painel desce. Na capa, `#tela` fica `visibility: hidden`, nunca `display: none`: o Phaser nasce antes de a capa sair e, medindo 0×0, ficaria preso em tamanho zero.
+  - Na emulação do navegador, o toque só liga abaixo de 768 px de largura; para testar deitado, use algo como 740×360.
 - **Fila de comandos no servidor.**
   - Cada comando é simulado uma única vez, na ordem; `seq` repetido ou antigo é descartado.
   - A fila guarda no máximo 8 comandos.

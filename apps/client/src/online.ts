@@ -203,12 +203,14 @@ export function bootOnline(input: InputSource): void {
   }
 
   function startGame(arena: Arena): void {
+    // No celular em pé, a área do canvas segue a proporção da arena e os controles de toque ficam logo abaixo.
+    el('tela').style.setProperty('--tela-aspecto', `${arenaWidth(arena)} / ${arenaHeight(arena)}`);
     if (!game) {
       // O Phaser leva um instante para subir: o pote já aparece vazio.
       showLoading(0, 1, true);
       game = new Phaser.Game({
         type: Phaser.AUTO,
-        parent: 'game',
+        parent: 'tela',
         width: arenaWidth(arena) * RES,
         height: arenaHeight(arena) * RES,
         // Transparente: até o primeiro quadro aparece o papel da página, não o preto do WebGL.
