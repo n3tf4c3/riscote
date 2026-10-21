@@ -2,7 +2,9 @@ import * as Phaser from 'phaser';
 import {
   ARENAS,
   BOSS_ARENA,
+  BOSS_RULES,
   BORRAO_SIZE,
+  CHAPTERS,
   BTN_ATTACK,
   ENEMY_BORRACHA,
   ENEMY_BORRAO,
@@ -46,6 +48,7 @@ import {
   playerAlpha,
   type PlayerLook,
 } from './draw';
+import { som } from './audio/som';
 import { BossView, drawBossTurn } from './bossView';
 import { Effects } from './fx';
 import type { InputSource } from './input';
@@ -117,6 +120,13 @@ export class OnlineScene extends Phaser.Scene {
   private hintStep: number = HINTS.length;
   /** Itens na tela no quadro anterior, para o brilho de quando alguém pega. */
   private items = new Map<string, { x: number; y: number; kind: number; ttl: number }>();
+  /** Fase no quadro anterior, para as vinhetas de arena limpa e a virada de página. */
+  private shownPhase = -1;
+  /** Proteção de cada jogador (por slot) no quadro anterior: o som de quando ela quebra. */
+  private hpSeen: number[] = [];
+  /** Tinta do próprio jogador no quadro anterior e quando ela subiu pela última vez (recarga no tubo). */
+  private inkSeen = 0;
+  private inkRiseAt = -Infinity;
 
   constructor(
     private readonly ctx: {
@@ -184,6 +194,13 @@ export class OnlineScene extends Phaser.Scene {
     this.spits.clear();
     this.dropWatch = new DropWatcher(this.fx, RULES.dropSize * TILE);
     this.items.clear();
+    this.shownPhase = session.state.phase;
+    this.hpSeen = [];
+    this.inkSeen = session.me?.ink ?? 0;
+    this.inkRiseAt = -Infinity;
+    som.releaseHolds();
+    som.setArena(w);
+    som.localSlot = session.slot;
     const bossPage = arena.id === BOSS_ARENA.id;
     this.bossView = bossPage ? new BossView(this, this.fx, arena, { boss: DEPTH_ENEMY - 0.2, hazard: DEPTH_ENEMY + 0.4, text: DEPTH_BANNER }) : null;
 
@@ -258,7 +275,13 @@ export class OnlineScene extends Phaser.Scene {
     const localLook: PlayerLook | null = me
       ? { facing: local.facing, ink: me.ink, down: me.down, rescue: me.rescue, invuln: me.invuln, inkGauge, hp: me.hp, star: me.star }
       : null;
-    if (pressed && localLook && !localLook.down) this.shotSplash(session.slot, localX, localY, localLook.facing);
+    if (pressed && localLook && !localLook.down) {
+      this.shotSplash(session.slot, localX, localY, localLook.facing);
+      // Sem tinta no difícil o tiro não sai: no lugar do jato, a caneta seca.
+      som.play(!inkGauge || localLook.ink >= 1 ? 'tiro' : 'tinta-vazia', { x: localX, slot: session.slot });
+    }
+    this.watchPhase(state, session.bossView(now));
+    this.watchPlayers(remotes, localLook, session.slot, localX, inkGauge, now);
 
     this.fx.step(dt);
     this.watchItems(state, live);
@@ -423,7 +446,10 @@ export class OnlineScene extends Phaser.Scene {
     for (const d of drops) {
       const r = remotes.find((p) => p.slot === d.slot);
       if (!r || Math.abs(d.x - r.x) >= TILE * 1.3 || Math.abs(d.y - r.y) >= TILE * 1.3) continue;
-      if (now - (this.shotAt[d.slot] ?? -Infinity) > SHOT_POSE_MS && !r.down) this.shotSplash(r.slot, r.x, r.y, r.facing);
+      if (now - (this.shotAt[d.slot] ?? -Infinity) > SHOT_POSE_MS && !r.down) {
+        this.shotSplash(r.slot, r.x, r.y, r.facing);
+        som.play('tiro', { x: r.x, slot: r.slot });
+      }
       this.shotAt[d.slot] = now;
     }
   }
@@ -443,7 +469,48 @@ export class OnlineScene extends Phaser.Scene {
       const color = parseInt((ITEM_LIQUIDS[item.kind] ?? '#141414').slice(1), 16);
       this.fx.sparkle(item.x + s / 2, item.y + s / 2, color, 12, 12);
       this.fx.droplets(item.x + s / 2, item.y + s / 2, color, 8, 120);
+      som.play('item', { x: item.x + s / 2 });
     }
+  }
+
+  /**
+   * Música e vinhetas a partir da fase: a trilha toca na sala inteira (aquecimento incluído), a
+   * camada de intensidade entra com o borrão e na página do chefe, e a música abaixa nas vinhetas.
+   */
+  private watchPhase(state: OnlineSession['state'], boss: { hp: number; maxHp: number } | null): void {
+    const phase = state.phase;
+    const bossPage = state.arenaId === BOSS_ARENA.id;
+    if (phase !== this.shownPhase) {
+      // Na página do chefe, a derrota dele já traz o acorde da banda.
+      if (phase === PHASE_CLEAR && !bossPage) som.play('arena-limpa');
+      else if (phase === PHASE_CHAPTER) som.play('capitulo');
+      else if (phase === PHASE_TURN) som.play('pagina');
+      else if (phase === PHASE_RESTART) som.play('fim-de-jogo');
+      else if (phase === PHASE_PLAYING && this.shownPhase === PHASE_LOBBY) som.play('comecar');
+      this.shownPhase = phase;
+    }
+    // Uma trilha por capítulo e a do chefe na página dele; o aquecimento já toca a do capítulo.
+    const chapter = CHAPTERS.findIndex((c) => c.some((a) => a.id === state.arenaId));
+    som.music(bossPage ? 'chefe' : chapter === 1 ? 'partituras' : 'caderno');
+    // Camada: o borrão chegou, ou o chefe passou para a 2ª fase.
+    const bossAngry = bossPage && boss !== null && boss.hp <= boss.maxHp * BOSS_RULES.phase2At;
+    som.intensity(phase === PHASE_PLAYING && (state.hurry || bossAngry));
+    som.duck(phase === PHASE_CLEAR || phase === PHASE_CHAPTER || phase === PHASE_RESTART);
+  }
+
+  /** Proteção do fácil quebrando (todos) e o gorgolejo da recarga no tubo (só o próprio jogador). */
+  private watchPlayers(remotes: Array<{ slot: number; x: number; hp: number; down: boolean }>, me: PlayerLook | null, slot: number, x: number, inkGauge: boolean, now: number): void {
+    const all = me ? [...remotes, { slot, x, hp: me.hp ?? 1, down: me.down }] : remotes;
+    for (const p of all) {
+      const prev = this.hpSeen[p.slot];
+      if (prev !== undefined && p.hp < prev && !p.down) som.play('protecao', { x: p.x, slot: p.slot });
+      this.hpSeen[p.slot] = p.hp;
+    }
+    const ink = me?.ink ?? 0;
+    if (ink > this.inkSeen + 1e-6 && ink < RULES.tankSize) this.inkRiseAt = now;
+    this.inkSeen = ink;
+    // A tinta chega a cada atualização do servidor, não a cada quadro: um respiro evita que o som pisque.
+    som.hold('recarga', 'recarga', inkGauge && !!me && !me.down && now - this.inkRiseAt < 220, { x, slot });
   }
 
   /** Mancha nova: pingo de nanquim caindo do borrão; ao ficar perigosa, espirra. */
@@ -455,9 +522,13 @@ export class OnlineScene extends Phaser.Scene {
       const prev = this.stainAges.get(id);
       const cx = stain.x + half;
       const cy = stain.y + half;
-      if (live && prev === undefined) this.fx.splat(cx, cy, false, 0.9, INK);
-      else if (live && prev !== undefined && prev < this.warn.stain && stain.age >= this.warn.stain) {
+      if (live && prev === undefined) {
+        // O pingo caindo é o aviso: mais leve e mais agudo que o da mancha firme.
+        this.fx.splat(cx, cy, false, 0.9, INK);
+        som.play('mancha', { x: cx, volume: 0.45, rate: 1.25 });
+      } else if (live && prev !== undefined && prev < this.warn.stain && stain.age >= this.warn.stain) {
         this.fx.droplets(cx, cy, INK, 8, 110);
+        som.play('mancha', { x: cx });
       }
       this.stainAges.set(id, stain.age);
     });

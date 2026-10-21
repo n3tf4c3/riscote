@@ -38,6 +38,7 @@ export function bootLocal(input: InputSource): void {
     width: arenaWidth(currentArena()),
     height: arenaHeight(currentArena()),
     backgroundColor: '#e7dfcc',
+    audio: { noAudio: true },
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     scene,
   });
