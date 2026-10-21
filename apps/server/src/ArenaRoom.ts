@@ -1,7 +1,6 @@
 import { randomInt } from 'node:crypto';
 import { Room, matchMaker, type Client } from '@colyseus/core';
 import {
-  ARENAS,
   MAX_PLAYERS,
   MSG_INPUT,
   MSG_REPORT,
@@ -10,6 +9,7 @@ import {
   ROOM_CODE_LENGTH,
   TICK_RATE,
   World,
+  chapterFrom,
   parseDifficulty,
   parseInput,
   type CreateRoomOptions,
@@ -57,10 +57,8 @@ export class ArenaRoom extends Room<{ state: GameState }> {
     this.maxClients = MAX_PLAYERS;
     // 60 comandos/s mais folga; acima disso o cliente é desconectado.
     this.maxMessagesPerSecond = 120;
-    // Capítulo: todas as arenas, começando pela escolhida na criação da sala.
-    const found = ARENAS.findIndex((a) => a.id === options.arenaId);
-    const first = found >= 0 ? found : 1; // padrão: a arena Padrão
-    const chapter = [...ARENAS.slice(first), ...ARENAS.slice(0, first)];
+    // Capítulo da arena escolhida na criação da sala, começando por ela.
+    const chapter = chapterFrom(options.arenaId);
     const difficulty = parseDifficulty(options.difficulty);
     this.world = new World(chapter, randomInt(2 ** 31), { waves: this.waves, difficulty });
 

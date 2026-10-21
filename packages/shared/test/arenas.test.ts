@@ -10,6 +10,7 @@ import {
   TICK_DT,
   TILE,
   cellAt,
+  chapterFrom,
   createPlayer,
   stepPlayer,
   touchesTube,
@@ -56,5 +57,19 @@ describe('acesso aos tubos de tinta (plano, seção 2.2)', () => {
     const times = standableCells(arena).map(({ col, row }) => ({ col, row, t: timeToTube(arena, col, row) }));
     const worst = times.reduce((a, b) => (b.t > a.t ? b : a));
     expect(worst.t, `pior caso a partir da coluna ${worst.col}, linha ${worst.row}`).toBeLessThanOrEqual(3);
+  });
+});
+
+describe('capítulos', () => {
+  const ids = (arenaId: unknown) => chapterFrom(arenaId).map((a) => a.id);
+
+  it('a sala joga só o capítulo da arena escolhida, começando por ela', () => {
+    expect(ids('ampla')).toEqual(['ampla', 'compacta', 'padrao']);
+    expect(ids('partitura')).toEqual(['partitura', 'mapa', 'quadriculada']);
+  });
+
+  it('arena desconhecida começa pela Padrão', () => {
+    expect(ids(undefined)).toEqual(['padrao', 'ampla', 'compacta']);
+    expect(ids('nanquim')).toEqual(['padrao', 'ampla', 'compacta']);
   });
 });

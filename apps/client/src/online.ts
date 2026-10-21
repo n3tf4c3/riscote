@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import { CloseCode, ColyseusSDK, type Room } from '@colyseus/sdk';
 import {
-  ARENAS,
+  CHAPTERS,
   DIFFICULTIES,
   DIFFICULTY_NAMES,
   MAX_PLAYERS,
@@ -102,17 +102,23 @@ export function bootOnline(input: InputSource): void {
   const joinButton = el<HTMLButtonElement>('join');
 
   const arenaButtons = el('online-arenas');
-  for (const arena of ARENAS) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = arena.name;
-    button.classList.toggle('active', arena.id === arenaId);
-    button.addEventListener('click', () => {
-      arenaId = arena.id;
-      [...arenaButtons.children].forEach((b) => b.classList.toggle('active', b === button));
-    });
-    arenaButtons.append(button);
-  }
+  CHAPTERS.forEach((chapter, i) => {
+    const label = document.createElement('p');
+    label.className = 'keys';
+    label.textContent = `Capítulo ${i + 1}`;
+    arenaButtons.append(label);
+    for (const arena of chapter) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = arena.name;
+      button.classList.toggle('active', arena.id === arenaId);
+      button.addEventListener('click', () => {
+        arenaId = arena.id;
+        arenaButtons.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b === button));
+      });
+      arenaButtons.append(button);
+    }
+  });
 
   const difficultyButtons = el('online-difficulty');
   for (const mode of DIFFICULTIES) {
