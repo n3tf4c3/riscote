@@ -3,8 +3,13 @@ import { Room, matchMaker, type Client } from '@colyseus/core';
 import {
   MAX_PLAYERS,
   MSG_INPUT,
+  MSG_NAME,
+  MSG_RECORDS,
   MSG_REPORT,
   MSG_START,
+  PHASE_CHAPTER,
+  PHASE_RESTART,
+  RECORD_NAME_TRIES,
   ROOM_CODE_ALPHABET,
   ROOM_CODE_LENGTH,
   TICK_RATE,
@@ -12,11 +17,16 @@ import {
   chapterFrom,
   parseDifficulty,
   parseInput,
+  parseRecordName,
+  placeholderName,
   type CreateRoomOptions,
   type InputMessage,
+  type RecordsMessage,
+  type RunEnd,
   type WorldPlayer,
 } from '@riscote/shared';
 import { recordTick, processMetrics } from './metrics.ts';
+import { RecordBook } from './records.ts';
 import { DropSchema, EnemySchema, GameState, ItemSchema, PlayerSchema, StainSchema } from './state.ts';
 
 /** Fila acima disto descarta os comandos mais antigos: limita o atraso acumulado (~130 ms). */
@@ -33,6 +43,14 @@ interface Seat {
   starved: number;
 }
 
+/** Fim de jogo esperando os nomes: a linha do placar e quem ainda pode escrever. */
+interface PendingRecord {
+  message: RecordsMessage;
+  /** Posição de cada jogador na lista de nomes da linha. */
+  index: Map<string, number>;
+  tries: Map<string, number>;
+}
+
 function randomCode(): string {
   let code = '';
   for (let i = 0; i < ROOM_CODE_LENGTH; i++) code += ROOM_CODE_ALPHABET[randomInt(ROOM_CODE_ALPHABET.length)];
@@ -40,6 +58,8 @@ function randomCode(): string {
 }
 
 export class ArenaRoom extends Room<{ state: GameState }> {
+  /** Placar de recordes do servidor, comum a todas as salas (index.ts liga a pasta de dados). */
+  static records = new RecordBook(null);
   /** Ondas automáticas de inimigos. Só subclasses de teste desligam; nunca vem do cliente. */
   protected readonly waves: boolean = true;
   /** Segundos de vaga reservada depois de uma queda de conexão (plano, seção 4.4). */
@@ -48,6 +68,7 @@ export class ArenaRoom extends Room<{ state: GameState }> {
   private seats = new Map<string, Seat>();
   /** Ordem de chegada: o primeiro é o anfitrião; se ele sair, o seguinte assume. */
   private arrivals: string[] = [];
+  private pending: PendingRecord | null = null;
 
   async onCreate(options: CreateRoomOptions = {}): Promise<void> {
     let code = randomCode();
@@ -75,6 +96,7 @@ export class ArenaRoom extends Room<{ state: GameState }> {
     this.onMessage(MSG_START, (client) => {
       if (client.sessionId === this.state.hostId) this.world.start();
     });
+    this.onMessage(MSG_NAME, (client, raw) => this.receiveName(client, raw));
     this.setFixedTimestep(() => {
       const started = performance.now();
       this.step();
@@ -116,6 +138,8 @@ export class ArenaRoom extends Room<{ state: GameState }> {
 
   onReconnect(client: Client): void {
     this.world.setAway(client.sessionId, false);
+    // A mensagem do placar pode ter saído durante a queda.
+    if (this.pending) client.send(MSG_RECORDS, this.pending.message);
   }
 
   /** Saída definitiva: por vontade própria ou fim do prazo de reconexão. */
@@ -126,6 +150,50 @@ export class ArenaRoom extends Room<{ state: GameState }> {
     this.arrivals = this.arrivals.filter((id) => id !== client.sessionId);
     processMetrics.players--;
     this.state.hostId = this.arrivals[0] ?? '';
+    // Quem saiu fica com o nome provisório.
+    if (this.pending?.message.waiting.includes(client.sessionId)) this.settleName(client.sessionId);
+  }
+
+  /** Fim de jogo com pontos: a partida entra no placar com nomes provisórios, que cada um troca pelo seu. */
+  private openRecords(run: RunEnd): void {
+    const book = ArenaRoom.records;
+    const difficulty = this.world.difficulty;
+    const players = run.players.filter((id) => this.world.players.has(id));
+    const names = players.map((id) => placeholderName(this.world.players.get(id)!.slot));
+    const entryId = book.add(difficulty, { score: run.score, names, reason: run.reason, arena: run.arena });
+    this.pending = {
+      message: { difficulty, entries: book.list(difficulty), entryId, score: run.score, reason: run.reason, waiting: entryId ? players : [] },
+      index: new Map(players.map((id, i) => [id, i])),
+      tries: new Map(),
+    };
+    console.log(JSON.stringify({ recorde: run.reason, sala: this.roomId, dificuldade: difficulty, pontos: run.score, entrou: entryId !== null }));
+    this.broadcast(MSG_RECORDS, this.pending.message);
+    if (this.pending.message.waiting.length === 0) this.world.closeRecords();
+  }
+
+  /** Só o nome vem do navegador; uma vez por jogador e por fim de jogo, com tentativas limitadas. */
+  private receiveName(client: Client, raw: unknown): void {
+    const pending = this.pending;
+    const id = client.sessionId;
+    const entryId = pending?.message.entryId;
+    if (!pending || !entryId || !pending.message.waiting.includes(id)) return;
+    const tries = (pending.tries.get(id) ?? 0) + 1;
+    pending.tries.set(id, tries);
+    if (tries > RECORD_NAME_TRIES) return;
+    const name = parseRecordName(typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>).name : undefined);
+    if (!name) return;
+    ArenaRoom.records.rename(this.world.difficulty, entryId, pending.index.get(id)!, name);
+    this.settleName(id);
+  }
+
+  /** Mais um nome resolvido: a sala recebe o placar atualizado; com todos resolvidos, a pausa encurta. */
+  private settleName(id: string): void {
+    const pending = this.pending!;
+    const message = pending.message;
+    message.waiting = message.waiting.filter((w) => w !== id);
+    message.entries = ArenaRoom.records.list(message.difficulty);
+    this.broadcast(MSG_RECORDS, message);
+    if (message.waiting.length === 0) this.world.closeRecords();
   }
 
   private receiveInput(client: Client, raw: unknown): void {
@@ -162,6 +230,9 @@ export class ArenaRoom extends Room<{ state: GameState }> {
       console.log(JSON.stringify({ relatorio: 'arena', sala: this.roomId, ...report }));
       this.broadcast(MSG_REPORT, report);
     }
+    for (const run of this.world.takeRunEnds()) this.openRecords(run);
+    // A pausa do placar acabou: nomes que chegarem depois disso são ignorados.
+    if (this.pending && this.world.phase !== PHASE_RESTART && this.world.phase !== PHASE_CHAPTER) this.pending = null;
   }
 
   /** Copia o mundo para o estado sincronizado. */

@@ -382,7 +382,9 @@ describe('progressão, pressão de tempo e métricas (etapa 4)', () => {
     run(world, 1 + ticks(RULES.clearDelay) + 1);
     expect(world.phase).toBe(PHASE_CHAPTER);
     world.lives = 1;
-    run(world, ticks(RULES.chapterDelay) + 1);
+    // Com pontos, o capítulo pausa para o placar; com todos os nomes escritos, a pausa encurta.
+    world.closeRecords();
+    run(world, ticks(RULES.recordShow) + 1);
     expect(world.arena.id).toBe('padrao');
     expect(world.score).toBe(0);
     expect(world.lives).toBe(RULES.teamLives);

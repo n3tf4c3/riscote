@@ -25,6 +25,7 @@ O planejamento completo fica em `PLANEJAMENTO.md` na raiz (local, fora do Git po
 | Regras da partida: tinta, inimigos, bola, resgate, vidas, ondas, capítulo, borrão, métricas (`RULES`, `ArenaReport`) | `packages/shared/src/world.ts` |
 | Sala autoritativa e estado sincronizado | `apps/server/src/ArenaRoom.ts`, `apps/server/src/state.ts` |
 | Limite de tentativas de entrada e endereço real do cliente | `apps/server/src/joinLimit.ts` |
+| Placar de recordes: nome, mensagens, arquivo, tela de fim de jogo | `packages/shared/src/records.ts`, `apps/server/src/records.ts`, `apps/client/src/records.ts` |
 | Métricas do processo e teste de carga | `apps/server/src/metrics.ts`, `apps/server/scripts/carga.ts` |
 | Cliente online: entrada em sala, sessão, cena | `apps/client/src/online.ts`, `net.ts`, `OnlineScene.ts` |
 | Arte, animação e efeitos do cliente | `apps/client/src/art/`, `anim.ts`, `fx.ts` |
@@ -71,8 +72,15 @@ Ainda não há lint. O aviso de bundle acima de 500 kB vem do Phaser e é espera
 - **Capítulo.** Há dois capítulos de 3 arenas em `CHAPTERS` (`ARENAS` é a lista de todas). A sala joga só o capítulo da arena escolhida (`chapterFrom`), começando por ela; o fundo de cada tema sai de `TEMAS` em `apps/client/src/art/arena.ts`.
   - Arena limpa → pausa → virada de página → próxima arena.
   - Depois da última: resumo, pontos e vidas zerados, volta à primeira.
-  - Todos caídos sem vidas → a mesma arena recomeça.
+  - Todos caídos sem vidas → fim de jogo: pontos zerados e a mesma arena recomeça.
   - Cada arena encerrada gera um `ArenaReport`: uma linha JSON no log do servidor e a mensagem `relatorio` para a sala; o painel tem "Copiar métricas".
+- **Placar de recordes.** Decisões do usuário em 2026-10-20: entra no placar o capítulo concluído e a equipe sem vidas, quando há pontos.
+  - `World.endRun` gera um `RunEnd` e a pausa vira `RULES.recordDelay` (40 s); o servidor chama `closeRecords` quando todos escreveram, e a pausa cai para `RULES.recordShow`.
+  - A linha é da equipe: pontuação da sala e um nome por jogador, na ordem de chegada; quem não escreve fica como "Jogador N".
+  - Um placar por dificuldade, com os 15 melhores (`RECORDS_MAX`) de todas as salas do servidor. Empate não desloca quem chegou antes.
+  - O navegador manda só `{ name }` (`MSG_NAME`), validado por `parseRecordName` (até 12 letras ou números, espaço, ponto, hífen e sublinhado); uma vez por jogador e por fim de jogo, com até `RECORD_NAME_TRIES` tentativas. A pontuação vem sempre do `World`.
+  - O cliente põe os nomes na tela só com `textContent`.
+  - Arquivo `recordes.json` em `RISCOTE_DATA_DIR` (no Docker, o volume `riscote_dados` em `/dados`), gravado por troca atômica; linhas inválidas são descartadas ao carregar.
 - **Partida autoritativa.** `World` (`world.ts`) é a partida inteira, pura e determinística: mesma semente e mesmos comandos dão o mesmo resultado. O servidor chama `applyInput` para cada comando, depois `step` uma vez por tick, e copia o resultado para o schema. Valores de jogo ficam em `RULES`.
 - **Servidor autoritativo.** O cliente envia só `{ seq, buttons }`, validado por `parseInput`. Posição, dano, pontuação e conclusão de fase nunca vêm do navegador.
 - **Fila de comandos no servidor.**
@@ -126,6 +134,7 @@ Decisão do usuário em 2026-10-20: o servidor sobe em Docker, e não como proce
 - `Dockerfile` (alvos `server` e `client`) e `compose.yaml` na raiz; uso, variáveis e Orange Pi em `docs/docker.md`; playtest pela internet em `docs/playtest-remoto.md` (perfil `tunel`, endereços temporários; perfil `dominio`, túnel nomeado com a página em `riscote.win` e o servidor em `play.riscote.win`, a pedido do usuário em 2026-10-20). O token do túnel fica só no `.env` local.
 - O servidor roda o TypeScript direto e depende do `@riscote/shared` ligado por link do pnpm. Não troque por `pnpm deploy`: o Node não remove tipos dentro de `node_modules`.
 - As portas publicam em `127.0.0.1` por padrão; abrir para a rede é `RISCOTE_BIND=0.0.0.0`.
+- O servidor grava só no volume `riscote_dados` (`/dados`, placar de recordes); `docker compose down -v` apaga o placar. Backup e restauração em `docs/docker.md`.
 - Ao mudar dependências ou a versão do Node, construa também para `linux/arm64` (`docker buildx build --platform linux/arm64 --target server .`).
 
 ## Limites

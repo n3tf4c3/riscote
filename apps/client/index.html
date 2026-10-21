@@ -57,6 +57,47 @@
       .slider { display: grid; grid-template-columns: 1fr auto; gap: 0 6px; margin-bottom: 6px; font-size: 12px; }
       .slider input { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
       .slider output { font-variant-numeric: tabular-nums; }
+      /* Placar do fim de jogo: folha de papel por cima da arena, escrita a nanquim. */
+      #game { position: relative; }
+      .records {
+        position: absolute; top: 50%; left: 50%; z-index: 5;
+        transform: translate(-50%, -50%) rotate(-.7deg);
+        width: min(400px, calc(100% - 32px)); max-height: calc(100% - 24px); overflow-y: auto;
+        padding: 14px 18px 12px;
+        background: var(--panel); color: var(--ink);
+        border: 2.5px solid var(--ink);
+        border-radius: 16px 5px 14px 6px / 6px 14px 5px 16px;
+        box-shadow: 5px 6px 0 rgba(31, 29, 26, .16);
+      }
+      .records[hidden] { display: none; }
+      .records h2 { margin: 0; font-size: 24px; line-height: 1.1; text-transform: none; letter-spacing: 0; color: var(--ink); }
+      .records h3 { margin: 12px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+      .records-why { margin: 2px 0 6px; color: var(--muted); }
+      .records-score { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
+      .records-score span { font: 800 30px/1 ui-monospace, monospace; color: var(--ink); margin-right: 4px; }
+      .records-form { display: flex; gap: 6px; }
+      .records-form input {
+        flex: 1; min-width: 0; font: 600 16px/1.2 system-ui, sans-serif; padding: 6px 8px;
+        text-transform: none; letter-spacing: 0;
+        border: 0; border-bottom: 2px solid var(--ink); border-radius: 0; background: transparent; color: var(--ink);
+      }
+      .records-form input:focus { outline: none; border-bottom-color: var(--accent); }
+      .records-form button { background: var(--ink); color: var(--panel); text-align: center; }
+      .records-form[hidden] { display: none; }
+      .records-status { min-height: 1.3em; margin: 4px 0 0; font-size: 13px; }
+      .records-list { list-style: none; margin: 0; padding: 0; font-variant-numeric: tabular-nums; }
+      .records-list li {
+        display: grid; grid-template-columns: 2.2em 4.6em 1fr; gap: 6px; align-items: baseline;
+        padding: 3px 2px; border-bottom: 1px dashed rgba(31, 29, 26, .28);
+      }
+      .records-list li:last-child { border-bottom: 0; }
+      .records-list .pos { color: var(--muted); font-size: 12px; }
+      .records-list .pts { font-weight: 800; text-align: right; }
+      .records-list .names { overflow-wrap: anywhere; }
+      /* A linha desta partida, grifada como caneta marca-texto. */
+      .records-list li.mine { background: linear-gradient(transparent 30%, rgba(47, 111, 214, .22) 30%, rgba(47, 111, 214, .22) 88%, transparent 88%); }
+      .records-list li.empty { display: block; color: var(--muted); border: 0; }
+      .records-timer { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
       @media (max-width: 760px) {
         body { grid-template-columns: 1fr; }
         #game { height: 60vh; }
@@ -65,7 +106,22 @@
     </style>
   </head>
   <body>
-    <div id="game"><p id="game-placeholder">Crie uma sala ou entre com um código.</p></div>
+    <div id="game">
+      <p id="game-placeholder">Crie uma sala ou entre com um código.</p>
+      <div id="records" class="records" hidden role="dialog" aria-labelledby="records-title">
+        <h2 id="records-title">Fim de jogo</h2>
+        <p id="records-why" class="records-why"></p>
+        <p class="records-score"><span id="records-score">0</span> pontos da equipe</p>
+        <form id="records-form" class="records-form">
+          <input id="records-name" type="text" maxlength="12" placeholder="Seu nome" autocomplete="nickname" spellcheck="false" aria-label="Seu nome no placar" />
+          <button type="submit">Gravar</button>
+        </form>
+        <p id="records-status" class="records-status" role="status" aria-live="polite"></p>
+        <h3>Recordes · <span id="records-mode"></span></h3>
+        <ol id="records-list" class="records-list"></ol>
+        <p id="records-timer" class="records-timer"></p>
+      </div>
+    </div>
     <aside>
       <h1>Riscote · protótipo</h1>
       <p class="keys">

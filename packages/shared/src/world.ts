@@ -3,6 +3,7 @@ import { BTN_ATTACK, BTN_DOWN, BTN_JUMP, BTN_LEFT, BTN_RIGHT } from './input.ts'
 import { DEFAULT_PARAMS, TICK_DT, TILE, type MovementParams } from './params.ts';
 import { createPlayer, stepPlayer, touchesTube, type PlayerState } from './physics.ts';
 import { DIFFICULTY_RULES, POWER_MAX_LEVEL, movementParams, type Difficulty } from './protocol.ts';
+import type { RunEndReason } from './records.ts';
 
 /** Regras da etapa 3 (plano, seções 2.3 a 2.7). Valores iniciais, a ajustar em playtest. */
 export const RULES = {
@@ -36,6 +37,9 @@ export const RULES = {
   borraoSpeed: 2.5, // células/s, atravessa paredes e não pode ser derrotado
   turnDelay: 1.2, // s de virada de página
   chapterDelay: 6, // s de resumo no fim do capítulo
+  // Fim de jogo com pontos (capítulo concluído ou equipe sem vidas): pausa para escrever o nome no placar.
+  recordDelay: 40, // s no máximo para todos escreverem
+  recordShow: 6, // s com o placar na tela depois que todos escreveram
   // Itens que fortalecem o boneco (acumulam até ele ser derrubado, exceto a invencibilidade).
   itemFirstAt: 10, // s na arena até o primeiro item
   itemEvery: 12, // s entre itens
@@ -126,6 +130,15 @@ export interface ArenaReport {
   /** Distância média entre os jogadores de pé, em células. */
   spreadCells: number;
   perPlayer: PlayerArenaStats[];
+}
+
+/** Fim de jogo com pontos: o que o servidor leva ao placar. */
+export interface RunEnd {
+  reason: RunEndReason;
+  score: number;
+  arena: string;
+  /** Quem estava na sala, na ordem de chegada. */
+  players: string[];
 }
 
 interface RunningStats {
@@ -359,6 +372,7 @@ export class World {
   readonly hitsToDown: number;
   private stats: RunningStats = emptyStats();
   private reports: ArenaReport[] = [];
+  private runEnds: RunEnd[] = [];
 
   /** `waves: false` desliga ondas, pressão de tempo e progressão (cenários montados à mão nos testes). */
   constructor(chapter: Arena | readonly Arena[], seed: number, options: { waves?: boolean; difficulty?: Difficulty } = {}) {
@@ -397,6 +411,25 @@ export class World {
     const out = this.reports;
     this.reports = [];
     return out;
+  }
+
+  /** Fins de jogo com pontos desde a última chamada (o servidor leva ao placar). */
+  takeRunEnds(): RunEnd[] {
+    const out = this.runEnds;
+    this.runEnds = [];
+    return out;
+  }
+
+  /** Todos escreveram o nome (ou não há quem escreva): a pausa do placar encurta para RULES.recordShow. */
+  closeRecords(): void {
+    if (this.phase === PHASE_RESTART || this.phase === PHASE_CHAPTER) this.phaseTime = Math.min(this.phaseTime, RULES.recordShow);
+  }
+
+  /** Fecha a partida para o placar; sem pontos, não há o que registrar. */
+  private endRun(reason: RunEndReason): boolean {
+    if (!this.waveStarted || this.score <= 0) return false;
+    this.runEnds.push({ reason, score: this.score, arena: this.arena.id, players: [...this.players.keys()] });
+    return true;
   }
 
   private playerStats(p: WorldPlayer): PlayerArenaStats {
@@ -1059,8 +1092,9 @@ export class World {
         this.phaseTime = RULES.clearDelay;
       } else if (this.lives === 0 && this.players.size > 0 && [...this.players.values()].every((p) => p.down || p.away)) {
         if (this.waveStarted) this.report('recomeço');
+        // Sem vidas é fim de jogo: os pontos vão ao placar e a arena recomeça do zero.
         this.phase = PHASE_RESTART;
-        this.phaseTime = RULES.restartDelay;
+        this.phaseTime = this.endRun('sem-vidas') ? RULES.recordDelay : RULES.restartDelay;
       }
       return;
     }
@@ -1078,7 +1112,7 @@ export class World {
           this.phaseTime = RULES.turnDelay;
         } else {
           this.phase = PHASE_CHAPTER;
-          this.phaseTime = RULES.chapterDelay;
+          this.phaseTime = this.endRun('capitulo') ? RULES.recordDelay : RULES.chapterDelay;
         }
         break;
       case PHASE_TURN:
@@ -1097,6 +1131,7 @@ export class World {
   }
 
   private resetTeam(): void {
+    this.score = 0;
     this.lives = RULES.teamLives;
     for (const p of this.players.values()) this.revive(p, true);
   }
