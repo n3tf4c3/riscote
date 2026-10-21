@@ -175,10 +175,11 @@ export class OnlineSession {
     let switched = false;
     if (state.arenaId !== this.arena.id) {
       // Página virada: todos foram reposicionados; previsão e interpolação recomeçam do estado novo.
+      // A numeração dos comandos continua: o servidor descartaria seq repetido e o boneco travaria.
       const arena = ARENAS.find((a) => a.id === state.arenaId);
       if (!arena) return;
       this.arena = arena;
-      this.predictor = new Predictor(arena, (level) => movementParams(this.difficulty, level), me);
+      this.predictor = new Predictor(arena, (level) => movementParams(this.difficulty, level), me, this.predictor.lastSeq);
       this.players = new Interpolator<PlayerView>();
       this.enemies = new Interpolator<EnemyView>();
       this.drops = new Interpolator<DropView>();

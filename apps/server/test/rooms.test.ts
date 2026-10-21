@@ -357,6 +357,27 @@ describe('progressão entre arenas (etapa 4)', () => {
     expect((b.state as any).arenaIndex).toBe(1);
     expect((b.state as any).enemiesLeft).toBe(Math.round(4 + 1.5 * 2));
   }, 15000);
+
+  it('depois da virada de página o servidor segue aceitando os comandos da previsão nova', async () => {
+    const room = (await t.createRoom(ROOM_WITH_ENEMIES, { arenaId: 'compacta' })) as unknown as ArenaRoom;
+    const c = await t.connectTo(room);
+    const me = () => (c.state as any).players.get(c.sessionId);
+    const params = (level: number) => movementParams(parseDifficulty((c.state as any).difficulty), level);
+    let predictor = new Predictor(ARENAS.find((a) => a.id === 'compacta')!, params, me());
+    c.send(MSG_START);
+    for (let i = 0; i < 30; i++) c.send(MSG_INPUT, predictor.tick(0));
+    await until(() => me().ack === 30);
+
+    const world = (room as any).world;
+    world.enemies.clear();
+    world.spawnQueue = 0;
+    await until(() => (c.state as any).arenaId === 'padrao', 8000);
+
+    // Como o cliente faz ao virar a página: previsão nova na arena nova, continuando a numeração.
+    predictor = new Predictor(ARENAS.find((a) => a.id === 'padrao')!, params, me(), predictor.lastSeq);
+    for (let i = 0; i < 10; i++) c.send(MSG_INPUT, predictor.tick(0));
+    await until(() => me().ack === 40, 2000);
+  }, 15000);
 });
 describe('aquecimento e anfitrião', () => {
   it('só o anfitrião começa; se ele sair, o próximo a ter chegado assume', async () => {
