@@ -33,9 +33,13 @@ import {
   describeJoinError,
   normalizeRoomCode,
   stepPlayer,
+  ROOM_LIST_PATH,
+  parseRoomList,
+  type RoomSummary,
 } from '@riscote/shared';
 import { ArenaRoom } from '../src/ArenaRoom.ts';
 import { AttemptLimiter, limitJoins, limitRooms, markPeerAddress } from '../src/joinLimit.ts';
+import { serveRoomList } from '../src/roomList.ts';
 
 const ROOM_WITH_ENEMIES = 'arena-com-inimigos';
 /** Regras da 1ª fase do capítulo 1, onde as salas de teste começam. */
@@ -57,6 +61,7 @@ let t: ColyseusTestServer;
 beforeAll(async () => {
   const http = createServer();
   markPeerAddress(http);
+  serveRoomList(http, () => ArenaRoom.list());
   const server = new Server({ transport: new WebSocketTransport({ server: http }), greet: false, gracefullyShutdown: false });
   server.define(ROOM_NAME, QuietRoom);
   server.define(ROOM_WITH_ENEMIES, ArenaRoom);
@@ -584,5 +589,60 @@ describe('itens na rede', () => {
     await sleep(150);
     const me = room.state.players.get(c.sessionId)!;
     expect([me.strength, me.speed, me.rate, me.range, me.star]).toEqual([0, 0, 0, 0, 0]);
+  });
+});describe('nomes e lista de salas', () => {
+  it('o nome escolhido na entrada aparece para todos; sem nome ou inválido, "Jogador N"', async () => {
+    const room = await newRoom();
+    const a = await t.connectTo(room, { name: '  net   face ' });
+    const b = await t.connectTo(room, { name: '<b>x</b>' });
+    const c = await t.connectTo(room);
+    await until(() => (c.state as any).players.size === 3);
+    const names = [a, b, c].map((x) => (c.state as any).players.get(x.sessionId).name);
+    expect(names).toEqual(['net face', 'Jogador 2', 'Jogador 3']);
+  });
+
+  it('a sala aberta mostra código e nomes; a privada e a de cliente antigo, só a contagem', async () => {
+    const aberta = (await t.createRoom(ROOM_NAME, { arenaId: 'partitura', difficulty: 'dificil', open: true })) as unknown as ArenaRoom;
+    const privada = (await t.createRoom(ROOM_NAME, { open: false })) as unknown as ArenaRoom;
+    const antiga = (await t.createRoom(ROOM_NAME, {})) as unknown as ArenaRoom;
+    await t.connectTo(aberta, { name: 'netface' });
+    await t.connectTo(aberta);
+    await t.connectTo(privada, { name: 'Segredo' });
+    expect(aberta.summary()).toEqual({
+      // A sala de teste não tem ondas, então já começa jogando (sem aquecimento).
+      code: aberta.roomId, players: 2, names: ['netface', 'Jogador 2'], chapter: 1, difficulty: 'dificil', playing: true, page: 0, pages: 5,
+    });
+    expect(privada.summary()).toMatchObject({ code: null, players: 1, names: [] });
+    expect(antiga.summary().code).toBeNull();
+
+    // Pela rede, como a capa consulta: GET /salas, liberado para outra origem.
+    const res = await fetch(`http://127.0.0.1:${(t.server as any).port}${ROOM_LIST_PATH}`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('access-control-allow-origin')).toBe('*');
+    const list = parseRoomList(await res.json());
+    expect(list.map((r) => r.code)).toEqual([aberta.roomId, null, null]);
+    expect(JSON.stringify(list)).not.toContain('Segredo');
+    expect(JSON.stringify(list)).not.toContain(privada.roomId);
+  });
+
+  it('a lista em cache dura pouco e outras rotas seguem para o Colyseus', async () => {
+    const http = createServer((_req, res) => res.end('colyseus'));
+    let rooms: RoomSummary[] = [];
+    let clock = 0;
+    serveRoomList(http, () => rooms, () => clock);
+    await new Promise<void>((r) => http.listen(0, '127.0.0.1', r));
+    try {
+      const base = `http://127.0.0.1:${(http.address() as { port: number }).port}`;
+      const get = async () => (await fetch(`${base}${ROOM_LIST_PATH}`)).json();
+      expect(await get()).toEqual([]);
+      rooms = [{ code: null, players: 1, names: [], chapter: 0, difficulty: 'medio', playing: false, page: 0, pages: 5 }];
+      expect(await get()).toEqual([]);
+      clock = 1000;
+      expect(await get()).toHaveLength(1);
+      expect(await (await fetch(`${base}/matchmake/x`)).text()).toBe('colyseus');
+      expect(await (await fetch(`${base}${ROOM_LIST_PATH}`, { method: 'POST' })).text()).toBe('colyseus');
+    } finally {
+      await new Promise((r) => http.close(r));
+    }
   });
 });

@@ -26,6 +26,7 @@ O planejamento completo fica em `PLANEJAMENTO.md` na raiz (local, fora do Git po
 | Sala autoritativa e estado sincronizado | `apps/server/src/ArenaRoom.ts`, `apps/server/src/state.ts` |
 | Limite de tentativas de entrada e endereço real do cliente | `apps/server/src/joinLimit.ts` |
 | Placar de recordes: nome, mensagens, arquivo, tela de fim de jogo | `packages/shared/src/records.ts`, `apps/server/src/records.ts`, `apps/client/src/records.ts` |
+| Nome do jogador, sala aberta ou privada, lista da capa (`GET /salas`) e avisos de entrada e saída | `packages/shared/src/protocol.ts` (`RoomSummary`), `apps/server/src/roomList.ts`, `ArenaRoom.summary`, `apps/client/src/online.ts`, `net.ts` (`onPresence`) |
 | Métricas do processo e teste de carga | `apps/server/src/metrics.ts`, `apps/server/scripts/carga.ts` |
 | Cliente online: entrada em sala, sessão, cena | `apps/client/src/online.ts`, `net.ts`, `OnlineScene.ts` |
 | Entrada: modos de teclas, gamepad, controles de toque (direcional e botões) e o desenho deles | `apps/client/src/input.ts`, `toque.ts`, `toque.css`, `art/toque.ts` |
@@ -99,6 +100,12 @@ Ainda não há lint. O aviso de bundle acima de 500 kB vem do Phaser e é espera
   - O navegador manda só `{ name }` (`MSG_NAME`), validado por `parseRecordName` (até 12 letras ou números, espaço, ponto, hífen e sublinhado); uma vez por jogador e por fim de jogo, com até `RECORD_NAME_TRIES` tentativas. A pontuação vem sempre do `World`.
   - O cliente põe os nomes na tela só com `textContent`.
   - Arquivo `recordes.json` em `RISCOTE_DATA_DIR` (no Docker, o volume `riscote_dados` em `/dados`), gravado por troca atômica; linhas inválidas são descartadas ao carregar.
+- **Nomes e salas abertas.** Pedido do usuário em 2026-10-21.
+  - A capa tem "Seu nome" (lembrado em `localStorage`, `riscote.nome.v1`), mandado como `{ name }` nas opções de criar ou entrar e validado por `parseRecordName`; sem nome ou inválido, o servidor usa "Jogador N". O nome vai em `PlayerSchema.name` e não entra na simulação.
+  - Quem entrou com nome já vai com ele para o placar e não fica em `waiting`.
+  - Criar sala escolhe Aberta (padrão do menu) ou Privada. O servidor só abre com `open: true`: cliente antigo, sem o campo, cria sala privada.
+  - `GET /salas` (`serveRoomList`, cache de 1 s, CORS aberto) lista as salas do processo: a aberta com código e nomes; a privada só com contagem, capítulo, modo e página, nunca código nem nomes. A capa consulta a cada 5 s, só com a aba visível, e entra pelo `joinById` de sempre (o limite de entradas vale igual).
+  - Na partida, o cliente compara os jogadores a cada estado e mostra bilhetes "X entrou/saiu da sala", "perdeu a conexão", "voltou", com a cor do boneco; o painel lista quem está na sala. Tudo com `textContent`.
 - **Partida autoritativa.** `World` (`world.ts`) é a partida inteira, pura e determinística: mesma semente e mesmos comandos dão o mesmo resultado. O servidor chama `applyInput` para cada comando, depois `step` uma vez por tick, e copia o resultado para o schema. Valores de jogo ficam em `RULES`.
 - **Servidor autoritativo.** O cliente envia só `{ seq, buttons }`, validado por `parseInput`. Posição, dano, pontuação e conclusão de fase nunca vêm do navegador.
 - **Controles.** Teclado, gamepad e toque viram a mesma máscara `BTN_*` em `InputSource.buttons()`; nenhum deles muda simulação ou protocolo.

@@ -102,6 +102,28 @@
       .records-list li.mine { background: linear-gradient(transparent 30%, rgba(47, 111, 214, .22) 30%, rgba(47, 111, 214, .22) 88%, transparent 88%); }
       .records-list li.empty { display: block; color: var(--muted); border: 0; }
       .records-timer { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+      /* Avisos de quem entrou ou saiu: bilhetes no canto da arena, que somem sozinhos. */
+      .avisos {
+        position: absolute; top: 10px; left: 10px; z-index: 6; pointer-events: none;
+        display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+        max-width: calc(100% - 20px);
+      }
+      .avisos p {
+        margin: 0; padding: 5px 10px 4px 8px;
+        background: var(--panel); color: var(--ink); font-weight: 600;
+        border: 2px solid var(--ink); border-radius: 10px 4px 9px 5px / 5px 9px 4px 10px;
+        box-shadow: 3px 3px 0 rgba(31, 29, 26, .16);
+        animation: aviso 4.5s ease forwards;
+      }
+      .avisos .cor, .na-sala .cor {
+        display: inline-block; width: .8em; height: .8em; margin-right: 6px; vertical-align: -1px;
+        border: 1.5px solid var(--ink); border-radius: 50%;
+      }
+      @keyframes aviso { 0% { opacity: 0; transform: translateY(-4px); } 6%, 82% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+      @media (prefers-reduced-motion: reduce) { .avisos p { animation-name: aviso-sem-movimento; } }
+      @keyframes aviso-sem-movimento { 0%, 82% { opacity: 1; } 100% { opacity: 0; } }
+      .na-sala { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 2px; }
+      .na-sala .dim { color: var(--muted); }
       /* Carregando a arte: um pote de nanquim enchendo de tinta azul por cima do papel. */
       .carregando {
         position: absolute; inset: 0; z-index: 4;
@@ -180,6 +202,7 @@
           <p class="dica so-toque">No celular, a partida mostra um direcional (andar e, para baixo, descer) e os botões Pular e Atirar; dá para usar dois dedos ao mesmo tempo e segurar Pular para ir mais alto, em pé ou deitado.</p>
         </section>
       </div>
+      <div id="avisos" class="avisos" role="status" aria-live="polite"></div>
       <div id="carregando" class="carregando" hidden role="status" aria-live="polite">
         <div class="pote" aria-hidden="true"><div class="pote-tinta"></div></div>
         <p>Enchendo a tinta… <span id="carregando-pct">0%</span></p>
@@ -230,12 +253,20 @@
 
       <section id="panel-online" hidden>
         <div id="lobby">
+          <label class="seu-nome" for="player-name">Seu nome</label>
+          <input id="player-name" type="text" maxlength="12" placeholder="Como os outros vão te ver" autocomplete="nickname" spellcheck="false" />
           <h2>Nova sala</h2>
           <h3 id="arena-titulo">Capítulo</h3>
           <div id="online-arenas" class="escolhas capitulos" role="group" aria-labelledby="arena-titulo"></div>
           <h3 id="dificuldade-titulo">Dificuldade</h3>
           <div id="online-difficulty" class="escolhas" role="group" aria-labelledby="dificuldade-titulo"></div>
           <p id="difficulty-hint" class="keys"></p>
+          <h3 id="visibilidade-titulo">Quem pode entrar</h3>
+          <div id="online-visibility" class="escolhas duas" role="group" aria-labelledby="visibilidade-titulo">
+            <button type="button" data-aberta="1" aria-pressed="true">Aberta</button>
+            <button type="button" data-aberta="0" aria-pressed="false">Privada</button>
+          </div>
+          <p id="visibility-hint" class="keys"></p>
           <button type="button" id="create" class="primary">Criar sala <span class="atalho" aria-hidden="true">Enter</span></button>
 
           <hr />
@@ -245,6 +276,11 @@
             <button type="submit" id="join">Entrar</button>
           </form>
           <p id="lobby-status" class="status" role="status" aria-live="polite"></p>
+
+          <hr />
+          <h2>Salas agora</h2>
+          <ul id="room-list" class="salas"></ul>
+          <p id="room-list-status" class="keys"></p>
         </div>
 
         <div id="in-room" hidden>
@@ -255,6 +291,8 @@
             <button type="button" id="leave">Sair da sala</button>
             <button type="button" id="give-up" hidden>Desistir</button>
           </div>
+          <h2>Na sala</h2>
+          <ul id="room-players" class="na-sala"></ul>
           <div id="lobby-start" hidden>
             <button type="button" id="start" class="primary">Começar partida</button>
             <p id="start-hint" class="keys"></p>

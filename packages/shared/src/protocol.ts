@@ -1,6 +1,7 @@
 import { BTN_ALL } from './input.ts';
 import { DEFAULT_PARAMS, type MovementParams } from './params.ts';
 import type { PlayerState } from './physics.ts';
+import { parseRecordName } from './records.ts';
 
 export const ROOM_NAME = 'arena';
 export const MAX_PLAYERS = 5;
@@ -73,9 +74,59 @@ export function parseDifficulty(raw: unknown): Difficulty {
   return (DIFFICULTIES as readonly unknown[]).includes(raw) ? (raw as Difficulty) : 'medio';
 }
 
-export interface CreateRoomOptions {
+/** Opções de quem entra (ao criar ou ao entrar pelo código). O nome passa por `parseRecordName`. */
+export interface JoinOptions {
+  name?: string;
+}
+
+export interface CreateRoomOptions extends JoinOptions {
   arenaId?: string;
   difficulty?: Difficulty;
+  /** Sala aberta: aparece com código e nomes na lista da capa. Sem o campo, a sala é privada. */
+  open?: boolean;
+}
+
+/** Caminho HTTP do servidor com a lista das salas (`RoomSummary[]`). */
+export const ROOM_LIST_PATH = '/salas';
+
+/** Uma sala na lista da capa. A privada não revela código nem nomes. */
+export interface RoomSummary {
+  /** Código para entrar; null na sala privada. */
+  code: string | null;
+  players: number;
+  /** Nomes na ordem de chegada; vazio na sala privada. */
+  names: string[];
+  /** Índice em CHAPTERS. */
+  chapter: number;
+  difficulty: Difficulty;
+  /** false = aquecimento. */
+  playing: boolean;
+  /** Página atual (a partir de 0) e total, com a do chefe. */
+  page: number;
+  pages: number;
+}
+
+const MAX_LISTED_ROOMS = 100;
+
+/** Valida a lista vinda do servidor; entradas fora do formato são descartadas. */
+export function parseRoomList(raw: unknown): RoomSummary[] {
+  if (!Array.isArray(raw)) return [];
+  const rooms: RoomSummary[] = [];
+  for (const item of raw.slice(0, MAX_LISTED_ROOMS)) {
+    if (typeof item !== 'object' || item === null) continue;
+    const r = item as Record<string, unknown>;
+    const count = (v: unknown, max: number) => (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= max ? v : null);
+    const code = r.code === null ? null : typeof r.code === 'string' ? (normalizeRoomCode(r.code) ?? undefined) : undefined;
+    const players = count(r.players, MAX_PLAYERS);
+    const chapter = count(r.chapter, 99);
+    const page = count(r.page, 99);
+    const pages = count(r.pages, 99);
+    if (code === undefined || players === null || chapter === null || page === null || pages === null) continue;
+    if (!(DIFFICULTIES as readonly unknown[]).includes(r.difficulty)) continue;
+    const names = code && Array.isArray(r.names) ? r.names.filter((n): n is string => parseRecordName(n) === n).slice(0, MAX_PLAYERS) : [];
+    rooms.push({ code, players, names, chapter, difficulty: r.difficulty as Difficulty, playing: r.playing === true, page, pages });
+  }
+  return rooms;
 }
 
 /** Estado de um jogador como o servidor sincroniza: a simulação completa mais o último comando aplicado. */
