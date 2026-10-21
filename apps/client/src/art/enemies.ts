@@ -183,6 +183,180 @@ export function manchaSvg(variant = 0): string {
   );
 }
 
+// Inimigos da progressão de fases: grafite, violeta-escuro, azul-petróleo e a borracha rosa e azul,
+// fora das cores dos jogadores e diferentes dos três primeiros na silhueta.
+
+const GRAFITE = '#5b6670';
+const GRAFITE_DARK = '#30373e';
+const ARANHA = '#2b2230';
+const VIDRO = '#1f3446';
+const VIDRO_DARK = '#13212d';
+const BORRACHA_ROSA = '#d98a8a';
+const BORRACHA_ROSA_DARK = '#9e5656';
+const BORRACHA_AZUL = '#4f6fa8';
+
+export const GRAMPO_FRAMES = 3;
+
+const GRAMPO_VB = '4 6 92 86';
+/** Olhos de papel com a pupila olhando para a direita; `angry` franze as sobrancelhas. */
+function eyes(cx: number, cy: number, gap: number, r: number, angry = false): string {
+  const [l, rr] = [cx - gap / 2, cx + gap / 2];
+  return (
+    `<ellipse cx="${l}" cy="${cy}" rx="${r}" ry="${r * 1.1}" fill="${PAPER}"/><circle cx="${l + r * 0.35}" cy="${cy + 0.5}" r="${r * 0.5}" fill="${INK}"/>` +
+    `<ellipse cx="${rr}" cy="${cy}" rx="${r}" ry="${r * 1.1}" fill="${PAPER}"/><circle cx="${rr + r * 0.35}" cy="${cy + 0.5}" r="${r * 0.5}" fill="${INK}"/>` +
+    (angry
+      ? `<path d="M${l - r} ${cy - r * 1.6} L${l + r} ${cy - r * 0.9} M${rr + r} ${cy - r * 1.6} L${rr - r} ${cy - r * 0.9}" stroke="${INK}" stroke-width="2.6" stroke-linecap="round"/>`
+      : `<path d="M${l - r} ${cy - r * 1.5} L${rr + r} ${cy - r * 1.7}" stroke="${INK}" stroke-width="2.2" stroke-linecap="round" opacity="0.8"/>`)
+  );
+}
+
+/**
+ * Grampo: um grampo de papel dobrado em arco, de arame grafite, correndo nas duas pontas.
+ * `frame` troca as pernas de lugar (corrida de 3 quadros).
+ */
+export function grampoSvg(frame: number, variant = 0): string {
+  const swing = [-9, 0, 9][frame % GRAMPO_FRAMES]!;
+  const wire = `M${24 + swing} 86 L26 40 Q26 22 42 22 L58 22 Q74 22 74 40 L${76 - swing} 86`;
+  return svgDoc(
+    GRAMPO_VB,
+    stroke(18, 88, -90, 0.24, 0.64, GRAFITE_DARK, 'seco', 0.6) +
+      // Por dentro do arco, o papel preso no grampo: é ali que fica o rosto.
+      `<path d="M30 74 L30 42 Q30 28 44 28 L56 28 Q70 28 70 42 L70 74 Q50 80 30 74 Z" fill="#c9ced3" filter="url(#tecido)"/>` +
+      `<path d="M30 74 Q50 80 70 74" stroke="${GRAFITE_DARK}" stroke-width="2" fill="none" opacity="0.6"/>` +
+      `<path d="${wire}" fill="none" stroke="${GRAFITE}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" filter="url(#tinta)"/>` +
+      `<path d="${wire}" fill="none" stroke="${GRAFITE_DARK}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" transform="translate(1.5 2)" opacity="0.6"/>` +
+      `<path d="M31 42 Q31 28 44 27 L56 27" fill="none" stroke="${PAPER}" stroke-width="2.4" stroke-linecap="round" opacity="0.75"/>` +
+      `<circle cx="${24 + swing}" cy="86" r="4" fill="${INK}"/><circle cx="${76 - swing}" cy="86" r="4" fill="${INK}"/>` +
+      eyes(52, 38, 16, 5.2, true) +
+      `<path d="M47 51 Q53 54 60 50" stroke="${INK}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`,
+    variant,
+  );
+}
+
+export function grampoSoakSvg(variant = 0): string {
+  return svgDoc(
+    GRAMPO_VB,
+    `<path d="M20 62 L32 60 L32 88 L18 88 Z M68 60 L80 62 L82 88 L68 88 Z" fill="${SOAK}" opacity="0.85" filter="url(#tecido)"/>` +
+      `<circle cx="26" cy="91" r="2.4" fill="${SOAK}"/><circle cx="74" cy="91" r="2" fill="${SOAK}"/>`,
+    variant,
+  );
+}
+
+const FIANDEIRA_VB = '-6 0 112 104';
+/**
+ * Fiandeira: aranha de traço fino, corpo de nanquim violeta e oito patas finas em pincel seco.
+ * `frame` alterna as patas (balanço no fio ou passo no chão). Centro do corpo em (50, 52).
+ */
+export function fiandeiraSvg(frame: number, variant = 0): string {
+  const k = frame % 2 === 0 ? 1 : -1;
+  let legs = '';
+  [[-1, 0], [-1, 1], [-1, 2], [-1, 3], [1, 0], [1, 1], [1, 2], [1, 3]].forEach(([side, i]) => {
+    const a = (side as number) * (55 + (i as number) * 24 + k * (i as number % 2 === 0 ? 7 : -7));
+    legs += stroke(50 + (side as number) * 8, 50 + (i as number) * 4, a, 0.42, 0.5, ARANHA, 'seco');
+  });
+  return svgDoc(
+    FIANDEIRA_VB,
+    legs +
+      `<ellipse cx="50" cy="62" rx="17" ry="15" fill="${ARANHA}" filter="url(#tinta)"/>` +
+      `<ellipse cx="50" cy="62" rx="17" ry="15" fill="url(#hachura-fina)" opacity="0.4" clip-path="url(#ventre)"/>` +
+      `<clipPath id="ventre"><rect x="30" y="64" width="40" height="20"/></clipPath>` +
+      `<path d="M44 58 Q50 54 56 58 Q50 68 44 58 Z" fill="#c8402a" opacity="0.8"/>` +
+      `<ellipse cx="50" cy="42" rx="13" ry="11" fill="${ARANHA}" filter="url(#tinta)"/>` +
+      eyes(51, 41, 11, 3.6) +
+      `<circle cx="44" cy="34" r="1.6" fill="${PAPER}"/><circle cx="58" cy="34" r="1.6" fill="${PAPER}"/>` +
+      `<path d="M47 49 Q51 51 55 49" stroke="${PAPER}" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.8"/>`,
+    variant,
+  );
+}
+
+export function fiandeiraSoakSvg(variant = 0): string {
+  return svgDoc(
+    FIANDEIRA_VB,
+    `<path d="M34 64 Q50 56 66 64 Q66 78 50 78 Q34 78 34 64 Z" fill="${SOAK}" opacity="0.85" filter="url(#tecido)"/>` +
+      `<circle cx="44" cy="82" r="2.2" fill="${SOAK}"/><circle cx="57" cy="84" r="1.8" fill="${SOAK}"/>`,
+    variant,
+  );
+}
+
+const TINTEIRO_VB = '6 10 92 88';
+const POTE = 'M24 88 Q18 88 18 80 L20 50 Q22 40 34 38 L40 37 L40 28 L62 28 L62 37 L70 38 Q82 40 84 50 L86 80 Q86 88 78 88 Z';
+/**
+ * Tinteiro: pote baixo de vidro escuro, cheio de nanquim, com bico aberto e perninhas.
+ * `charge` é o aviso do cuspe: bochechas cheias, olhos apertados e uma gota se formando no bico.
+ */
+export function tinteiroSvg(frame: number, variant = 0, charge = false): string {
+  const step = frame % 2 === 0 ? 0 : 3;
+  return svgDoc(
+    TINTEIRO_VB,
+    `<ellipse cx="${36 - step}" cy="92" rx="8" ry="4.5" fill="${INK}" filter="url(#tinta)"/><ellipse cx="${68 + step}" cy="92" rx="8" ry="4.5" fill="${INK}" filter="url(#tinta)"/>` +
+      `<path d="${POTE}" fill="${VIDRO}" filter="url(#tecido)"/>` +
+      `<path d="M21 62 Q52 56 85 62 L86 80 Q86 88 78 88 L24 88 Q18 88 18 80 Z" fill="${INK}" opacity="0.85"/>` +
+      `<path d="${POTE}" fill="none" stroke="${VIDRO_DARK}" stroke-width="3" stroke-linejoin="round" filter="url(#tinta)"/>` +
+      `<rect x="38" y="24" width="26" height="6" rx="2" fill="${VIDRO_DARK}"/>` +
+      `<path d="M26 50 Q28 44 34 43" stroke="${PAPER}" stroke-width="2.6" fill="none" stroke-linecap="round" opacity="0.7"/>` +
+      (charge
+        ? `<path d="M37 52 Q43 48 49 52 Q43 54 37 52 Z M55 52 Q61 48 67 52 Q61 54 55 52 Z" fill="${PAPER}"/><circle cx="45" cy="51.6" r="1.8" fill="${INK}"/><circle cx="63" cy="51.6" r="1.8" fill="${INK}"/>` +
+          `<path d="M35 45 L49 49 M69 45 L55 49" stroke="${PAPER}" stroke-width="2.4" stroke-linecap="round"/>` +
+          `<ellipse cx="34" cy="66" rx="6" ry="4" fill="#c8402a" opacity="0.45"/><ellipse cx="72" cy="66" rx="6" ry="4" fill="#c8402a" opacity="0.45"/>` +
+          `<circle cx="51" cy="21" r="5" fill="${INK}" filter="url(#tinta)"/>`
+        : eyes(52, 51, 17, 5) + `<path d="M46 66 Q53 70 60 66" stroke="${PAPER}" stroke-width="2.4" fill="none" stroke-linecap="round" opacity="0.85"/>`) +
+      stroke(14, 95, -90, 0.2, 0.76, VIDRO_DARK, 'seco', 0.5),
+    variant,
+  );
+}
+
+export function tinteiroSoakSvg(variant = 0): string {
+  return svgDoc(
+    TINTEIRO_VB,
+    `<path d="M20 58 Q52 50 85 58 L86 80 Q86 88 78 88 L24 88 Q18 88 18 80 Z" fill="${SOAK}" opacity="0.85" filter="url(#tecido)"/>`,
+    variant,
+  );
+}
+
+const BORRACHA_VB = '2 14 106 80';
+/**
+ * Borracha de apagar: bloco gasto, metade rosa na frente (a que apaga) e metade azul atrás,
+ * com farelos embaixo. Olha para a direita; a frente é o lado direito.
+ */
+export function borrachaSvg(variant = 0): string {
+  const block = 'M14 40 Q14 30 24 30 L86 28 Q98 28 98 40 L98 80 Q98 88 90 88 L20 88 Q12 88 12 80 Z';
+  return svgDoc(
+    BORRACHA_VB,
+    `<clipPath id="frente"><rect x="55" y="20" width="50" height="76"/></clipPath>` +
+      `<clipPath id="tras"><rect x="4" y="20" width="51" height="76"/></clipPath>` +
+      `<path d="${block}" fill="${BORRACHA_AZUL}" clip-path="url(#tras)" filter="url(#tecido)"/>` +
+      `<path d="${block}" fill="${BORRACHA_ROSA}" clip-path="url(#frente)" filter="url(#tecido)"/>` +
+      `<path d="${block}" fill="url(#hachura-fina)" opacity="0.25" clip-path="url(#tras)"/>` +
+      `<path d="${block}" fill="none" stroke="${INK}" stroke-width="3" stroke-linejoin="round" filter="url(#tinta)"/>` +
+      `<path d="M55 30 L55 88" stroke="${INK}" stroke-width="2" opacity="0.5"/>` +
+      `<path d="M92 34 Q97 46 96 60" stroke="${BORRACHA_ROSA_DARK}" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.7"/>` +
+      `<path d="M20 36 Q30 33 44 33" stroke="${PAPER}" stroke-width="2.4" fill="none" stroke-linecap="round" opacity="0.6"/>` +
+      eyes(78, 50, 14, 5, true) +
+      `<path d="M70 70 Q78 66 88 70" stroke="${INK}" stroke-width="2.6" fill="none" stroke-linecap="round"/>` +
+      `<circle cx="102" cy="86" r="2" fill="${BORRACHA_ROSA_DARK}"/><circle cx="106" cy="82" r="1.4" fill="${BORRACHA_ROSA_DARK}"/><circle cx="8" cy="86" r="1.6" fill="${BORRACHA_AZUL}"/>`,
+    variant,
+  );
+}
+
+export function borrachaSoakSvg(variant = 0): string {
+  return svgDoc(
+    BORRACHA_VB,
+    `<path d="M12 64 Q55 56 98 64 L98 80 Q98 88 90 88 L20 88 Q12 88 12 80 Z" fill="${SOAK}" opacity="0.85" filter="url(#tecido)"/>`,
+    variant,
+  );
+}
+
+/** Cuspe do tinteiro: gota de nanquim baixa e comprida, correndo para a direita. */
+export function cuspeSvg(variant = 0): string {
+  return svgDoc(
+    '-20 -14 40 28',
+    `<path d="M-18 4 Q-8 -4 4 -7 Q14 -8 15 2 Q15 10 4 10 Q-8 10 -18 4 Z" fill="${BORRAO}" filter="url(#borra)"/>` +
+      `<circle cx="-14" cy="-2" r="1.8" fill="${BORRAO}"/><circle cx="-19" cy="1" r="1.2" fill="${BORRAO}"/>` +
+      `<path d="M4 -3 Q8 -4 10 -1" stroke="${PAPER}" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.8"/>`,
+    variant,
+  );
+}
+
 /** Gota de tinta voando para a direita, com o rastro atrás. */
 export function gotaSvg(variant = 0): string {
   return svgDoc(

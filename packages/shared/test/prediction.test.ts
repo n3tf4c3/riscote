@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ARENAS,
+  GREYBOX,
   BTN_DOWN,
   BTN_JUMP,
   BTN_LEFT,
@@ -16,7 +16,7 @@ import {
   type PlayerState,
 } from '../src/index.ts';
 
-const arena = ARENAS[1]!;
+const arena = GREYBOX[1]!;
 const params = { ...DEFAULT_PARAMS };
 
 function net(s: PlayerState, ack: number, down = false): NetPlayer {

@@ -6,7 +6,7 @@ Estado atual:
 - **Etapa 1** (movimento local em greybox) concluída.
 - **Etapa 2** (servidor autoritativo, salas por código, previsão e interpolação) concluída.
 - **Etapa 3** (inimigos, mecânica de encharcar e rolar, tinta com recarga nos tubos, derrubada com resgate, vidas da equipe e ondas) implementada.
-- **Etapa 4** (capítulo com as 3 arenas e virada de página, borrão aos 60 s, relatório de métricas por arena) implementada.
+- **Etapa 4** (capítulo com as arenas e virada de página, borrão de tempo, relatório de métricas por arena) implementada. Em 2026-10-21 os capítulos passaram a ter 4 fases com dificuldade crescente e inimigos novos, mais o chefe.
 - **Playtest remoto** por túnel temporário: `docs/playtest-remoto.md`.
 - **Etapa 5** (reconexão com vaga reservada, limite de tentativas de entrada, rede instável e carga medida) implementada. Falta o teste com jogadores em redes reais.
 - **No ar** desde 2026-10-20: `https://riscote.win` (servidor em `play.riscote.win`), pelo túnel `riscote` da Cloudflare, rodando no Orange Pi.
@@ -18,7 +18,7 @@ O planejamento completo fica em `PLANEJAMENTO.md` na raiz (local, fora do Git po
 | --- | --- |
 | Parâmetros de movimento e tick | `packages/shared/src/params.ts` |
 | Comandos do jogador (máscara de bits) | `packages/shared/src/input.ts` |
-| Arenas: formato, layouts ASCII e capítulos | `packages/shared/src/arena.ts`, `packages/shared/src/arenas.ts` |
+| Arenas: formato, layouts ASCII, capítulos e regras de cada fase (`Stage`) | `packages/shared/src/arena.ts`, `packages/shared/src/arenas.ts` |
 | Física de plataforma | `packages/shared/src/physics.ts` |
 | Protocolo: sala, código, validação de entrada, mensagens de erro | `packages/shared/src/protocol.ts` |
 | Previsão, reconciliação e interpolação | `packages/shared/src/prediction.ts` |
@@ -63,6 +63,7 @@ Ainda não há lint. O aviso de bundle acima de 500 kB vem do Phaser e é espera
   - Médio: 1 toque e velocidade normal.
   - Difícil: igual ao médio, mais tinta limitada com recarga nos tubos (`World.limitedInk`).
   - Fora do difícil, a tinta é infinita, e o cliente não desenha tubos nem medidor.
+  - O modo desloca a curva das fases sem desfazê-la (2026-10-21): no fácil, avisos 1,42× (`warnTimes`, mínimo 0,85 s), habilidades com intervalo 1,5×, 1 inimigo a menos por fase (nunca abaixo de 3) e borrão aos 90 s; no difícil, intervalo 0,85×.
   - A velocidade entra na previsão: o cliente usa `movementParams(dificuldade)`, igual ao servidor; com parâmetros diferentes, a previsão corrige o tempo todo.
 - **Itens.** `World.stepItems` mantém os itens: o primeiro surge aos 10 s da arena e depois um a cada 12 s, até 2 na tela, sobre uma plataforma sorteada pela semente; se ninguém pegar, somem em 10 s.
   - Tipos: força, agilidade, tiro ágil, alcance e invencível (constantes `ITEM_*`).
@@ -71,11 +72,16 @@ Ainda não há lint. O aviso de bundle acima de 500 kB vem do Phaser e é espera
 - **Aquecimento e anfitrião.** A sala abre em `PHASE_LOBBY`: todos andam, sem inimigos, sem tempo nem métricas.
   - O anfitrião é o primeiro a chegar; se ele sair, assume o seguinte. Só ele encerra o aquecimento (`MSG_START`, botão ou Enter).
   - `World.start` dimensiona a primeira arena com quem está na sala nesse momento.
-- **Capítulo.** Há dois capítulos de 3 arenas em `CHAPTERS` (`ARENAS` é a lista de todas). A sala joga só o capítulo da arena escolhida (`chapterFrom`), começando por ela; o fundo de cada tema sai de `TEMAS` em `apps/client/src/art/arena.ts`.
+- **Capítulo.** Decisões do usuário em 2026-10-21: há dois capítulos de 4 fases em `CHAPTERS` (`ARENAS` é a lista de todas), e o chefe fecha cada um na 5ª página. O menu escolhe o capítulo; a sala sempre começa pela 1ª fase (`chapterFrom`), e id desconhecido ou antigo cai no capítulo 1. Compacta, Padrão e Ampla ficaram só no `?local` (`GREYBOX`). O fundo de cada tema sai de `TEMAS` em `apps/client/src/art/arena.ts` (sem tema, o caderno).
   - Arena limpa → pausa → virada de página → próxima arena.
   - Depois da última: resumo, pontos e vidas zerados, volta à primeira.
   - Todos caídos sem vidas → fim de jogo: pontos zerados e a mesma arena recomeça.
   - Cada arena encerrada gera um `ArenaReport`: uma linha JSON no log do servidor e a mensagem `relatorio` para a sala; o painel tem "Copiar métricas".
+- **Fases e inimigos.** Cada arena de capítulo traz um `Stage` (`arena.stage`): tipos em ordem de surgimento, habilidades ligadas, quantidade (`base + perPlayer × jogadores`), limite na tela, ritmo e borrão. Sem `stage` (testes, greybox), vale `DEFAULT_STAGE`, o comportamento anterior.
+  - Fase 1: traça e grampo (ou saltador), sem habilidade, com dicas de tiro e chute no cliente. Fase 2: mais tipos simples (saltador, fiandeira). Fase 3: tinteiro e as primeiras habilidades (bote, cuspe). Fase 4: tudo junto, com a borracha e a pancada.
+  - Inimigos novos em `world.ts`: grampo (corre reto, desce pelos vãos), fiandeira (sobe e desce num fio a partir dos pontos `A` do layout; encharcada, cai como bola), tinteiro (cospe uma gota rente ao chão, `World.spits`; pular escapa e um tiro desmancha) e borracha (apaga a tinta que vem de frente; de costas, girando ou com a bola, cai).
+  - `Enemy.skilled` liga a habilidade por inimigo; os fiapos do chefe repassam o capítulo (sem bote na fase 1 dele, com bote na 2, grampos na 3).
+  - Toda habilidade perigosa avisa antes: no mínimo 0,6 s; o cliente usa os mesmos tempos de `warnTimes`.
 - **Chefe.** Decisões do usuário em 2026-10-20: o Mata-Borrão fecha cada capítulo, numa página própria (`BOSS_ARENA`, id `mesa`, fora de `ARENAS`); o servidor monta o capítulo com `withBoss`. Regras e valores em `boss.ts` (`BOSS_RULES`).
   - Vida 6 + 3 por jogador. Só bola chutada tira vida (1 + inimigos levados no caminho). A tinta enche o medidor de encharcado; cheio, ele fica pesado 3 s: parado, inofensivo e levando o dobro.
   - Fases aos 60% e 25% da vida. Carimbada, onda e chuva (só da fase 2) sempre têm um aviso de 0,7 s ou mais antes de machucar. Na entrada ninguém toma dano.
@@ -113,7 +119,11 @@ Ainda não há lint. O aviso de bundle acima de 500 kB vem do Phaser e é espera
   - 5 surgimentos de jogador;
   - tubos de tinta nos dois cantos inferiores;
   - andares a menos de `jumpHeight` células;
-  - de qualquer plataforma, um tubo em até 3 s.
+  - de qualquer plataforma, um tubo em até 3 s;
+  - toda célula onde dá para ficar de pé alcançável a partir dos surgimentos (no médio e no fácil), e os inimigos pousando onde os jogadores chegam;
+  - pontos de fio (`A`) presos embaixo de uma célula cheia, com chão alcançável a até `threadReach + 1` células;
+  - pelo menos 12 células de chão por jogador, e nenhuma fase parecida demais com outra do mesmo tamanho;
+  - a curva do capítulo (`arenas.test.ts`, "progressão do capítulo").
 - **Referências.** Nada de recursos, personagens ou layouts de Snow Bros ou do NANQUIM.
 
 ## Arte

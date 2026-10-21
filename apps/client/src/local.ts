@@ -1,18 +1,20 @@
 import * as Phaser from 'phaser';
-import { ARENAS, arenaHeight, arenaWidth, type Arena } from '@riscote/shared';
+import { ARENAS, GREYBOX, arenaHeight, arenaWidth, type Arena } from '@riscote/shared';
 import { ArenaScene } from './ArenaScene';
 import { el } from './dom';
 import type { InputSource } from './input';
 import { Metrics, summary } from './metrics';
 import { loadParams, mountTuning } from './tuning';
 
-const ARENA_KEY = 'riscote.arena.v1';
+const ARENA_KEY = 'riscote.arena.v2';
+/** O greybox da etapa 1 primeiro (tamanhos para comparar), depois as fases dos capítulos. */
+const LOCAL_ARENAS: readonly Arena[] = [...GREYBOX, ...ARENAS];
 
 function loadArenaIndex(): number {
   try {
     const saved = localStorage.getItem(ARENA_KEY);
     const i = Number(saved);
-    if (saved !== null && Number.isInteger(i) && i >= 0 && i < ARENAS.length) return i;
+    if (saved !== null && Number.isInteger(i) && i >= 0 && i < LOCAL_ARENAS.length) return i;
   } catch {
     // Sem armazenamento.
   }
@@ -27,7 +29,7 @@ export function bootLocal(input: InputSource): void {
   const params = loadParams();
   const metrics = new Metrics();
   let arenaIndex = loadArenaIndex();
-  const currentArena = (): Arena => ARENAS[arenaIndex]!;
+  const currentArena = (): Arena => LOCAL_ARENAS[arenaIndex]!;
 
   const scene = new ArenaScene({ params, input, metrics, arena: currentArena });
   const game = new Phaser.Game({
@@ -41,7 +43,7 @@ export function bootLocal(input: InputSource): void {
   });
 
   const arenaButtons = el<HTMLDivElement>('arenas');
-  ARENAS.forEach((arena, i) => {
+  LOCAL_ARENAS.forEach((arena, i) => {
     const button = document.createElement('button');
     button.type = 'button';
     button.textContent = `${i + 1} · ${arena.name}`;
@@ -78,7 +80,7 @@ export function bootLocal(input: InputSource): void {
   window.addEventListener('keydown', (e) => {
     if (e.target instanceof HTMLInputElement && e.target.type !== 'range') return;
     const n = Number(e.key);
-    if (Number.isInteger(n) && n >= 1 && n <= ARENAS.length) selectArena(n - 1);
+    if (Number.isInteger(n) && n >= 1 && n <= Math.min(9, LOCAL_ARENAS.length)) selectArena(n - 1);
     if (e.code === 'KeyR') scene.respawn();
   });
 

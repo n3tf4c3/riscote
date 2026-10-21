@@ -1,6 +1,17 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   ARENAS,
+  BOSS_ARENA,
+  BOSS_INTRO,
+  BOSS_RULES,
+  CHAPTERS,
+  GREYBOX,
+  DIFFICULTY_RULES,
+  ENEMY_BORRACHA,
+  ENEMY_FIANDEIRA,
+  ENEMY_GRAMPO,
+  ENEMY_TINTEIRO,
+  warnTimes,
   BTN_ATTACK,
   BTN_RIGHT,
   DEFAULT_PARAMS,
@@ -298,7 +309,7 @@ describe('derrubada, resgate e vidas', () => {
 });
 
 describe('ondas', () => {
-  const arena = ARENAS[1]!;
+  const arena = GREYBOX[1]!;
 
   it.each([
     [1, 6, RULES.soakToBall],
@@ -356,7 +367,7 @@ function clearArena(world: World) {
 }
 
 describe('progressão, pressão de tempo e métricas (etapa 4)', () => {
-  const [compacta, padrao, ampla] = [ARENAS[0]!, ARENAS[1]!, ARENAS[2]!];
+  const [compacta, padrao, ampla] = [GREYBOX[0]!, GREYBOX[1]!, GREYBOX[2]!];
 
   it('arena limpa → pausa → virada de página → próxima arena; depois da última, resumo e volta à primeira', () => {
     const world = new World([padrao, ampla], 7);
@@ -551,7 +562,7 @@ describe('progressão, pressão de tempo e métricas (etapa 4)', () => {
 
 describe('aquecimento e início (etapa 4)', () => {
   it('antes de começar: ninguém some, nenhum inimigo, nenhuma métrica, nenhum borrão', () => {
-    const world = new World(ARENAS[1]!, 4);
+    const world = new World(GREYBOX[1]!, 4);
     world.addPlayer('p0', 0);
     run(world, ticks(RULES.hurryTime + 5), { p0: BTN_RIGHT | BTN_ATTACK });
     expect(world.phase).toBe(PHASE_LOBBY);
@@ -561,7 +572,7 @@ describe('aquecimento e início (etapa 4)', () => {
   });
 
   it('começar dimensiona a primeira arena com quem está na sala nesse momento', () => {
-    const world = new World(ARENAS[1]!, 4);
+    const world = new World(GREYBOX[1]!, 4);
     world.addPlayer('p0', 0);
     run(world, 30);
     world.addPlayer('p1', 1);
@@ -573,7 +584,7 @@ describe('aquecimento e início (etapa 4)', () => {
   });
 
   it('sala vazia não começa', () => {
-    expect(new World(ARENAS[1]!, 4).start()).toBe(false);
+    expect(new World(GREYBOX[1]!, 4).start()).toBe(false);
   });
 });
 describe('ausência por queda de conexão (etapa 5)', () => {
@@ -767,7 +778,7 @@ describe('itens que fortalecem o boneco', () => {
   });
 
   it('aparecem com o tempo, sobre plataformas, no máximo 2 por vez', () => {
-    const arena = ARENAS[1]!;
+    const arena = GREYBOX[1]!;
     const world = new World(arena, 13);
     world.addPlayer('p0', 0).away = true;
     world.start();
@@ -817,7 +828,7 @@ describe('habilidades dos inimigos', () => {
 
     run(world, ticks(RULES.dashRest) + 10);
     expect(e.skill).toBe(SKILL_NONE);
-    expect(e.skillCd).toBeGreaterThan(RULES.dashCooldown - 0.3);
+    expect(e.skillCd).toBeGreaterThan(RULES.dashCooldown * DIFFICULTY_RULES.dificil.skillCdMult - 0.3);
   });
 
   it('traça: jogador atrás dela, em outro andar, longe ou do outro lado da parede não provoca o bote', () => {
@@ -957,7 +968,7 @@ describe('habilidades dos inimigos', () => {
 
   it('continua determinístico com bote, pancada e manchas', () => {
     const snapshot = (seed: number) => {
-      const world = new World(ARENAS[1]!, seed);
+      const world = new World(GREYBOX[1]!, seed);
       world.addPlayer('p0', 0);
       world.addPlayer('p1', 1);
       world.start();
@@ -973,5 +984,302 @@ describe('habilidades dos inimigos', () => {
     const a = snapshot(9);
     expect(a.skills).toBeGreaterThan(0);
     expect(snapshot(9).json).toBe(a.json);
+  });
+});
+
+describe('inimigos das fases', () => {
+  const FLOOR = 7 * TILE; // altura dos pés no chão da arena de teste
+  const feet = (e: Enemy) => e.body.y + ENEMY_SIZE * TILE;
+
+  it('grampo: corre reto sem pular, desce pelo vão da plataforma e só vira na parede', () => {
+    const world = setup();
+    world.players.get('p0')!.invuln = 1e9;
+    world.players.get('p0')!.away = true;
+    const e = world.spawnEnemy(ENEMY_GRAMPO, { col: 6, row: 2 });
+    e.dir = 1;
+    let rose = false;
+    let turnedAt = -1;
+    for (let t = 0; t < ticks(4); t++) {
+      const y = e.body.y;
+      run(world, 1);
+      if (e.body.y < y - 0.001) rose = true;
+      if (turnedAt < 0 && e.dir < 0) turnedAt = e.body.x;
+    }
+    expect(rose).toBe(false);
+    expect(feet(e)).toBeCloseTo(FLOOR, 5);
+    // Virou ao bater na parede direita (coluna 19), não na ponta da plataforma.
+    expect(turnedAt).toBeGreaterThan(17 * TILE);
+  });
+
+  it('fiandeira: sobe e desce no fio sem sair da coluna; encharcada, vira bola e cai no chão', () => {
+    const world = setup();
+    const p = world.players.get('p0')!;
+    p.invuln = 1e9;
+    const e = world.spawnEnemy(ENEMY_FIANDEIRA, { col: 7, row: 4 });
+    expect(e.anchorY).toBe(4 * TILE);
+    expect(e.threadEnd).toBeCloseTo(FLOOR - ENEMY_SIZE * TILE - 2, 5);
+    const x = e.body.x;
+    let lowest = e.body.y;
+    let backUp = false;
+    for (let t = 0; t < ticks(6); t++) {
+      run(world, 1);
+      expect(e.body.x).toBe(x);
+      expect(e.body.y).toBeGreaterThanOrEqual(e.anchorY);
+      expect(e.body.y).toBeLessThanOrEqual(e.threadEnd);
+      lowest = Math.max(lowest, e.body.y);
+      if (lowest === e.threadEnd && e.body.y === e.anchorY) backUp = true;
+    }
+    expect(lowest).toBe(e.threadEnd);
+    expect(backUp).toBe(true);
+
+    // Embaixo, ao alcance do tiro reto de quem está no chão.
+    e.body.y = e.threadEnd;
+    e.aiTimer = 1e9;
+    p.body.x = 4 * TILE;
+    p.body.facing = 1;
+    for (let i = 0; i < world.soakToBall; i++) {
+      tap(world, 'p0', BTN_ATTACK);
+      run(world, ticks(RULES.shotCooldown) + 6);
+    }
+    expect(e.mode).toBe(MODE_BALL);
+    expect(e.anchorY).toBe(-1);
+    run(world, ticks(1));
+    expect(e.body.onGround).toBe(true);
+    expect(feet(e)).toBeCloseTo(FLOOR, 5);
+  });
+
+  it('fiandeira encosta em quem está embaixo quando desce, não quando está em cima', () => {
+    const world = setup();
+    const p = world.players.get('p0')!;
+    p.invuln = 0;
+    p.body.x = 7 * TILE + 2;
+    const e = world.spawnEnemy(ENEMY_FIANDEIRA, { col: 7, row: 4 });
+    run(world, ticks(RULES.threadPauseUp) - 5);
+    expect(p.down).toBe(false);
+    run(world, ticks(2));
+    expect(p.down).toBe(true);
+    expect(e.anchorY).toBeGreaterThan(0);
+  });
+
+  it('tinteiro: vê alguém no mesmo andar, vira, avisa e só então cospe; a gota derruba quem está no chão', () => {
+    const world = setup();
+    const p = world.players.get('p0')!;
+    p.invuln = 1e9;
+    p.body.x = 12 * TILE;
+    const e = world.spawnEnemy(ENEMY_TINTEIRO, { col: 4, row: 6 });
+    e.dir = -1;
+    run(world, 2);
+    expect(e.skill).toBe(SKILL_WARN);
+    expect(e.dir).toBe(1);
+    run(world, ticks(world.warn.spit) - 4);
+    expect(world.spits.size).toBe(0);
+    run(world, 4);
+    expect(world.spits.size).toBe(1);
+    const spit = [...world.spits.values()][0]!;
+    expect(spit.vx).toBeGreaterThan(0);
+    // Rente ao chão: a base da gota fica na altura dos pés.
+    expect(spit.y + RULES.spitSize * TILE).toBeCloseTo(FLOOR - 1, 5);
+    p.invuln = 0;
+    run(world, ticks(1.5));
+    expect(p.down).toBe(true);
+    expect(world.spits.size).toBe(0);
+  });
+
+  it('tinteiro: pular escapa da gota; um tiro de tinta a desmancha', () => {
+    for (const answer of ['pula', 'atira'] as const) {
+      const world = setup();
+      const p = world.players.get('p0')!;
+      p.body.x = 12 * TILE;
+      p.body.facing = -1;
+      world.spawnEnemy(ENEMY_TINTEIRO, { col: 4, row: 6 });
+      run(world, 2 + ticks(world.warn.spit));
+      expect(world.spits.size).toBe(1);
+      p.invuln = 0;
+      const spit = [...world.spits.values()][0]!;
+      for (let t = 0; t < ticks(2) && !p.down; t++) {
+        const near = world.spits.has(spit.id) && p.body.x - (spit.x + RULES.spitSize * TILE) < 2 * TILE;
+        if (answer === 'pula') run(world, 1, { p0: near ? BTN_JUMP : 0 });
+        else run(world, 1, { p0: t % 2 === 0 ? BTN_ATTACK : 0 });
+      }
+      expect(p.down, answer).toBe(false);
+      expect(world.spits.has(spit.id), answer).toBe(false);
+    }
+  });
+
+  it('tinteiro sem a habilidade da fase só anda', () => {
+    const world = setup();
+    const p = world.players.get('p0')!;
+    p.invuln = 1e9;
+    p.body.x = 8 * TILE;
+    const e = world.spawnEnemy(ENEMY_TINTEIRO, { col: 4, row: 6 }, false);
+    for (let t = 0; t < ticks(5); t++) {
+      run(world, 1);
+      expect(e.skill).toBe(SKILL_NONE);
+    }
+    expect(world.spits.size).toBe(0);
+  });
+
+  it('borracha: vira devagar para quem está perto; apaga a tinta que vem de frente e encharca com a de trás', () => {
+    const world = setup(2);
+    const [front, back] = [world.players.get('p0')!, world.players.get('p1')!];
+    front.invuln = back.invuln = 1e9;
+    front.body.x = 6 * TILE;
+    back.body.x = 15 * TILE;
+    const e = world.spawnEnemy(ENEMY_BORRACHA, { col: 10, row: 6 });
+    e.dir = 1;
+    pin(e);
+    run(world, 2);
+    // Quem está mais perto está à esquerda: ela gira parada antes de virar.
+    expect(e.skill).toBe(SKILL_WARN);
+    expect(e.dir).toBe(1);
+    run(world, ticks(RULES.eraserTurn));
+    expect(e.skill).toBe(SKILL_NONE);
+    expect(e.dir).toBe(-1);
+
+    front.body.facing = 1;
+    tap(world, 'p0', BTN_ATTACK);
+    run(world, 12);
+    expect(e.soak).toBe(0);
+    expect(world.drops.size).toBe(0);
+
+    back.body.facing = -1;
+    tap(world, 'p1', BTN_ATTACK);
+    run(world, 12);
+    expect(e.soak).toBe(1);
+  });
+
+  it('borracha: enquanto gira, a tinta pega de qualquer lado; a bola chutada a derruba', () => {
+    const world = setup();
+    const p = world.players.get('p0')!;
+    p.invuln = 1e9;
+    p.body.x = 6 * TILE;
+    const e = world.spawnEnemy(ENEMY_BORRACHA, { col: 8, row: 6 });
+    e.dir = 1;
+    pin(e);
+    run(world, 2);
+    expect(e.skill).toBe(SKILL_WARN);
+    p.body.facing = 1;
+    tap(world, 'p0', BTN_ATTACK);
+    run(world, 4);
+    expect(e.soak).toBe(1);
+
+    const ball = world.spawnEnemy(ENEMY_TRACA, { col: 5, row: 6 });
+    ball.mode = MODE_ROLL;
+    ball.dir = 1;
+    ball.kicker = 'p0';
+    run(world, ticks(0.5));
+    expect(world.enemies.has(e.id)).toBe(false);
+  });
+});
+
+describe('fases, modos e habilidades', () => {
+  const [margem, , poco] = CHAPTERS[0]!;
+
+  it('cada fase faz surgir só os tipos dela, com as habilidades ligadas só onde a fase manda', () => {
+    for (const arena of ARENAS) {
+      const world = new World(arena, 5);
+      for (let i = 0; i < 5; i++) world.addPlayer(`p${i}`, i).invuln = 1e9;
+      world.start();
+      const seen = new Set<number>();
+      for (let t = 0; t < ticks(40); t++) {
+        world.step();
+        for (const e of world.enemies.values()) {
+          if (e.kind === ENEMY_BORRAO) continue;
+          seen.add(e.kind);
+          expect(arena.stage!.roster, arena.id).toContain(e.kind);
+          expect(e.skilled, `${arena.id}: tipo ${e.kind}`).toBe(arena.stage!.skills.includes(e.kind));
+        }
+      }
+      expect(seen.size, arena.id).toBeGreaterThan(1);
+    }
+  });
+
+  it('fase 1: nenhum aviso de habilidade, mesmo com gente à frente e o tempo passando', () => {
+    const world = new World(margem!, 2);
+    world.addPlayer('p0', 0).invuln = 1e9;
+    world.start();
+    for (let t = 0; t < ticks(60); t++) {
+      world.applyInput('p0', t % 30 < 15 ? BTN_LEFT : BTN_RIGHT);
+      world.step();
+      for (const e of world.enemies.values()) if (e.kind !== ENEMY_BORRAO) expect(e.skill).toBe(SKILL_NONE);
+    }
+  });
+
+  it('no fácil vem um inimigo a menos (nunca menos de 3) e o borrão demora mais', () => {
+    const count = (arena: Arena, difficulty: 'facil' | 'medio', players: number) => {
+      const world = new World(arena, 1, { difficulty });
+      for (let i = 0; i < players; i++) world.addPlayer(`p${i}`, i);
+      world.start();
+      return { left: world.enemiesLeft, hurry: world.hurryTime };
+    };
+    expect(count(margem!, 'medio', 1)).toEqual({ left: 4, hurry: 75 });
+    expect(count(margem!, 'facil', 1)).toEqual({ left: 3, hurry: DIFFICULTY_RULES.facil.minHurry });
+    expect(count(poco!, 'medio', 3).left).toBe(9);
+    expect(count(poco!, 'facil', 3).left).toBe(8);
+  });
+
+  it('os avisos e os intervalos das habilidades seguem o modo', () => {
+    for (const difficulty of ['facil', 'medio', 'dificil'] as const) {
+      const world = new World(TEST, 1, { waves: false, difficulty });
+      const p = world.addPlayer('p0', 0);
+      p.invuln = 1e9;
+      p.body.x = 10 * TILE;
+      const e = world.spawnEnemy(ENEMY_TRACA, { col: 5, row: 6 });
+      e.dir = 1;
+      e.aiTimer = 1e9;
+      run(world, 2);
+      expect(e.skill).toBe(SKILL_WARN);
+      let warned = 0;
+      while (e.skill === SKILL_WARN) {
+        run(world, 1);
+        warned++;
+      }
+      expect(warned * TICK_DT).toBeCloseTo(warnTimes(difficulty).dash, 1);
+      while (e.skill !== SKILL_NONE) run(world, 1);
+      expect(e.skillCd).toBeCloseTo(RULES.dashCooldown * DIFFICULTY_RULES[difficulty].skillCdMult, 1);
+    }
+  });
+
+  it('fiapos do chefe repassam o capítulo: sem bote na fase 1, com bote na 2 e grampos na 3', () => {
+    const world = new World([BOSS_ARENA], 3);
+    world.addPlayer('p0', 0).invuln = 1e9;
+    world.start();
+    const boss = world.boss!;
+    while (boss.state === BOSS_INTRO) run(world, 1);
+    const first = [...world.enemies.values()];
+    expect(first.length).toBeGreaterThan(0);
+    for (const e of first) expect([e.kind, e.skilled]).toEqual([ENEMY_TRACA, false]);
+
+    boss.hp = Math.floor(boss.maxHp * BOSS_RULES.phase3At);
+    for (const e of first) world.enemies.delete(e.id);
+    const kinds = new Set<number>();
+    for (let t = 0; t < ticks(BOSS_RULES.minionEvery[2] * 8); t++) {
+      run(world, 1);
+      for (const e of [...world.enemies.values()]) {
+        kinds.add(e.kind);
+        expect(e.skilled).toBe(true);
+        // Abre espaço para o próximo fiapo.
+        world.enemies.delete(e.id);
+      }
+    }
+    expect([...kinds].sort()).toEqual([ENEMY_TRACA, ENEMY_GRAMPO].sort());
+  });
+
+  it.each(['andaime', 'calendario'])('%s: determinístico com os inimigos novos, o cuspe e o fio', (id) => {
+    const arena = ARENAS.find((a) => a.id === id)!;
+    const snapshot = (seed: number) => {
+      const world = new World(arena, seed, { difficulty: 'dificil' });
+      for (let i = 0; i < 3; i++) world.addPlayer(`p${i}`, i);
+      world.start();
+      for (let t = 0; t < ticks(50); t++) {
+        world.applyInput('p0', [BTN_RIGHT, BTN_ATTACK, BTN_LEFT | BTN_JUMP][Math.floor(t / 25) % 3]!);
+        world.applyInput('p1', t % 40 < 20 ? BTN_ATTACK : BTN_LEFT);
+        world.applyInput('p2', t % 70 < 35 ? BTN_RIGHT | BTN_ATTACK : BTN_JUMP);
+        world.step();
+      }
+      return JSON.stringify({ enemies: [...world.enemies.values()], spits: [...world.spits.values()], players: [...world.players.values()], score: world.score });
+    };
+    expect(snapshot(21)).toBe(snapshot(21));
+    expect(snapshot(21)).not.toBe(snapshot(22));
   });
 });
