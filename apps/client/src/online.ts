@@ -25,8 +25,23 @@ import { OnlineSession, type NetState } from './net';
 import { OnlineScene } from './OnlineScene';
 import { bindRecords } from './records';
 import { RES } from './art/textures';
+import { setCover } from './capa';
 
 const INITIAL_STATE_TIMEOUT_MS = 5000;
+
+const DIFFICULTY_HINTS: Record<Difficulty, string> = {
+  facil: 'Cada riscote aguenta 2 toques e corre um pouco mais. Tinta infinita.',
+  medio: 'Um toque derruba. Tinta infinita.',
+  dificil: 'Um toque derruba e a tinta acaba: recarregue nos tubos dos cantos.',
+};
+
+/** Marca a escolha de um grupo de botões (visual e leitor de tela). */
+function choose(group: HTMLElement, chosen: HTMLButtonElement): void {
+  group.querySelectorAll('button').forEach((b) => {
+    b.classList.toggle('active', b === chosen);
+    b.setAttribute('aria-pressed', String(b === chosen));
+  });
+}
 
 /** Espera o primeiro estado em que o próprio jogador já aparece. */
 function firstState(room: Room): Promise<void> {
@@ -78,6 +93,7 @@ function clearSeat(): void {
 /** Modo online (etapa 2): criar sala, entrar por código e jogar com até 5. */
 export function bootOnline(input: InputSource): void {
   el('panel-online').hidden = false;
+  setCover(true);
   const query = new URLSearchParams(location.search);
   // Em riscote.win o servidor de partidas fica em play.riscote.win (túnel nomeado da Cloudflare).
   const defaultServer =
@@ -111,13 +127,17 @@ export function bootOnline(input: InputSource): void {
     for (const arena of chapter) {
       const button = document.createElement('button');
       button.type = 'button';
-      button.textContent = arena.name;
-      button.classList.toggle('active', arena.id === arenaId);
+      // "Padrão 32×18": o nome em cima e o tamanho miúdo embaixo.
+      const [, title = arena.name, size] = /^(.*?)(?:\s+(\d+×\d+))?$/.exec(arena.name) ?? [];
+      button.textContent = title;
+      if (size) button.append(Object.assign(document.createElement('small'), { textContent: size }));
+      button.setAttribute('aria-pressed', 'false');
       button.addEventListener('click', () => {
         arenaId = arena.id;
-        arenaButtons.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b === button));
+        choose(arenaButtons, button);
       });
       arenaButtons.append(button);
+      if (arena.id === arenaId) choose(arenaButtons, button);
     }
   });
 
@@ -126,12 +146,15 @@ export function bootOnline(input: InputSource): void {
     const button = document.createElement('button');
     button.type = 'button';
     button.textContent = DIFFICULTY_NAMES[mode];
-    button.classList.toggle('active', mode === difficulty);
-    button.addEventListener('click', () => {
+    button.setAttribute('aria-pressed', 'false');
+    const pick = () => {
       difficulty = mode;
-      [...difficultyButtons.children].forEach((b) => b.classList.toggle('active', b === button));
-    });
+      choose(difficultyButtons, button);
+      el('difficulty-hint').textContent = DIFFICULTY_HINTS[mode];
+    };
+    button.addEventListener('click', pick);
     difficultyButtons.append(button);
+    if (mode === difficulty) pick();
   }
 
   function setBusy(busy: boolean): void {
@@ -143,11 +166,11 @@ export function bootOnline(input: InputSource): void {
     lobby.hidden = false;
     inRoom.hidden = true;
     statusOut.textContent = message;
+    setCover(true);
   }
 
   function startGame(arena: Arena): void {
     if (!game) {
-      el('game-placeholder').remove();
       game = new Phaser.Game({
         type: Phaser.AUTO,
         parent: 'game',
@@ -194,6 +217,7 @@ export function bootOnline(input: InputSource): void {
       startGame(current.arena);
       lobby.hidden = true;
       inRoom.hidden = false;
+      setCover(false);
       el('room-code').textContent = current.code;
       statusOut.textContent = '';
     } catch (error) {
@@ -223,6 +247,9 @@ export function bootOnline(input: InputSource): void {
   window.addEventListener('keydown', (e) => {
     if (e.code !== 'Enter' || e.target instanceof HTMLInputElement) return;
     if (session?.isHost && session.state.phase === PHASE_LOBBY) session.start();
+    // Na capa, Enter cria a sala; com o foco num botão ou link, vale o clique dele.
+    const focused = e.target instanceof Element && e.target.closest('button, a, input, select, textarea');
+    if (!session && !lobby.hidden && !focused && !e.repeat && !createButton.disabled) createButton.click();
   });
 
   el('copy-reports').addEventListener('click', () => {

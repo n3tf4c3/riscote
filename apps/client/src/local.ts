@@ -22,7 +22,7 @@ function loadArenaIndex(): number {
 /** Modo local (etapa 1): sentir e ajustar o movimento, sem rede. */
 export function bootLocal(input: InputSource): void {
   el('panel-local').hidden = false;
-  el('game-placeholder').remove();
+  el('capa').remove();
 
   const params = loadParams();
   const metrics = new Metrics();

@@ -28,6 +28,7 @@ O planejamento completo fica em `PLANEJAMENTO.md` na raiz (local, fora do Git po
 | Placar de recordes: nome, mensagens, arquivo, tela de fim de jogo | `packages/shared/src/records.ts`, `apps/server/src/records.ts`, `apps/client/src/records.ts` |
 | Métricas do processo e teste de carga | `apps/server/src/metrics.ts`, `apps/server/scripts/carga.ts` |
 | Cliente online: entrada em sala, sessão, cena | `apps/client/src/online.ts`, `net.ts`, `OnlineScene.ts` |
+| Capa (tela antes de entrar numa sala): logotipo, cena animada, cartão do menu | `apps/client/src/capa.ts`, `capa.css`, `art/capa.ts` |
 | Arte, animação e efeitos do cliente | `apps/client/src/art/`, `anim.ts`, `fx.ts` |
 | Chefe (Mata-Borrão): regras, página e capítulo; desenho no cliente | `packages/shared/src/boss.ts`; `apps/client/src/bossView.ts`, `art/boss.ts` |
 | Cliente local (`?local`): ajuste de movimento e medições | `apps/client/src/local.ts`, `ArenaScene.ts`, `tuning.ts`, `metrics.ts` |

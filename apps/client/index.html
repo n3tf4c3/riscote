@@ -3,7 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Riscote — protótipo</title>
+    <title>Riscote</title>
+    <meta name="description" content="Plataforma cooperativa de tinta e papel para até 5 amigos, no navegador." />
+    <meta name="theme-color" content="#ebe3cf" />
     <style>
       :root {
         --paper: #e7dfcc;
@@ -34,7 +36,6 @@
       p.keys { margin: 0; color: var(--muted); font-size: 12px; }
       .stack { display: grid; gap: 4px; margin-bottom: 8px; }
       #game { display: grid; place-items: center; }
-      #game-placeholder { color: var(--muted); }
       button.primary { background: var(--ink); color: var(--panel); text-align: center; width: 100%; }
       button:disabled { opacity: .5; cursor: progress; }
       input[type="text"], #join-code {
@@ -107,7 +108,25 @@
   </head>
   <body>
     <div id="game">
-      <p id="game-placeholder">Crie uma sala ou entre com um código.</p>
+      <div id="capa">
+        <header class="capa-topo">
+          <h1><span class="sr">Riscote</span><span id="logo-arte" aria-hidden="true"></span></h1>
+          <p class="lema">Plataforma cooperativa de tinta e papel, <strong>para até 5 amigos</strong>, direto no navegador.</p>
+        </header>
+        <div id="palco" aria-hidden="true"></div>
+        <section class="como-jogar" aria-labelledby="como-jogar-titulo">
+          <h2 id="como-jogar-titulo">Como jogar</h2>
+          <ul>
+            <li><kbd>←</kbd><kbd>→</kbd> ou <kbd>A</kbd><kbd>D</kbd> andar</li>
+            <li><kbd>Espaço</kbd> ou <kbd>Z</kbd> pular (segure para ir mais alto)</li>
+            <li><kbd>↓</kbd> + pular: descer da plataforma</li>
+            <li><kbd>X</kbd> ou <kbd>J</kbd> atirar tinta e chutar a bola</li>
+            <li>Controle: direcional, <kbd>A</kbd> pula, <kbd>X</kbd> ataca</li>
+          </ul>
+          <p class="dica">Encharque o inimigo de tinta até ele virar bola, depois chute. Encoste num amigo derrubado por 1 s para levantá-lo.</p>
+          <p class="dica so-teclado">Para jogar é preciso teclado ou controle; pelo celular dá para criar a sala e mandar o convite.</p>
+        </section>
+      </div>
       <div id="records" class="records" hidden role="dialog" aria-labelledby="records-title">
         <h2 id="records-title">Fim de jogo</h2>
         <p id="records-why" class="records-why"></p>
@@ -124,7 +143,7 @@
     </div>
     <aside>
       <h1>Riscote · protótipo</h1>
-      <p class="keys">
+      <p class="keys" id="controles">
         ← → / A D andar · Espaço / Z pular (segure para ir mais alto) · ↓ + pular descer da plataforma ·
         X / J atirar tinta e chutar a bola · gamepad: direcional + A pula, X ataca
       </p>
@@ -132,12 +151,14 @@
       <section id="panel-online" hidden>
         <div id="lobby">
           <h2>Nova sala</h2>
-          <div id="online-arenas" class="stack"></div>
-          <h2>Dificuldade</h2>
-          <div id="online-difficulty" class="row" style="margin-bottom: 4px"></div>
-          <p class="keys" style="margin-bottom: 8px">No difícil a tinta acaba e é preciso recarregar nos tubos dos cantos. No fácil e no médio, a tinta é infinita.</p>
-          <button type="button" id="create" class="primary">Criar sala</button>
+          <h3 id="arena-titulo">Primeira arena</h3>
+          <div id="online-arenas" class="escolhas" role="group" aria-labelledby="arena-titulo"></div>
+          <h3 id="dificuldade-titulo">Dificuldade</h3>
+          <div id="online-difficulty" class="escolhas" role="group" aria-labelledby="dificuldade-titulo"></div>
+          <p id="difficulty-hint" class="keys"></p>
+          <button type="button" id="create" class="primary">Criar sala <span class="atalho" aria-hidden="true">Enter</span></button>
 
+          <hr />
           <h2>Entrar com código</h2>
           <form id="join-form" class="row">
             <input id="join-code" name="codigo" maxlength="9" placeholder="Ex.: ABCD23" autocomplete="off" spellcheck="false" aria-label="Código da sala" />

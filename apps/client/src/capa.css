@@ -1,0 +1,194 @@
+/* Capa: a tela antes de entrar numa sala (body.inicio). Dentro da partida vale o painel do index.html. */
+:root {
+  --titulo: 'Bebas Neue', Impact, 'Arial Narrow', sans-serif;
+  --azul: #2f6fd6;
+  --folha: #f8f3e8;
+  --grao: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .3 0 0 0 0 .22 0 0 0 .13 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  --borda-mao: 255px 14px 225px 14px / 14px 225px 14px 255px;
+}
+
+#game { position: relative; }
+#capa { display: none; }
+
+body.inicio {
+  grid-template-columns: 1fr clamp(310px, 30vw, 410px);
+  background-color: #ebe3cf;
+  background-image: var(--grao), radial-gradient(ellipse at 45% 40%, transparent 50%, rgba(122, 96, 64, .2) 100%);
+  background-attachment: fixed;
+}
+body.inicio #game > canvas { display: none; }
+body.inicio #capa {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(6px, 2vh, 22px);
+  padding: clamp(16px, 4vh, 40px) clamp(16px, 4vw, 56px);
+}
+
+/* Logotipo e lema */
+.capa-topo { width: min(100%, 760px, 72vh); text-align: center; }
+.capa-topo h1 { margin: 0; font-size: inherit; }
+#logo-arte svg { display: block; width: 100%; height: auto; }
+.lema { margin: -.4em 0 0; color: var(--muted); font-size: clamp(14px, 1.5vw, 17px); }
+.lema strong { color: var(--ink); }
+.sr {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+
+/* Palco animado (só enfeite) */
+#palco {
+  position: relative;
+  flex-shrink: 0;
+  width: min(100%, 1000px, (100vh - 400px) * 1000 / 420);
+  min-width: min(100%, 420px);
+  aspect-ratio: 1000 / 420;
+  /* Corta só nas laterais: pulos e o borrão podem passar do topo. */
+  clip-path: inset(-40% 0 -8% 0);
+}
+#palco img { position: absolute; display: block; pointer-events: none; user-select: none; }
+#palco img[hidden] { display: none; }
+#palco .palco-fundo { inset: 0; width: 100%; height: 100%; }
+#palco .ator { height: auto; }
+
+/* Como jogar */
+.como-jogar { width: min(100%, 1000px); }
+.como-jogar h2 {
+  font: 400 24px/1 var(--titulo); letter-spacing: .04em; color: var(--ink);
+  text-transform: none; margin: 0 0 8px;
+}
+.como-jogar ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 26px; }
+.como-jogar li { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; font-size: 14px; }
+.como-jogar .dica { margin: 10px 0 0; color: var(--muted); font-size: 13px; }
+.como-jogar .so-teclado { display: none; }
+kbd {
+  display: inline-block; min-width: 26px; padding: 5px 6px 3px;
+  font: 700 12px/1 ui-monospace, monospace; text-align: center; color: var(--ink);
+  background: #fbf7ee; border: 1.5px solid var(--ink); border-bottom-width: 3px;
+  border-radius: 6px 4px 7px 5px;
+}
+
+/* Painel lateral vira um cartão de folha presa com fita */
+body.inicio aside {
+  background: transparent;
+  border-left: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 28px 28px 28px 4px;
+}
+body.inicio aside > h1, body.inicio #controles { display: none; }
+body.inicio #panel-online > p.keys { margin-top: 18px; text-align: center; }
+body.inicio #panel-online > p.keys a { color: var(--muted); text-decoration-style: dotted; }
+
+#lobby {
+  position: relative;
+  padding: 26px 22px 18px;
+  background: var(--folha) repeating-linear-gradient(transparent 0 29px, rgba(150, 170, 200, .22) 29px 30px);
+  border: 2px solid var(--ink);
+  border-radius: 6px 14px 5px 12px / 12px 5px 14px 6px;
+  box-shadow: 5px 6px 0 rgba(31, 29, 26, .9);
+  transform: rotate(-.5deg);
+}
+#lobby::before {
+  content: '';
+  position: absolute; top: -13px; left: 50%;
+  width: 118px; height: 26px;
+  transform: translateX(-50%) rotate(2.5deg);
+  background: rgba(222, 208, 168, .8);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .18);
+}
+#lobby h2 {
+  font: 400 30px/1 var(--titulo); letter-spacing: .03em; color: var(--ink);
+  text-transform: none; margin: 0 0 4px;
+}
+#lobby h3 {
+  margin: 14px 0 6px; font-size: 11px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted);
+}
+#lobby hr {
+  height: 0; margin: 20px 2px 16px; border: 0;
+  border-top: 2px dashed rgba(31, 29, 26, .35);
+}
+
+/* Escolhas: contorno de mão; a escolhida ganha mancha de nanquim */
+#lobby .escolhas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 0; }
+#lobby .escolhas p.keys {
+  grid-column: 1 / -1; margin: 4px 0 0;
+  font: 400 15px/1 var(--titulo); letter-spacing: .06em; color: var(--muted);
+}
+#lobby .escolhas button {
+  min-height: 40px; padding: 6px 4px;
+  font: 600 13px/1.1 system-ui, sans-serif; text-align: center; color: var(--ink);
+  background: rgba(255, 255, 255, .45) no-repeat center / 100% 100%;
+  border: 2px solid var(--ink); border-radius: var(--borda-mao);
+  transition: transform .12s ease, background-color .12s ease;
+}
+#lobby .escolhas button small { display: block; margin-top: 2px; font-size: 11px; font-weight: 500; opacity: .7; }
+#lobby .escolhas button:hover:not(.active) { background-color: #fff; transform: translateY(-1px) rotate(-1deg); }
+#lobby .escolhas button.active {
+  color: var(--folha);
+  background-color: transparent;
+  background-image: var(--pincel-tinta);
+  border-color: transparent;
+}
+#difficulty-hint { min-height: 2.8em; margin: 6px 0 0; }
+
+#lobby button.primary {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  margin-top: 14px; padding: 14px 10px 11px;
+  font: 400 30px/1 var(--titulo); letter-spacing: .06em; color: var(--folha);
+  background: var(--pincel-tinta) no-repeat center / 100% 100%;
+  border: 0; border-radius: 0;
+  transition: transform .12s ease;
+}
+#lobby button.primary:hover:not(:disabled) { background-image: var(--pincel-azul); transform: rotate(-.6deg) scale(1.02); }
+#lobby button.primary:active:not(:disabled) { transform: scale(.98); }
+.atalho {
+  font: 600 11px/1 system-ui, sans-serif; letter-spacing: .04em;
+  padding: 3px 5px; border: 1px solid currentColor; border-radius: 4px; opacity: .7;
+}
+
+#join-form { flex-wrap: nowrap; gap: 8px; }
+#lobby #join-code {
+  flex: 1; min-width: 0; width: auto; padding: 8px 10px;
+  font: 700 21px/1 ui-monospace, monospace; letter-spacing: .22em; text-align: center;
+  background: #fffdf7; border: 2px solid var(--ink); border-radius: var(--borda-mao);
+}
+#lobby #join-code::placeholder { color: #b3aa98; letter-spacing: .12em; font-size: 15px; }
+#lobby #join {
+  padding: 8px 16px 6px;
+  font: 400 24px/1 var(--titulo); letter-spacing: .05em; color: var(--folha);
+  background: var(--pincel-tinta) no-repeat center / 100% 100%;
+  border: 0; border-radius: 0;
+}
+#lobby #join:hover:not(:disabled) { background-image: var(--pincel-azul); }
+#lobby-status { font-weight: 600; }
+
+#lobby :is(button, input):focus-visible,
+#capa a:focus-visible,
+#panel-online > p.keys a:focus-visible {
+  outline: 3px solid var(--azul);
+  outline-offset: 3px;
+}
+
+@media (max-width: 760px) {
+  /* Celular: logotipo, palco, cartão e por último os controles, numa coluna só. */
+  body.inicio { display: flex; flex-direction: column; height: auto; min-height: 100%; }
+  body.inicio #game, body.inicio #capa { display: contents; }
+  body.inicio .capa-topo { order: 1; width: auto; padding: 20px 16px 0; }
+  body.inicio #palco { order: 2; width: auto; min-width: 0; margin: 4px 16px 0; }
+  body.inicio aside { order: 3; height: auto; border-top: 0; padding: 24px 16px 8px; }
+  body.inicio .como-jogar { order: 4; width: auto; padding: 16px 16px 28px; }
+  .como-jogar .so-teclado { display: block; }
+  .atalho { display: none; }
+  #lobby { transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #lobby .escolhas button, #lobby button.primary { transition: none; }
+}
