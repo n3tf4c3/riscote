@@ -31,6 +31,9 @@ O planejamento completo fica em `PLANEJAMENTO.md` na raiz (local, fora do Git po
 | Capa (tela antes de entrar numa sala): logotipo, cena animada, cartão do menu | `apps/client/src/capa.ts`, `capa.css`, `art/capa.ts` |
 | Arte, animação e efeitos do cliente | `apps/client/src/art/`, `anim.ts`, `fx.ts` |
 | Chefe (Mata-Borrão): regras, página e capítulo; desenho no cliente | `packages/shared/src/boss.ts`; `apps/client/src/bossView.ts`, `art/boss.ts` |
+| Áudio: direção, inventário, prompts, licenças e pendências | `docs/audio.md` |
+| Áudio: síntese dos efeitos e da trilha, masters e codificação | `audio/` (`gerar.ts`, `codificar.sh`) |
+| Áudio no cliente: motor, eventos, volumes; catálogo gerado | `apps/client/src/audio/` (`som.ts`, `controles.ts`, `catalogo.ts`), `apps/client/public/audio/` |
 | Cliente local (`?local`): ajuste de movimento e medições | `apps/client/src/local.ts`, `ArenaScene.ts`, `tuning.ts`, `metrics.ts` |
 | Testes | `packages/shared/test/`, `apps/server/test/` |
 
@@ -142,6 +145,9 @@ Cores dos personagens (decisão do usuário em 2026-10-21, a partir das pincelad
   - proteção do fácil: bolha esboçada no degradê do jogador.
   - O greybox mantém os contornos retangulares como reserva.
 - O azul da tinta (`#2f6fd6`) é só do encharcado, da bola e da gota dos jogadores; nenhum corpo usa essa cor.
+
+## Áudio
+Detalhes em `docs/audio.md`. Como os efeitos visuais, o som só lê o que a simulação já mostrou e é disparado nos mesmos pontos (`anim.ts`, `bossView.ts`, `OnlineScene.ts`); nunca muda regra, posição ou tempo. O contexto de áudio nasce no primeiro gesto do usuário, e o Phaser roda com `noAudio`. Música e efeitos têm volumes separados no painel e podem ser desligados um sem o outro (desligada, a música nem é baixada). Os sons são gerados por `node audio/gerar.ts` e `bash audio/codificar.sh`; o catálogo (`catalogo.ts`) sai do gerador e não é editado à mão. Os masters em `audio/masters/` ficam fora do Git. As quatro trilhas atuais (capa, dois capítulos e chefe) são provisórias; a final depende de geração externa autorizada.
 
 ## TypeScript executado pelo Node
 O servidor roda `.ts` direto no Node (remoção de tipos, sem build). Em `apps/server` e `packages/shared`:
