@@ -23,10 +23,15 @@ body.inicio #capa {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: clamp(6px, 2vh, 22px);
   padding: clamp(16px, 4vh, 40px) clamp(16px, 4vw, 56px);
 }
+/*
+ * Centraliza na vertical com espaçadores que encolhem até zero. Com `justify-content: center`,
+ * o que passasse da altura vazaria para cima, fora do alcance da rolagem.
+ */
+body.inicio #capa::before, body.inicio #capa::after,
+body.inicio aside::before, body.inicio aside::after { content: ''; flex: 1 0 0; }
 
 /* Logotipo e lema */
 .capa-topo { width: min(100%, 760px, 72vh); text-align: center; }
@@ -76,7 +81,6 @@ body.inicio aside {
   border-left: 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   padding: 28px 28px 28px 4px;
 }
 body.inicio aside > h1, body.inicio #controles { display: none; }
@@ -216,6 +220,7 @@ body.inicio #panel-online > p.keys a { color: var(--muted); text-decoration-styl
   /* Celular: logotipo, palco, cartão e por último os controles, numa coluna só. */
   body.inicio { display: flex; flex-direction: column; height: auto; min-height: 100%; }
   body.inicio #game, body.inicio #capa { display: contents; }
+  body.inicio #capa::before, body.inicio #capa::after { display: none; }
   body.inicio .capa-topo { order: 1; width: auto; padding: 20px 16px 0; }
   body.inicio #palco { order: 2; width: auto; min-width: 0; margin: 4px 16px 0; }
   body.inicio aside { order: 3; height: auto; border-top: 0; padding: 24px 16px 8px; }
