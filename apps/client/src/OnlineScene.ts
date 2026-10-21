@@ -86,7 +86,14 @@ export class OnlineScene extends Phaser.Scene {
   /** Itens na tela no quadro anterior, para o brilho de quando alguém pega. */
   private items = new Map<string, { x: number; y: number; kind: number; ttl: number }>();
 
-  constructor(private readonly ctx: { session: () => OnlineSession | null; input: InputSource }) {
+  constructor(
+    private readonly ctx: {
+      session: () => OnlineSession | null;
+      input: InputSource;
+      /** Progresso da arte que a arena precisa para sair do greybox. */
+      loading?: (done: number, total: number) => void;
+    },
+  ) {
     super('online');
   }
 
@@ -139,7 +146,10 @@ export class OnlineScene extends Phaser.Scene {
     const first = common.filter((s) => !s.key.includes('~'));
     const later = common.filter((s) => s.key.includes('~'));
     const ground = arenaSpecs(arena);
-    loadArt(this.textures, [...first, ground.fundo, ground.plataformas])
+    // A arena vem antes dos bonecos: é ela que tira a tela do greybox.
+    loadArt(this.textures, [ground.fundo, ground.plataformas, ...first], (done, total) => {
+      if (generation === this.generation) this.ctx.loading?.(done, total);
+    })
       .then(() => {
         // A cena pode ter recomeçado (outra arena) enquanto as texturas carregavam.
         if (generation !== this.generation) return;
@@ -151,7 +161,10 @@ export class OnlineScene extends Phaser.Scene {
         this.art = new ArtLayer(this, common);
         return loadArt(this.textures, later);
       })
-      .catch((err: unknown) => console.warn('arte não carregou; seguindo no greybox', err));
+      .catch((err: unknown) => {
+        console.warn('arte não carregou; seguindo no greybox', err);
+        if (generation === this.generation) this.ctx.loading?.(1, 1);
+      });
   }
 
   private placeTube(tube: ArtSpec, r: { x: number; y: number; w: number; h: number }): void {
