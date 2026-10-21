@@ -1,4 +1,17 @@
-import { ENEMY_BORRAO, ENEMY_SALTADOR, MODE_BALL, MODE_ROLL, MODE_WALK } from '@riscote/shared';
+import {
+  ENEMY_BORRAO,
+  ENEMY_SALTADOR,
+  MODE_BALL,
+  MODE_ROLL,
+  MODE_WALK,
+  RULES,
+  SKILL_ACT,
+  SKILL_REST,
+  SKILL_WARN,
+  TILE,
+  floorSpan,
+  type Arena,
+} from '@riscote/shared';
 import { runPose, type Pose } from './art/riscote';
 import { tracaKey } from './art/textures';
 import { INK_BLUE, INK } from './draw';
@@ -128,6 +141,7 @@ export interface EnemyLike {
   y: number;
   facing: number;
   soak: number;
+  skill: number;
 }
 
 export interface EnemyFrame {
@@ -148,9 +162,14 @@ interface EnemyState {
   landAt: number;
   seen: number;
   lastTrail: number;
+  skill: number;
+  skillAt: number;
 }
 
-/** Quadros e reações dos inimigos: passos da traça, salto do saltador, bola tremendo e rolando, estouros. */
+/**
+ * Quadros e reações dos inimigos: passos da traça, salto do saltador, bola tremendo e rolando, estouros,
+ * e o aviso de cada habilidade (traça de antenas em pé, saltador agachado, borrão se contraindo).
+ */
 export class EnemyAnimator {
   private states = new Map<string, EnemyState>();
   private primed = false;
@@ -160,7 +179,31 @@ export class EnemyAnimator {
     private readonly fx: Effects,
     private readonly size: number,
     private readonly borraoSize: number,
+    private readonly arena: Arena,
   ) {}
+
+  /** Entrada numa fase de habilidade: respingos, poeira e a onda da pancada. */
+  private skillChanged(e: EnemyLike, prev: number, cx: number): void {
+    const feet = e.y + this.size;
+    if (e.kind === ENEMY_SALTADOR) {
+      if (e.skill === SKILL_WARN) this.fx.dust(cx, feet, 0.4);
+      else if (e.skill === SKILL_REST && prev === SKILL_ACT) {
+        // Pousou da pancada: a onda corre pelo mesmo trecho de chão que a simulação usa.
+        const floor = Math.round(feet / TILE) * TILE;
+        const [left, right] = floorSpan(this.arena, cx, floor, RULES.slamRadius);
+        this.fx.wave(cx, floor, left, right, RULES.slamRadius * TILE, RULES.slamWaveTime);
+        this.fx.splat(cx, floor - 2, false, 1, INK);
+        this.fx.dust(cx, floor, 1);
+        this.fx.shake(220, 0.007);
+      }
+    } else if (e.kind !== ENEMY_BORRAO) {
+      if (e.skill === SKILL_WARN) this.fx.sparkle(cx + e.facing * this.size * 0.4, e.y - 2, 0xc8402a, 6, 7);
+      else if (e.skill === SKILL_ACT) {
+        this.fx.dust(cx, feet, 0.6);
+        this.fx.streaks(cx, e.y + this.size / 2, e.facing, 6);
+      }
+    }
+  }
 
   /** Chamado uma vez por quadro com todos os inimigos visíveis; `live` = partida em andamento. */
   frames(enemies: EnemyLike[], now: number, dt: number, live: boolean): Map<string, EnemyFrame> {
@@ -171,7 +214,7 @@ export class EnemyAnimator {
       const cx = e.x + (e.kind === ENEMY_BORRAO ? this.borraoSize : this.size) / 2;
       const cy = e.y + (e.kind === ENEMY_BORRAO ? this.borraoSize : this.size) / 2;
       if (!s) {
-        s = { x: e.x, y: e.y, vy: 0, dist: 0, mode: e.mode, soak: e.soak, air: false, landAt: -Infinity, seen: now, lastTrail: 0 };
+        s = { x: e.x, y: e.y, vy: 0, dist: 0, mode: e.mode, soak: e.soak, air: false, landAt: -Infinity, seen: now, lastTrail: 0, skill: e.skill, skillAt: now };
         this.states.set(e.id, s);
         if (this.primed && live) {
           // Chegou um inimigo novo: cai na página com um respingo.
@@ -202,6 +245,13 @@ export class EnemyAnimator {
       } else if (e.mode === MODE_WALK && e.soak > s.soak) this.fx.splat(cx, cy, true, 0.55, INK_BLUE);
       s.mode = e.mode;
       s.soak = e.soak;
+      if (e.skill !== s.skill) {
+        if (live && e.mode === MODE_WALK) this.skillChanged(e, s.skill, cx);
+        s.skill = e.skill;
+        s.skillAt = now;
+      }
+      /** 0 → 1 ao longo do aviso. */
+      const warn = Math.min(1, (now - s.skillAt) / (1000 * (e.kind === ENEMY_SALTADOR ? RULES.slamWarn : RULES.dashWarn)));
 
       let key: string;
       let sx = 1;
@@ -212,7 +262,16 @@ export class EnemyAnimator {
         const w = Math.sin(now / 170);
         sx = 1 + 0.07 * w;
         sy = 1 - 0.07 * Math.sin(now / 170 + 0.6);
-        if (now - this.lastDrip > 260) {
+        if (e.skill === SKILL_WARN) {
+          // Vai soltar uma mancha: se contrai, treme e pinga mais.
+          const k = Math.min(1, (now - s.skillAt) / (1000 * RULES.stainWarnLead));
+          sx = 1 - 0.18 * k + 0.05 * Math.sin(now / 30);
+          sy = 1 - 0.12 * k + 0.05 * Math.sin(now / 30 + 1.4);
+          if (now - this.lastDrip > 70) {
+            this.lastDrip = now;
+            this.fx.droplets(cx, e.y + this.borraoSize * 0.8, INK, 2, 60, Math.PI / 2, 1.2);
+          }
+        } else if (now - this.lastDrip > 260) {
           this.lastDrip = now;
           this.fx.droplets(cx + (Math.sin(now) * this.borraoSize) / 3, e.y + this.borraoSize * 0.85, INK, 1, 20, Math.PI / 2, 0.4);
         }
@@ -236,7 +295,13 @@ export class EnemyAnimator {
         s.air = air;
         key = air ? 'saltador-ar' : 'saltador';
         const land = ease((now - s.landAt) / 180);
-        if (land > 0) {
+        if (e.skill === SKILL_WARN) {
+          // Aviso da pancada: agacha fundo, cerra os dentes e treme cada vez mais.
+          key = 'saltador-carga';
+          sx = 1 + 0.3 * warn;
+          sy = 1 - 0.32 * warn;
+          angle = 5 * warn * Math.sin(now / 24);
+        } else if (land > 0) {
           sx = 1 + 0.25 * land;
           sy = 1 - 0.22 * land;
         } else if (air) {
@@ -249,6 +314,25 @@ export class EnemyAnimator {
           sx = 1 + 0.06 * p;
           sy = 1 - 0.07 * p;
         }
+      } else if (e.skill === SKILL_WARN) {
+        // Aviso do bote: antenas em pé, encolhe e treme.
+        key = 'traca-bote';
+        sx = 1 + 0.08 * warn;
+        sy = 1 - 0.1 * warn;
+        angle = 4 * Math.sin(now / 22);
+      } else if (e.skill === SKILL_ACT) {
+        key = tracaKey(Math.floor(s.dist / 5));
+        sx = 1.14;
+        sy = 0.9;
+        if (now - s.lastTrail > 50) {
+          s.lastTrail = now;
+          this.fx.streaks(cx - e.facing * half, cy, e.facing, 2);
+        }
+      } else if (e.skill === SKILL_REST) {
+        // Cansada: arfa.
+        key = tracaKey(0);
+        sy = 1 - 0.06 * (0.5 + 0.5 * Math.sin(now / 70));
+        sx = 1 + 0.03 * (0.5 + 0.5 * Math.sin(now / 70));
       } else {
         key = tracaKey(Math.floor(s.dist / 5));
       }

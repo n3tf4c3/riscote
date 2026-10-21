@@ -1,4 +1,4 @@
-import { EMPTY, cellAt, type Arena, type CellPos } from './arena.ts';
+import { EMPTY, SOLID, cellAt, type Arena, type CellPos } from './arena.ts';
 import { BTN_ATTACK, BTN_DOWN, BTN_JUMP, BTN_LEFT, BTN_RIGHT } from './input.ts';
 import { DEFAULT_PARAMS, TICK_DT, TILE, type MovementParams } from './params.ts';
 import { createPlayer, stepPlayer, touchesTube, type PlayerState } from './physics.ts';
@@ -46,6 +46,26 @@ export const RULES = {
   ratePerLevel: 0.75, // multiplica a cadência de tiro por nível
   dropSpeedPerLevel: 0.2, // +20% de velocidade da gota por nível
   rangePerLevel: 0.35, // +35% de alcance da gota por nível
+  // Habilidades dos inimigos: cada uma tem um aviso antes de acontecer.
+  dashSight: 6, // células à frente, no mesmo andar, para a traça dar o bote
+  dashWarn: 0.5, // s parada, tremendo, antes do bote
+  dashTime: 0.6, // s de bote
+  dashRest: 0.6, // s cansada depois do bote
+  dashCooldown: 2.5, // s até poder dar outro bote
+  dashSpeedMult: 2.5,
+  slamEvery: 3, // a cada tantos saltos, o saltador dá uma pancada
+  slamWarn: 0.5, // s agachado antes do salto alto
+  slamJumpHeight: 5, // células
+  slamRadius: 3, // células que a onda percorre para cada lado, rente ao chão
+  slamWaveTime: 0.3, // s até a onda chegar ao fim
+  slamWaveBand: 0.75, // células: largura da frente da onda
+  slamRest: 0.5, // s parado depois da pancada
+  stainEvery: 4, // s entre as manchas do borrão
+  stainWarnLead: 0.4, // s em que o borrão se contrai antes de soltar a mancha
+  stainWarn: 0.6, // s em que a mancha nova ainda não machuca
+  stainLife: 5, // s machucando depois do aviso
+  stainSize: 1.1, // células
+  maxStains: 4,
 } as const;
 
 export const ITEM_FORCA = 0;
@@ -63,6 +83,11 @@ export const ENEMY_BORRAO = 2;
 export const MODE_WALK = 0;
 export const MODE_BALL = 1;
 export const MODE_ROLL = 2;
+/** Fase da habilidade de um inimigo: aviso, em ação e recuperação (o borrão só usa o aviso). */
+export const SKILL_NONE = 0;
+export const SKILL_WARN = 1;
+export const SKILL_ACT = 2;
+export const SKILL_REST = 3;
 export const PHASE_PLAYING = 0;
 export const PHASE_CLEAR = 1;
 export const PHASE_RESTART = 2;
@@ -125,15 +150,25 @@ const ENEMY_BASE: Record<number, MovementParams> = {
 };
 
 /** Encharcado anda mais devagar: um parâmetro por nível de tinta. */
+function bySoak(base: MovementParams): MovementParams[] {
+  return Array.from({ length: RULES.soakToBallBigTeam + 1 }, (_, soak) => ({
+    ...base,
+    runSpeed: base.runSpeed * Math.max(0.4, 1 - 0.15 * soak),
+  }));
+}
+
 const ENEMY_PARAMS: Record<number, MovementParams[]> = Object.fromEntries(
-  Object.entries(ENEMY_BASE).map(([kind, base]) => [
-    kind,
-    Array.from({ length: RULES.soakToBallBigTeam + 1 }, (_, soak) => ({
-      ...base,
-      runSpeed: base.runSpeed * Math.max(0.4, 1 - 0.15 * soak),
-    })),
-  ]),
+  Object.entries(ENEMY_BASE).map(([kind, base]) => [kind, bySoak(base)]),
 );
+
+/** Bote da traça e salto alto do saltador, também mais lentos quando encharcados. */
+const SKILL_PARAMS: Record<number, MovementParams[]> = {
+  [ENEMY_TRACA]: bySoak({
+    ...ENEMY_BASE[ENEMY_TRACA]!,
+    runSpeed: ENEMY_BASE[ENEMY_TRACA]!.runSpeed * RULES.dashSpeedMult, groundAccel: 200,
+  }),
+  [ENEMY_SALTADOR]: bySoak({ ...ENEMY_BASE[ENEMY_SALTADOR]!, jumpHeight: RULES.slamJumpHeight }),
+};
 
 export const BALL_PARAMS: MovementParams = {
   ...DEFAULT_PARAMS, playerWidth: ENEMY_SIZE, playerHeight: ENEMY_SIZE,
@@ -153,6 +188,27 @@ export function overlaps(a: Box, b: Box): boolean {
 
 function bodyBox(b: PlayerState, p: MovementParams, grow = 0): Box {
   return { x: b.x - grow, y: b.y - grow, w: p.playerWidth * TILE + 2 * grow, h: p.playerHeight * TILE + 2 * grow };
+}
+
+export function stainBox(s: { x: number; y: number }): Box {
+  const size = RULES.stainSize * TILE;
+  return { x: s.x, y: s.y, w: size, h: size };
+}
+
+/**
+ * Trecho de chão contínuo por onde a onda da pancada corre: a partir de `x`, na linha de chão sob
+ * `feetY`, até `cells` células para cada lado, parando no vão ou na parede. Devolve [esquerda, direita] em pixels.
+ */
+export function floorSpan(arena: Arena, x: number, feetY: number, cells: number): [number, number] {
+  const row = Math.round(feetY / TILE);
+  const start = Math.floor(x / TILE);
+  const open = (col: number) => cellAt(arena, col, row) !== EMPTY && cellAt(arena, col, row - 1) !== SOLID;
+  let left = start;
+  let right = start;
+  while (left > start - cells && open(left - 1)) left--;
+  while (right < start + cells && open(right + 1)) right++;
+  const reach = cells * TILE;
+  return [Math.max(left * TILE, x - reach), Math.min((right + 1) * TILE, x + reach)];
 }
 
 export function enemyBox(e: { kind: number; body: { x: number; y: number } }): Box {
@@ -226,6 +282,29 @@ export interface Enemy {
   aiTimer: number;
   edgeDecided: boolean;
   wasBlocked: boolean;
+  /** Habilidade: fase (SKILL_*), tempo restante na fase e espera até poder usá-la de novo. */
+  skill: number;
+  skillTimer: number;
+  skillCd: number;
+  /** Saltos do saltador desde a última pancada. */
+  hops: number;
+}
+
+/** Mancha deixada pelo borrão: inofensiva no aviso, depois machuca ao toque. */
+export interface Stain {
+  id: number;
+  x: number;
+  y: number;
+  age: number;
+}
+
+/** Onda da pancada do saltador, rente ao chão (altura dos pés `y`) entre `left` e `right`. */
+export interface Shock {
+  x: number;
+  y: number;
+  left: number;
+  right: number;
+  age: number;
 }
 
 export interface Drop {
@@ -259,6 +338,8 @@ export class World {
   readonly players = new Map<string, WorldPlayer>();
   readonly enemies = new Map<number, Enemy>();
   readonly drops = new Map<number, Drop>();
+  readonly stains = new Map<number, Stain>();
+  shocks: Shock[] = [];
   lives: number = RULES.teamLives;
   score = 0;
   phase = PHASE_PLAYING;
@@ -385,6 +466,7 @@ export class World {
 
     this.stepItems(dt);
     this.stepDrops(dt);
+    this.stepHazards(dt);
     this.stepEnemies(dt);
     this.stepDamage();
     this.stepRescue(dt);
@@ -401,6 +483,7 @@ export class World {
       dir: this.rng() < 0.5 ? -1 : 1,
       soak: 0, soakTimer: 0, ballTime: 0, rollTime: 0, bounces: 0, combo: 0, kicker: null,
       aiTimer: 1 + this.rng() * 2, edgeDecided: false, wasBlocked: false,
+      skill: SKILL_NONE, skillTimer: 0, skillCd: 0, hops: 0,
     };
     this.enemies.set(enemy.id, enemy);
     return enemy;
@@ -471,6 +554,7 @@ export class World {
     const e = this.spawnEnemy(ENEMY_BORRAO, { col: Math.floor(this.arena.cols / 2), row: 1 });
     e.body.x = (this.arena.cols * TILE - BORRAO_SIZE * TILE) / 2;
     e.body.y = TILE;
+    e.skillCd = RULES.stainEvery;
     this.hurry = true;
     return e;
   }
@@ -583,8 +667,10 @@ export class World {
     e.soakTimer = RULES.soakDecay;
     if (e.mode === MODE_BALL) e.ballTime = RULES.ballTime;
     else if (e.mode === MODE_WALK && e.soak >= this.soakToBall) {
+      // Virar bola interrompe a habilidade.
       e.mode = MODE_BALL;
       e.ballTime = RULES.ballTime;
+      e.skill = SKILL_NONE;
     }
   }
 
@@ -598,7 +684,8 @@ export class World {
           e.soakTimer = RULES.soakDecay;
         }
         const buttons = this.think(e, dt);
-        stepPlayer(e.body, buttons, this.arena, ENEMY_PARAMS[e.kind]![e.soak]!);
+        const params = e.skill === SKILL_ACT ? SKILL_PARAMS : ENEMY_PARAMS;
+        stepPlayer(e.body, buttons, this.arena, params[e.kind]![e.soak]!);
         e.wasBlocked = e.body.vx === 0 && (buttons & (BTN_LEFT | BTN_RIGHT)) !== 0;
       } else if (e.mode === MODE_BALL) {
         stepPlayer(e.body, 0, this.arena, BALL_PARAMS);
@@ -628,8 +715,25 @@ export class World {
     }
   }
 
-  /** Borrão: segue em linha reta o jogador de pé mais próximo, atravessando paredes. */
+  /** Manchas envelhecem e somem; ondas da pancada correm e acabam. */
+  private stepHazards(dt: number): void {
+    for (const s of this.stains.values()) {
+      if ((s.age += dt) >= RULES.stainWarn + RULES.stainLife) this.stains.delete(s.id);
+    }
+    for (const w of this.shocks) w.age += dt;
+    this.shocks = this.shocks.filter((w) => w.age < RULES.slamWaveTime);
+  }
+
+  /**
+   * Borrão: segue em linha reta o jogador de pé mais próximo, atravessando paredes.
+   * De tempos em tempos se contrai (aviso) e solta uma mancha onde está, fora das paredes.
+   */
   private chase(e: Enemy, dt: number): void {
+    if ((e.skillCd -= dt) <= 0) {
+      e.skillCd = RULES.stainEvery;
+      this.dropStain(e);
+    }
+    e.skill = e.skillCd <= RULES.stainWarnLead ? SKILL_WARN : SKILL_NONE;
     const target = this.nearestPlayer(e.body);
     if (!target) return;
     const box = enemyBox(e);
@@ -643,11 +747,32 @@ export class World {
     e.dir = dx >= 0 ? 1 : -1;
   }
 
-  /** IA simples: a traça patrulha e às vezes pula ou desce; o saltador pula na direção do jogador mais próximo. */
+  private dropStain(e: Enemy): void {
+    const box = enemyBox(e);
+    const cx = box.x + box.w / 2;
+    const cy = box.y + box.h / 2;
+    if (this.stains.size >= RULES.maxStains || cellAt(this.arena, Math.floor(cx / TILE), Math.floor(cy / TILE)) === SOLID) return;
+    const half = (RULES.stainSize * TILE) / 2;
+    const id = this.nextId++;
+    this.stains.set(id, { id, x: cx - half, y: cy - half, age: 0 });
+  }
+
+  /**
+   * IA simples: a traça patrulha e às vezes pula ou desce; o saltador pula na direção do jogador mais próximo.
+   * Habilidades: a traça dá o bote em quem estiver à frente no mesmo andar; o saltador, a cada tantos saltos,
+   * salta alto e cai com uma onda rente ao chão. As duas param num aviso antes.
+   */
   private think(e: Enemy, dt: number): number {
     const b = e.body;
     const dirButton = e.dir > 0 ? BTN_RIGHT : BTN_LEFT;
+    e.skillCd = Math.max(0, e.skillCd - dt);
     if (e.kind === ENEMY_TRACA) {
+      if (e.skill !== SKILL_NONE) return this.dash(e, dt);
+      if (b.onGround && e.skillCd === 0 && this.preyAhead(e)) {
+        e.skill = SKILL_WARN;
+        e.skillTimer = RULES.dashWarn;
+        return 0;
+      }
       let buttons = 0;
       if (b.onGround) {
         if (e.wasBlocked) e.dir = e.dir > 0 ? -1 : 1;
@@ -662,6 +787,7 @@ export class World {
       return buttons | (e.dir > 0 ? BTN_RIGHT : BTN_LEFT);
     }
 
+    if (e.skill !== SKILL_NONE) return this.slam(e, dt);
     if (!b.onGround) return dirButton;
     if ((e.aiTimer -= dt) > 0) return 0;
     e.aiTimer = 0.9 + this.rng() * 0.6;
@@ -670,7 +796,83 @@ export class World {
       e.dir = target.body.x > b.x ? 1 : -1;
       if (target.body.y - b.y > 2 * TILE && b.onOneWay) return BTN_DOWN | BTN_JUMP;
     }
+    if (++e.hops >= RULES.slamEvery) {
+      e.hops = 0;
+      e.skill = SKILL_WARN;
+      e.skillTimer = RULES.slamWarn;
+      return 0;
+    }
     return BTN_JUMP | (e.dir > 0 ? BTN_RIGHT : BTN_LEFT);
+  }
+
+  /** Bote da traça: aviso parada → corrida rápida (até bater) → cansada → espera. */
+  private dash(e: Enemy, dt: number): number {
+    if (e.skill === SKILL_ACT && e.wasBlocked) e.skillTimer = 0;
+    if ((e.skillTimer -= dt) <= 0) {
+      if (e.skill === SKILL_WARN) {
+        e.skill = SKILL_ACT;
+        e.skillTimer = RULES.dashTime;
+      } else if (e.skill === SKILL_ACT) {
+        e.skill = SKILL_REST;
+        e.skillTimer = RULES.dashRest;
+      } else {
+        e.skill = SKILL_NONE;
+        e.skillCd = RULES.dashCooldown;
+      }
+    }
+    return e.skill === SKILL_ACT ? (e.dir > 0 ? BTN_RIGHT : BTN_LEFT) : 0;
+  }
+
+  /** Jogador de pé no mesmo andar da traça, à frente dela, perto e sem parede no meio. */
+  private preyAhead(e: Enemy): boolean {
+    const b = e.body;
+    const size = ENEMY_SIZE * TILE;
+    const feet = b.y + size;
+    const row = Math.floor((feet - 1) / TILE);
+    const pw = this.params.playerWidth * TILE;
+    for (const p of this.players.values()) {
+      if (p.down || p.away) continue;
+      if (Math.abs(p.body.y + this.params.playerHeight * TILE - feet) > 0.6 * TILE) continue;
+      const gap = e.dir > 0 ? p.body.x - (b.x + size) : b.x - (p.body.x + pw);
+      if (gap < -size / 2 || gap > RULES.dashSight * TILE) continue;
+      const from = Math.floor((b.x + size / 2) / TILE);
+      const to = Math.floor((p.body.x + pw / 2) / TILE);
+      let clear = true;
+      for (let col = Math.min(from, to); col <= Math.max(from, to); col++) {
+        if (cellAt(this.arena, col, row) === SOLID) clear = false;
+      }
+      if (clear) return true;
+    }
+    return false;
+  }
+
+  /** Pancada do saltador: agachado (aviso) → salto alto rumo ao jogador → ao cair, onda → parado. */
+  private slam(e: Enemy, dt: number): number {
+    const b = e.body;
+    const dirButton = e.dir > 0 ? BTN_RIGHT : BTN_LEFT;
+    if (e.skill === SKILL_WARN) {
+      if ((e.skillTimer -= dt) > 0) return 0;
+      const target = this.nearestPlayer(b);
+      if (target) e.dir = target.body.x > b.x ? 1 : -1;
+      e.skill = SKILL_ACT;
+      e.skillTimer = 0;
+      return BTN_JUMP | (e.dir > 0 ? BTN_RIGHT : BTN_LEFT);
+    }
+    if (e.skill === SKILL_ACT) {
+      // skillTimer conta o tempo no ar: o primeiro tick ainda está no chão.
+      e.skillTimer += dt;
+      if (!b.onGround || e.skillTimer < 0.1) return dirButton;
+      const size = ENEMY_SIZE * TILE;
+      const x = b.x + size / 2;
+      const y = b.y + size;
+      const [left, right] = floorSpan(this.arena, x, y, RULES.slamRadius);
+      this.shocks.push({ x, y, left, right, age: 0 });
+      e.skill = SKILL_REST;
+      e.skillTimer = RULES.slamRest;
+      return 0;
+    }
+    if ((e.skillTimer -= dt) <= 0) e.skill = SKILL_NONE;
+    return 0;
   }
 
   private edgeAhead(e: Enemy): boolean {
@@ -722,31 +924,45 @@ export class World {
   private stepDamage(): void {
     for (const p of this.players.values()) {
       if (p.down || p.away || p.invuln > 0 || p.star > 0) continue;
-      const box = bodyBox(p.body, this.params);
-      for (const e of this.enemies.values()) {
-        if (e.mode === MODE_WALK && overlaps(box, enemyBox(e))) {
-          if (p.hp > 1) {
-            // Modo fácil: o primeiro toque só tira a proteção.
-            p.hp--;
-            p.invuln = RULES.hitInvulnTime;
-            break;
-          }
-          p.down = true;
-          // Derrubado perde tudo o que acumulou.
-          p.strength = 0;
-          p.speed = 0;
-          p.rate = 0;
-          p.range = 0;
-          p.star = 0;
-          p.downTime = 0;
-          p.rescue = 0;
-          p.body.vx = 0;
-          p.body.vy = 0;
-          this.stats.downs++;
-          break;
-        }
+      if (!this.touchesHazard(p)) continue;
+      if (p.hp > 1) {
+        // Modo fácil: o primeiro toque só tira a proteção.
+        p.hp--;
+        p.invuln = RULES.hitInvulnTime;
+        continue;
       }
+      p.down = true;
+      // Derrubado perde tudo o que acumulou.
+      p.strength = 0;
+      p.speed = 0;
+      p.rate = 0;
+      p.range = 0;
+      p.star = 0;
+      p.downTime = 0;
+      p.rescue = 0;
+      p.body.vx = 0;
+      p.body.vy = 0;
+      this.stats.downs++;
     }
+  }
+
+  /** Inimigo andando, mancha já firme ou a frente da onda da pancada (só pega quem está no chão). */
+  private touchesHazard(p: WorldPlayer): boolean {
+    const box = bodyBox(p.body, this.params);
+    for (const e of this.enemies.values()) {
+      if (e.mode === MODE_WALK && overlaps(box, enemyBox(e))) return true;
+    }
+    for (const s of this.stains.values()) {
+      if (s.age >= RULES.stainWarn && overlaps(box, stainBox(s))) return true;
+    }
+    if (!p.body.onGround) return false;
+    for (const w of this.shocks) {
+      if (Math.abs(box.y + box.h - w.y) > TILE / 2 || box.x >= w.right || box.x + box.w <= w.left) continue;
+      const front = RULES.slamRadius * TILE * Math.min(1, (w.age + TICK_DT) / RULES.slamWaveTime);
+      const dist = Math.max(0, box.x - w.x, w.x - (box.x + box.w));
+      if (dist <= front && dist >= front - RULES.slamWaveBand * TILE) return true;
+    }
+    return false;
   }
 
   private stepRescue(dt: number): void {
@@ -835,8 +1051,10 @@ export class World {
     if (this.phase === PHASE_PLAYING) {
       if (this.waveStarted && this.enemiesLeft === 0) {
         this.report('limpa');
-        // O borrão vai embora junto com a arena.
+        // O borrão vai embora junto com a arena, e as manchas com ele.
         this.enemies.clear();
+        this.stains.clear();
+        this.shocks = [];
         this.phase = PHASE_CLEAR;
         this.phaseTime = RULES.clearDelay;
       } else if (this.lives === 0 && this.players.size > 0 && [...this.players.values()].every((p) => p.down || p.away)) {
@@ -911,6 +1129,8 @@ export class World {
     this.enemies.clear();
     this.drops.clear();
     this.items.clear();
+    this.stains.clear();
+    this.shocks = [];
     this.nextItemAt = RULES.itemFirstAt;
     const n = Math.max(1, this.players.size);
     this.soakToBall = n >= 4 ? RULES.soakToBallBigTeam : RULES.soakToBall;
