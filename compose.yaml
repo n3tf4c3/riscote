@@ -21,6 +21,10 @@ services:
       # Com túnel da Cloudflare, use cf-connecting-ip; sem proxy na frente, deixe vazio.
       RISCOTE_IP_HEADER: ${RISCOTE_IP_HEADER:-}
       RISCOTE_METRICS: ${RISCOTE_METRICS:-1}
+      RISCOTE_DATA_DIR: /dados
+    volumes:
+      # Placar de recordes: o único lugar onde o servidor grava; o resto continua só leitura.
+      - dados:/dados
     tmpfs: [/tmp:size=16m]
     mem_limit: 384m
     pids_limit: 64
@@ -70,3 +74,7 @@ services:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
     mem_limit: 128m
     depends_on: [server, client]
+
+volumes:
+  # Com o projeto "riscote", o volume se chama riscote_dados. `docker compose down` não o apaga; `down -v` apaga.
+  dados:

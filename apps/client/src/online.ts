@@ -23,6 +23,7 @@ import { el } from './dom';
 import type { InputSource } from './input';
 import { OnlineSession, type NetState } from './net';
 import { OnlineScene } from './OnlineScene';
+import { bindRecords } from './records';
 import { RES } from './art/textures';
 
 const INITIAL_STATE_TIMEOUT_MS = 5000;
@@ -273,7 +274,9 @@ export function bootOnline(input: InputSource): void {
   const playersOut = el('r-players');
   const correctionsOut = el('r-corrections');
   const pendingOut = el('r-pending');
+  const updateRecords = bindRecords(() => session);
   setInterval(() => {
+    updateRecords();
     if (!session) return;
     const state = session.state;
     const me = session.me;

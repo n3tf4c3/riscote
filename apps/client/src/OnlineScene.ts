@@ -392,7 +392,8 @@ function bannerText(session: OnlineSession): string {
     case PHASE_CHAPTER:
       return `Capítulo concluído!\n${state.score} pontos`;
     case PHASE_RESTART:
-      return 'Sem vidas: recomeçando a arena…';
+      // Com pontos é fim de jogo: o placar aparece por cima e a arena recomeça do zero.
+      return session.records ? 'Fim de jogo!' : 'Sem vidas: recomeçando a arena…';
     case PHASE_TURN:
       return '';
   }

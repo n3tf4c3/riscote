@@ -26,6 +26,8 @@ WORKDIR /app
 COPY --from=server-deps /app ./
 COPY packages/shared/src packages/shared/src
 COPY apps/server/src apps/server/src
+# Ponto de montagem do placar: um volume novo herda o dono desta pasta e o usuário node pode gravar.
+RUN mkdir /dados && chown node:node /dados
 USER node
 EXPOSE 2567
 CMD ["node", "apps/server/src/index.ts"]

@@ -3,8 +3,12 @@ import {
   ARENAS,
   Interpolator,
   MSG_INPUT,
+  MSG_NAME,
+  MSG_RECORDS,
   MSG_REPORT,
   MSG_START,
+  PHASE_CHAPTER,
+  PHASE_RESTART,
   Predictor,
   movementParams,
   parseDifficulty,
@@ -15,6 +19,7 @@ import {
   type NetPlayer,
   type PlayerState,
   type Positioned,
+  type RecordsMessage,
 } from '@riscote/shared';
 
 interface NetMap<T> {
@@ -105,6 +110,9 @@ export class OnlineSession {
   readonly slot: number;
   /** Relatórios de métricas das arenas encerradas nesta sessão. */
   readonly reports: ArenaReport[] = [];
+  /** Placar do fim de jogo em andamento; some quando a pausa do placar acaba. */
+  records: RecordsMessage | null = null;
+  private wasPaused = false;
   /** Chamado quando o servidor vira a página para outra arena. */
   onArenaChange: ((arena: Arena) => void) | null = null;
   /** A conexão caiu e o SDK está tentando voltar. */
@@ -126,6 +134,9 @@ export class OnlineSession {
     this.predictor = new Predictor(arena, (level) => movementParams(this.difficulty, level), me);
     room.onStateChange((s: NetState) => this.onState(s));
     room.onMessage(MSG_REPORT, (r: ArenaReport) => this.reports.push(r));
+    room.onMessage(MSG_RECORDS, (r: RecordsMessage) => {
+      this.records = r;
+    });
   }
 
   get state(): NetState {
@@ -143,6 +154,16 @@ export class OnlineSession {
   /** Pede ao servidor o fim do aquecimento (só vale para o anfitrião). */
   start(): void {
     this.room.send(MSG_START);
+  }
+
+  /** Nome para a linha desta partida no placar; a pontuação é sempre a do servidor. */
+  sendName(name: string): void {
+    this.room.send(MSG_NAME, { name });
+  }
+
+  /** Ainda pode escrever o nome no placar. */
+  get mayName(): boolean {
+    return this.records?.entryId != null && this.records.waiting.includes(this.room.sessionId);
   }
 
   get code(): string {
@@ -179,6 +200,10 @@ export class OnlineSession {
   }
 
   private onState(state: NetState): void {
+    // A mensagem do placar pode chegar antes do estado com a pausa: só some quando a pausa termina.
+    const paused = state.phase === PHASE_RESTART || state.phase === PHASE_CHAPTER;
+    if (this.wasPaused && !paused) this.records = null;
+    this.wasPaused = paused;
     const me = state.players.get(this.room.sessionId);
     if (!me) return;
     let switched = false;

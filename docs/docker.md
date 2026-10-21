@@ -32,6 +32,29 @@ Os relatórios de cada arena e as métricas do processo saem no log do `server` 
 - `RISCOTE_METRICS`: `1` (padrão) grava métricas do processo a cada 10 s.
 - `CLOUDFLARE_TUNNEL_TOKEN`: token do túnel nomeado em riscote.win (só no `.env`; ver `docs/playtest-remoto.md`).
 
+## Placar de recordes (volume `riscote_dados`)
+
+O servidor guarda os 15 melhores de cada dificuldade em `/dados/recordes.json`, no volume nomeado `dados` do compose (no Docker, `riscote_dados`). É o único caminho gravável do container; o resto continua só leitura. A imagem cria `/dados` com dono `node`, e um volume novo herda esse dono.
+
+- Sobrevive a `docker compose down`, a `up -d --build` e à troca de imagem. Só `docker compose down -v` ou `docker volume rm riscote_dados` apagam.
+- Gravação atômica: o servidor escreve `recordes.json.tmp` e renomeia. Se o arquivo estiver ilegível ao subir, ele é guardado como `recordes.json.ilegivel-<data>` e o placar recomeça vazio; linhas adulteradas (pontuação ou nome inválido) são descartadas ao carregar.
+- Fora do Docker, a pasta é `apps/server/dados/` (fora do Git); `RISCOTE_DATA_DIR` troca.
+
+Ver o placar e fazer cópia (PC ou Pi, na pasta do projeto):
+
+```sh
+docker compose exec server cat /dados/recordes.json
+docker run --rm -v riscote_dados:/dados:ro -v "$PWD":/copia alpine cp /dados/recordes.json /copia/recordes-copia.json
+```
+
+Restaurar uma cópia: pare o servidor, copie o arquivo para dentro do volume e suba de novo.
+
+```sh
+docker compose stop server
+docker run --rm -v riscote_dados:/dados -v "$PWD":/copia alpine sh -c 'cp /copia/recordes-copia.json /dados/recordes.json && chown 1000:1000 /dados/recordes.json'
+docker compose start server
+```
+
 ## Playtest pela internet
 
 Ver `docs/playtest-remoto.md`.
@@ -58,6 +81,8 @@ docker tag riscote-server:arm64 riscote-server:latest
 docker tag riscote-client:arm64 riscote-client:latest
 docker compose --profile dominio up -d --no-build --pull never
 ```
+
+O placar de recordes fica no volume `riscote_dados` do próprio Pi (ver acima): levar imagens novas e o `compose.yaml` não mexe nele. Na primeira subida com o placar, o volume é criado sozinho.
 
 Sem o perfil `dominio`, o túnel fica parado e o jogo só responde pelo encaminhamento SSH.
 

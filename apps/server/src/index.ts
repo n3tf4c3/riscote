@@ -1,10 +1,12 @@
 import { createServer } from 'node:http';
+import { fileURLToPath } from 'node:url';
 import { Server } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
 import { ROOM_NAME } from '@riscote/shared';
 import { ArenaRoom } from './ArenaRoom.ts';
 import { AttemptLimiter, limitJoins, markPeerAddress } from './joinLimit.ts';
 import { startMetricsLog } from './metrics.ts';
+import { RecordBook } from './records.ts';
 
 // Variáveis de ambiente:
 // - PORT: porta do servidor (padrão 2567).
@@ -16,8 +18,12 @@ import { startMetricsLog } from './metrics.ts';
 // - RISCOTE_METRICS=1: uma linha JSON de métricas do processo a cada 10 s.
 // - RISCOTE_HOST: interface de escuta (padrão: todas). Com túnel, use 127.0.0.1: só o túnel
 //   alcança o servidor e o cabeçalho de IP do proxy fica confiável.
+// - RISCOTE_DATA_DIR: pasta do placar de recordes (recordes.json). Padrão apps/server/dados;
+//   no Docker, o volume em /dados.
 const port = Number(process.env.PORT ?? 2567);
 const host = process.env.RISCOTE_HOST || undefined;
+
+ArenaRoom.records = new RecordBook(process.env.RISCOTE_DATA_DIR || fileURLToPath(new URL('../dados/', import.meta.url)));
 
 const http = createServer();
 markPeerAddress(http, process.env.RISCOTE_IP_HEADER || undefined);
