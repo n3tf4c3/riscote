@@ -25,6 +25,7 @@ import {
   ROOM_NAME,
   ITEM_AGILIDADE,
   TOO_MANY_JOINS,
+  SERVER_FULL,
   movementParams,
   parseDifficulty,
   seededRandom,
@@ -34,7 +35,7 @@ import {
   stepPlayer,
 } from '@riscote/shared';
 import { ArenaRoom } from '../src/ArenaRoom.ts';
-import { AttemptLimiter, limitJoins, markPeerAddress } from '../src/joinLimit.ts';
+import { AttemptLimiter, limitJoins, limitRooms, markPeerAddress } from '../src/joinLimit.ts';
 
 const ROOM_WITH_ENEMIES = 'arena-com-inimigos';
 /** Regras da 1ª fase do capítulo 1, onde as salas de teste começam. */
@@ -514,6 +515,34 @@ describe('limite de tentativas de entrada (etapa 5)', () => {
     expect(limiter.allow('b')).toBe(true);
     now = 1000;
     expect(limiter.allow('a')).toBe(true);
+  });
+});
+describe('limite de salas abertas', () => {
+  it('no limite, criar sala recebe HTTP 503 com mensagem clara; entrar pelo código continua; liberando uma, volta a criar', async () => {
+    let open = 0;
+    const undo = limitRooms(2, () => open);
+    try {
+      const first = await t.sdk.create(ROOM_NAME, {});
+      open++;
+      await t.sdk.create(ROOM_NAME, {});
+      open++;
+      let refusal = '';
+      try {
+        await t.sdk.create(ROOM_NAME, {});
+      } catch (e) {
+        refusal = describeJoinError(e);
+      }
+      expect(refusal).toBe(SERVER_FULL);
+      const port = (t.server as any).port;
+      const res = await fetch(`http://127.0.0.1:${port}/matchmake/create/${ROOM_NAME}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+      expect(res.status).toBe(503);
+
+      expect((await t.sdk.joinById(first.roomId)).roomId).toBe(first.roomId);
+      open--;
+      expect((await t.sdk.create(ROOM_NAME, {})).roomId).toBeTruthy();
+    } finally {
+      undo();
+    }
   });
 });
 describe('modo fácil na rede', () => {

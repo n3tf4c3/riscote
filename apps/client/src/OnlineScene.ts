@@ -32,7 +32,7 @@ import { DropWatcher, EnemyAnimator, RiscoteAnimator, type EraserFront, type Mot
 import { bossSpecs } from './art/boss';
 import { ITEM_LIQUIDS } from './art/items';
 import { ArtLayer } from './art/layer';
-import { RES, arenaSpecs, artSize, commonSpecs, loadArt, riscoteKey, type ArtSpec } from './art/textures';
+import { RES, arenaSpecs, artSize, commonSpecs, loadArt, protecaoKey, riscoteKey, type ArtSpec } from './art/textures';
 import {
   INK,
   PLAYER_COLORS,
@@ -55,6 +55,9 @@ const MAX_FRAME = 0.25;
 const GREY = 0x888888;
 /** Quanto tempo a pose de tiro fica na tela depois do disparo. */
 const SHOT_POSE_MS = 160;
+/** Centro das auras acima dos pés: o meio do desenho do riscote, que é mais alto que a caixa. */
+const AURA_CENTER = 22;
+const STAR_GOLD = 0xe8b400;
 
 const DEPTH_ARENA = 0;
 /** Efeitos atrás do contorno das plataformas e dos perigos (plano, seção 3). */
@@ -98,6 +101,8 @@ export class OnlineScene extends Phaser.Scene {
   private generation = 0;
   /** Último disparo visto de cada jogador (por slot), para a pose de tiro. */
   private shotAt: number[] = [];
+  /** Último brilho da aura dourada de cada jogador (por slot). */
+  private sparkAt: number[] = [];
   private fx = new Effects();
   private riscotes = new RiscoteAnimator(this.fx);
   private warn: WarnTimes = warnTimes('medio');
@@ -373,9 +378,32 @@ export class OnlineScene extends Phaser.Scene {
       // Sombra de aguada no chão: ancora o boneco e encolhe no ar.
       const lift = motion.onGround || look.down ? 1 : 0.6;
       this.fxBack.fillStyle(0x6d665a, 0.18 * lift).fillEllipse(x + w / 2, y + h, w * 1.3 * lift * f.sx, 3);
+      if (!look.down) this.drawAuras(art, slot, x + w / 2, y + h - AURA_CENTER, look, now, depth - 0.2);
     }
     art.draw(riscoteKey(slot, f.pose), x + w / 2, y + h, depth, { flip: look.facing < 0, alpha: playerAlpha(look, now), sx: f.sx, sy: f.sy });
-    drawPlayerOverlay(this.gfx, x, y, params, look, color, isLocal, now);
+    drawPlayerOverlay(this.gfx, x, y, params, look, color, isLocal, now, false);
+  }
+
+  /**
+   * Auras atrás do boneco: o halo dourado da invencibilidade (pulsa, solta brilhos e pisca no
+   * último segundo e meio) e a bolha de proteção do fácil, na cor do jogador, respirando devagar.
+   */
+  private drawAuras(art: ArtLayer, slot: number, cx: number, cy: number, look: PlayerLook, now: number, depth: number): void {
+    const star = look.star ?? 0;
+    if (star > 0) {
+      const beat = Math.sin(now / 110);
+      const ending = star < 1.5 && Math.floor(now / 120) % 2 === 0;
+      art.draw('aura-estrela', cx, cy, depth, { alpha: ending ? 0.25 : 0.8 + 0.2 * beat, sx: 1 + 0.05 * beat, sy: 1 + 0.04 * beat });
+      if (now - (this.sparkAt[slot] ?? 0) > 220) {
+        this.sparkAt[slot] = now;
+        const a = Math.random() * Math.PI * 2;
+        this.fx.sparkle(cx + Math.cos(a) * 14, cy + Math.sin(a) * 19, STAR_GOLD, 3, 5);
+      }
+    }
+    if ((look.hp ?? 1) > 1) {
+      const breath = Math.sin(now / 420 + slot);
+      art.draw(protecaoKey(slot), cx, cy, depth - 0.05, { alpha: 0.9, sx: 1 + 0.03 * breath, sy: 1 - 0.02 * breath });
+    }
   }
 
   /** Esguicho de tinta saindo da mão de quem atirou. */

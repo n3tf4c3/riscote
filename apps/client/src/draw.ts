@@ -153,7 +153,10 @@ export function playerAlpha(look: PlayerLook, now: number): number {
   return look.invuln > 0 && Math.floor(now / 100) % 2 === 0 ? 0.35 : 1;
 }
 
-/** O que vai por cima do boneco (greybox ou arte): anel de resgate, aura, proteção, medidor e o marcador do próprio. */
+/**
+ * O que vai por cima do boneco (greybox ou arte): anel de resgate, aura, proteção, medidor e o marcador
+ * do próprio. Com a arte carregada, as auras são desenhos de pincel atrás do boneco (`auras` = false).
+ */
 export function drawPlayerOverlay(
   g: Phaser.GameObjects.Graphics,
   x: number,
@@ -163,6 +166,7 @@ export function drawPlayerOverlay(
   color: number,
   marker: boolean,
   now: number,
+  auras = true,
 ): void {
   const w = p.playerWidth * TILE;
   const h = p.playerHeight * TILE;
@@ -180,11 +184,11 @@ export function drawPlayerOverlay(
     // Marcador acima da cabeça (a arte é mais alta que a caixa de colisão).
     g.fillStyle(INK).fillTriangle(x + w / 2 - 4, y - 14, x + w / 2 + 4, y - 14, x + w / 2, y - 9);
   }
-  if ((look.star ?? 0) > 0) {
+  if (auras && (look.star ?? 0) > 0) {
     const pulse = 0.55 + 0.45 * Math.sin(now / 90);
     g.lineStyle(3, STAR_GOLD, pulse).strokeRoundedRect(x - 6, y - 6, w + 12, h + 12, 7);
   }
-  if ((look.hp ?? 1) > 1) {
+  if (auras && (look.hp ?? 1) > 1) {
     // Proteção do modo fácil: contorno extra que some no primeiro toque.
     g.lineStyle(2, color, 0.9).strokeRoundedRect(x - 4, y - 4, w + 8, h + 8, 5);
   }

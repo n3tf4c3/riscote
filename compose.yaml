@@ -21,6 +21,8 @@ services:
       # Com túnel da Cloudflare, use cf-connecting-ip; sem proxy na frente, deixe vazio.
       RISCOTE_IP_HEADER: ${RISCOTE_IP_HEADER:-}
       RISCOTE_METRICS: ${RISCOTE_METRICS:-1}
+      # Salas abertas ao mesmo tempo; acima disso, criar sala responde "servidor cheio" (docs/docker.md).
+      RISCOTE_MAX_ROOMS: ${RISCOTE_MAX_ROOMS:-40}
       RISCOTE_DATA_DIR: /dados
     volumes:
       # Placar de recordes: o único lugar onde o servidor grava; o resto continua só leitura.
