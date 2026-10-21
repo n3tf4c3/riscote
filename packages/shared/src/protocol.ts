@@ -30,11 +30,28 @@ export const DIFFICULTIES = ['facil', 'medio', 'dificil'] as const;
 export type Difficulty = (typeof DIFFICULTIES)[number];
 export const DIFFICULTY_NAMES: Record<Difficulty, string> = { facil: 'Fácil', medio: 'Médio', dificil: 'Difícil' };
 
-/** O que muda entre os modos (valores iniciais, a ajustar em playtest). */
-export const DIFFICULTY_RULES: Record<Difficulty, { limitedInk: boolean; hitsToDown: number; speedMult: number }> = {
-  facil: { limitedInk: false, hitsToDown: 2, speedMult: 1.15 },
-  medio: { limitedInk: false, hitsToDown: 1, speedMult: 1 },
-  dificil: { limitedInk: true, hitsToDown: 1, speedMult: 1 },
+export interface DifficultyRules {
+  limitedInk: boolean;
+  hitsToDown: number;
+  speedMult: number;
+  /** Multiplica o aviso das habilidades dos inimigos e das manchas do borrão. */
+  warnMult: number;
+  /** Multiplica o intervalo entre habilidades (soma-se ao da fase). */
+  skillCdMult: number;
+  /** Inimigos a menos por fase (nunca abaixo de 3). */
+  fewerEnemies: number;
+  /** O borrão nunca chega antes disto, em segundos. */
+  minHurry: number;
+}
+
+/**
+ * O que muda entre os modos (valores iniciais, a ajustar em playtest). A progressão entre as fases
+ * existe dentro de cada modo; o modo só desloca a curva inteira.
+ */
+export const DIFFICULTY_RULES: Record<Difficulty, DifficultyRules> = {
+  facil: { limitedInk: false, hitsToDown: 2, speedMult: 1.15, warnMult: 1.42, skillCdMult: 1.5, fewerEnemies: 1, minHurry: 90 },
+  medio: { limitedInk: false, hitsToDown: 1, speedMult: 1, warnMult: 1, skillCdMult: 1, fewerEnemies: 0, minHurry: 0 },
+  dificil: { limitedInk: true, hitsToDown: 1, speedMult: 1, warnMult: 1, skillCdMult: 0.85, fewerEnemies: 0, minHurry: 0 },
 };
 
 /** Item de agilidade: +12% de corrida por nível (até POWER_MAX_LEVEL). */
@@ -96,16 +113,20 @@ export function parseInput(raw: unknown): InputMessage | null {
   return { seq, buttons };
 }
 
+/** Recusa por excesso de tentativas de criar ou entrar em sala (HTTP 429). */
+export const TOO_MANY_JOINS = 'Muitas tentativas de entrar em sala. Espere um minuto e tente de novo.';
+
+/** Recusa por limite de salas abertas no servidor (HTTP 503); entrar por código numa sala existente continua valendo. */
+export const SERVER_FULL = 'O servidor está cheio agora: tente criar a sala de novo em alguns minutos ou entre numa sala pelo código.';
+
 /**
  * Traduz a recusa do matchmaking em mensagem para o jogador. A sala só fica trancada
  * ao atingir MAX_PLAYERS (o servidor não tranca por outro motivo), então "locked" = cheia.
  */
-/** Recusa por excesso de tentativas de criar ou entrar em sala (HTTP 429). */
-export const TOO_MANY_JOINS = 'Muitas tentativas de entrar em sala. Espere um minuto e tente de novo.';
-
 export function describeJoinError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   if (message.includes(TOO_MANY_JOINS)) return TOO_MANY_JOINS;
+  if (message.includes(SERVER_FULL)) return SERVER_FULL;
   if (/is locked/.test(message)) return `Sala cheia: o limite é de ${MAX_PLAYERS} jogadores.`;
   if (/not found/.test(message)) return 'Nenhuma sala com esse código.';
   return 'Não foi possível entrar na sala. Tente de novo.';

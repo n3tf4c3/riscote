@@ -1,6 +1,6 @@
 // Teste de carga (plano, seção 4.5): N salas com 5 robôs cada, comandos a 60 Hz.
 // Uso: node scripts/carga.ts --salas 10 --segundos 30 --servidor ws://localhost:2567
-// O servidor deve rodar com RISCOTE_METRICS=1 (tick e CPU no log) e RISCOTE_JOIN_LIMIT=0
+// O servidor deve rodar com RISCOTE_METRICS=1 (tick e CPU no log), RISCOTE_JOIN_LIMIT=0 e RISCOTE_MAX_ROOMS=0
 // (os robôs entram todos do mesmo endereço). Robôs e servidor na mesma máquina disputam CPU:
 // o número que vale para produção sai de rodar o servidor sozinho na máquina-alvo.
 import { ColyseusSDK, type Room } from '@colyseus/sdk';

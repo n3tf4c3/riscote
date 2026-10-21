@@ -2,20 +2,31 @@ import type * as Phaser from 'phaser';
 import type { Arena } from '@riscote/shared';
 import { arenaFundoSvg, arenaSvg, tuboSvg } from './arena';
 import {
+  GRAMPO_FRAMES,
   TRACA_FRAMES,
   bolaSvg,
+  borrachaSoakSvg,
+  borrachaSvg,
   borraoSvg,
+  cuspeSvg,
+  fiandeiraSoakSvg,
+  fiandeiraSvg,
   gotaSvg,
+  grampoSoakSvg,
+  grampoSvg,
   manchaSvg,
   poeiraSvg,
   respingoSvg,
   saltadorSoakSvg,
   saltadorSvg,
+  tinteiroSoakSvg,
+  tinteiroSvg,
   tracaSoakSvg,
   tracaSvg,
 } from './enemies';
 import { itemSvg } from './items';
-import { POSES, riscoteSvg, type Pose } from './riscote';
+import { auraEstrelaSvg, auraProtecaoSvg } from './auras';
+import { PLAYER_GLOWS, POSES, riscoteSvg, type Pose } from './riscote';
 import { BOIL, INK, hex } from './svg';
 
 /** Pixels de tela por pixel do mundo: o jogo online roda com a câmera em zoom 2 para a arte não borrar. */
@@ -71,8 +82,20 @@ export function riscoteKey(slot: number, pose: Pose): string {
   return `riscote-${slot}-${pose}`;
 }
 
+/** Bolha de proteção do modo fácil, na cor de cada jogador. */
+export function protecaoKey(slot: number): string {
+  return `aura-protecao-${slot}`;
+}
+
+/** Tamanho das auras no mundo: um pouco maior que o boneco (16 × 26 px). */
+const AURA_K = 0.3;
+
 export function tracaKey(frame: number): string {
   return `traca-${frame % TRACA_FRAMES}`;
+}
+
+export function grampoKey(frame: number): string {
+  return `grampo-${frame % GRAMPO_FRAMES}`;
 }
 
 /** Riscotes, inimigos, itens e efeitos: iguais em todas as arenas. */
@@ -80,7 +103,9 @@ export function commonSpecs(playerColors: readonly number[]): ArtSpec[] {
   const specs: ArtSpec[] = [];
   playerColors.forEach((color, slot) => {
     for (const pose of POSES) specs.push(...boiled(riscoteKey(slot, pose), (v) => riscoteSvg(slot, hex(color), pose, v), 0.11, 100, 290));
+    specs.push(...boiled(protecaoKey(slot), (v) => auraProtecaoSvg(hex(color), PLAYER_GLOWS[slot] ?? hex(color), v), AURA_K, 0, 0));
   });
+  specs.push(...boiled('aura-estrela', auraEstrelaSvg, AURA_K, 0, 0));
   for (let f = 0; f < TRACA_FRAMES; f++) specs.push(...boiled(tracaKey(f), (v) => tracaSvg(f, v), 0.19, 106, 150));
   specs.push(
     ...boiled('traca-bote', (v) => tracaSvg(0, v, true), 0.19, 106, 150),
@@ -89,6 +114,18 @@ export function commonSpecs(playerColors: readonly number[]): ArtSpec[] {
     ...boiled('saltador-carga', (v) => saltadorSvg(false, v, true), 0.3, 103, 134),
     ...boiled('saltador-ar', (v) => saltadorSvg(true, v), 0.3, 103, 134),
     ...boiled('saltador-tinta', saltadorSoakSvg, 0.3, 103, 134),
+    ...Array.from({ length: GRAMPO_FRAMES }, (_, f) => boiled(grampoKey(f), (v) => grampoSvg(f, v), 0.24, 50, 89)).flat(),
+    ...boiled('grampo-tinta', grampoSoakSvg, 0.24, 50, 89),
+    ...boiled('fiandeira-0', (v) => fiandeiraSvg(0, v), 0.42, 50, 54),
+    ...boiled('fiandeira-1', (v) => fiandeiraSvg(1, v), 0.42, 50, 54),
+    ...boiled('fiandeira-tinta', fiandeiraSoakSvg, 0.42, 50, 54),
+    ...boiled('tinteiro-0', (v) => tinteiroSvg(0, v), 0.25, 52, 96),
+    ...boiled('tinteiro-1', (v) => tinteiroSvg(1, v), 0.25, 52, 96),
+    ...boiled('tinteiro-carga', (v) => tinteiroSvg(0, v, true), 0.25, 52, 96),
+    ...boiled('tinteiro-tinta', tinteiroSoakSvg, 0.25, 52, 96),
+    ...boiled('borracha', borrachaSvg, 0.23, 55, 89),
+    ...boiled('borracha-tinta', borrachaSoakSvg, 0.23, 55, 89),
+    ...boiled('cuspe', cuspeSvg, 0.36, 0, 0),
     ...boiled('bola', bolaSvg, 10 / 22, 0, 0),
     ...boiled('borrao', borraoSvg, 0.3, 100, 67),
     ...boiled('mancha', manchaSvg, 0.44, 0, 0),

@@ -337,7 +337,7 @@ export class BossView {
     const x = b.x + this.w / 2 + dx;
     const y = b.y + this.h;
     if (art) art.draw(`chefe-${pose}`, x, y, this.depths.boss, { flip: b.dir < 0, sx, sy, angle, alpha });
-    else g.fillStyle(0x8a5a34, alpha).fillRoundedRect(b.x, b.y, this.w, this.h, 12);
+    else g.fillStyle(0xc4283a, alpha).fillRoundedRect(b.x, b.y, this.w, this.h, 12);
   }
 
   /** Barra de vida no alto: enche na entrada, pisca no golpe, marca as fases e o medidor de encharcado. */

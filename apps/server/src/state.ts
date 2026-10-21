@@ -45,10 +45,22 @@ export const EnemySchema = schema(
     soak: t.uint8(),
     /** Fase da habilidade (SKILL_*): o cliente desenha o aviso antes de ela acontecer. */
     skill: t.uint8(),
+    /** Fiandeira: y onde o fio se prende, para o cliente desenhar o fio; -1 = solta. */
+    anchorY: t.float32(),
   },
   'Enemy',
 );
 export type EnemySchema = SchemaType<typeof EnemySchema>;
+
+/** Gota cuspida pelo tinteiro (machuca desde que sai: o aviso é o tinteiro inclinado antes). */
+export const SpitSchema = schema(
+  {
+    x: t.float32(),
+    y: t.float32(),
+  },
+  'Spit',
+);
+export type SpitSchema = SchemaType<typeof SpitSchema>;
 
 /** Mancha do borrão; `age` abaixo de RULES.stainWarn ainda não machuca. */
 export const StainSchema = schema(
@@ -147,6 +159,7 @@ export const GameState = schema(
     hazards: t.map(HazardSchema),
     /** A próxima página é a do chefe: a virada ganha aviso. */
     bossNext: t.boolean(),
+    spits: t.map(SpitSchema),
   },
   'GameState',
 );

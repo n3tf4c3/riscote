@@ -1,10 +1,12 @@
 import { BOSS_RULES, TILE } from '@riscote/shared';
-import { BOIL, INK, PAPER, stroke, svgDoc } from './svg';
+import { BOIL, INK, PAPER, gradient, stroke, svgDoc } from './svg';
 import { boilKey, type ArtSpec } from './textures';
 
 // O Mata-Borrão: mata-borrão de mesa vivo, com o feltro manchado na base que balança,
 // o bloco de madeira com a cara e o puxador no alto (olhando para a direita).
 // Quadro de 300 × 225 unidades = a caixa do chefe (4 × 3 células); o puxador passa por cima.
+// Cores em degradê, como as pinceladas de docs/texturas: feltro verde → lima e madeira laqueada
+// cereja → laranja. O azul do encharcado segue só para a tinta dos jogadores.
 
 export const BOSS_VB = '-12 -46 324 276';
 /** Ponto de apoio: o meio da base, no chão. */
@@ -12,11 +14,15 @@ export const BOSS_ANCHOR: [number, number] = [150, 225];
 /** Unidades do SVG por largura da caixa. */
 export const BOSS_UNITS = 300;
 
-const FELT = '#e6cbbb';
-const FELT_DARK = '#b99282';
-const WOOD = '#8a5a34';
-const WOOD_DARK = '#5a371d';
-const KNOB = '#6b4325';
+const FELT = 'url(#feltro)';
+const FELT_DARK = '#2f6b22';
+const WOOD = 'url(#madeira)';
+const WOOD_DARK = '#7a1424';
+const KNOB = 'url(#puxador)';
+const COLORS =
+  gradient('feltro', '#4fae3a', '#c8e85a', 0, [10, 223, 290, 118]) +
+  gradient('madeira', '#c4283a', '#f2752c', 0, [8, 128, 292, 32]) +
+  gradient('puxador', '#f2752c', '#8a1428', 60);
 const SOAK = '#2f6fd6';
 const MOUTH = '#7d2219';
 
@@ -108,7 +114,8 @@ export function mataBorraoSvg(pose: BossPose, variant = 0): string {
     : '';
   return svgDoc(
     BOSS_VB,
-    `<clipPath id="feltro-baixo"><path d="M0 170 Q150 200 300 170 L300 232 L0 232 Z"/></clipPath>` +
+    COLORS +
+      `<clipPath id="feltro-baixo"><path d="M0 170 Q150 200 300 170 L300 232 L0 232 Z"/></clipPath>` +
       // Feltro (papel mata-borrão) na base curva, com as pontas presas na madeira.
       `<path d="${FELT_PATH}" fill="${FELT}" filter="url(#tecido)"/>` +
       STAINS +

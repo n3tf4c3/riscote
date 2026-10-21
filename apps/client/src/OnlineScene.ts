@@ -4,10 +4,17 @@ import {
   BOSS_ARENA,
   BORRAO_SIZE,
   BTN_ATTACK,
+  ENEMY_BORRACHA,
   ENEMY_BORRAO,
+  ENEMY_FIANDEIRA,
+  ENEMY_GRAMPO,
+  ENEMY_SALTADOR,
   ENEMY_SIZE,
+  ENEMY_TINTEIRO,
   MAX_PLAYERS,
+  MODE_ROLL,
   MODE_WALK,
+  SKILL_WARN,
   PHASE_CHAPTER,
   PHASE_CLEAR,
   PHASE_LOBBY,
@@ -18,12 +25,14 @@ import {
   TICK_DT,
   TILE,
   tubeRect,
+  warnTimes,
+  type WarnTimes,
 } from '@riscote/shared';
-import { DropWatcher, EnemyAnimator, RiscoteAnimator, type Motion } from './anim';
+import { DropWatcher, EnemyAnimator, RiscoteAnimator, type EraserFront, type Motion } from './anim';
 import { bossSpecs } from './art/boss';
 import { ITEM_LIQUIDS } from './art/items';
 import { ArtLayer } from './art/layer';
-import { RES, arenaSpecs, artSize, commonSpecs, loadArt, riscoteKey, type ArtSpec } from './art/textures';
+import { RES, arenaSpecs, artSize, commonSpecs, loadArt, protecaoKey, riscoteKey, type ArtSpec } from './art/textures';
 import {
   INK,
   PLAYER_COLORS,
@@ -46,6 +55,9 @@ const MAX_FRAME = 0.25;
 const GREY = 0x888888;
 /** Quanto tempo a pose de tiro fica na tela depois do disparo. */
 const SHOT_POSE_MS = 160;
+/** Centro das auras acima dos pés: o meio do desenho do riscote, que é mais alto que a caixa. */
+const AURA_CENTER = 22;
+const STAR_GOLD = 0xe8b400;
 
 const DEPTH_ARENA = 0;
 /** Efeitos atrás do contorno das plataformas e dos perigos (plano, seção 3). */
@@ -57,6 +69,18 @@ const DEPTH_PLAYER = 3;
 const DEPTH_FX_FRONT = 3.8;
 const DEPTH_OVERLAY = 4;
 const DEPTH_BANNER = 5;
+
+/** Desenho da tinta subindo no corpo de cada tipo (a opacidade acompanha o encharcamento). */
+const SOAK_KEYS: Record<number, string> = {
+  [ENEMY_SALTADOR]: 'saltador-tinta',
+  [ENEMY_GRAMPO]: 'grampo-tinta',
+  [ENEMY_FIANDEIRA]: 'fiandeira-tinta',
+  [ENEMY_TINTEIRO]: 'tinteiro-tinta',
+  [ENEMY_BORRACHA]: 'borracha-tinta',
+};
+
+/** Dicas da primeira fase de cada capítulo: uma por vez, até a equipe chutar a primeira bola. */
+const HINTS = ['Atire tinta (X ou J) até o bicho virar bola', 'Encoste na bola e atire de novo: é o chute!'] as const;
 
 /** Modo online: o próprio boneco é previsto; inimigos, gotas e os outros chegam interpolados do servidor. */
 export class OnlineScene extends Phaser.Scene {
@@ -77,12 +101,20 @@ export class OnlineScene extends Phaser.Scene {
   private generation = 0;
   /** Último disparo visto de cada jogador (por slot), para a pose de tiro. */
   private shotAt: number[] = [];
+  /** Último brilho da aura dourada de cada jogador (por slot). */
+  private sparkAt: number[] = [];
   private fx = new Effects();
   private riscotes = new RiscoteAnimator(this.fx);
-  private enemyAnim = new EnemyAnimator(this.fx, ENEMY_SIZE * TILE, BORRAO_SIZE * TILE, ARENAS[0]!);
+  private warn: WarnTimes = warnTimes('medio');
+  private enemyAnim = new EnemyAnimator(this.fx, ENEMY_SIZE * TILE, BORRAO_SIZE * TILE, ARENAS[0]!, this.warn);
   private dropWatch = new DropWatcher(this.fx, RULES.dropSize * TILE);
   /** Idade de cada mancha no quadro anterior: respingo ao surgir e ao ficar perigosa. */
   private stainAges = new Map<string, number>();
+  /** Cuspes do tinteiro no quadro anterior: direção do desenho e o respingo quando somem. */
+  private spits = new Map<string, { x: number; y: number; dir: number }>();
+  private hint!: Phaser.GameObjects.Text;
+  /** Próxima dica da fase 1 (HINTS.length = já chutaram; sem dicas). */
+  private hintStep: number = HINTS.length;
   /** Itens na tela no quadro anterior, para o brilho de quando alguém pega. */
   private items = new Map<string, { x: number; y: number; kind: number; ttl: number }>();
 
@@ -124,6 +156,20 @@ export class OnlineScene extends Phaser.Scene {
       .setOrigin(0.5, 0)
       .setResolution(RES)
       .setDepth(DEPTH_BANNER);
+    this.hint = this.add
+      .text(w / 2, h - TILE * 0.35, '', {
+        fontFamily: 'system-ui, sans-serif',
+        fontSize: '12px',
+        color: '#1f1d1a',
+        fontStyle: 'bold',
+        align: 'center',
+        stroke: '#f1ead9',
+        strokeThickness: 4,
+      })
+      .setOrigin(0.5, 1)
+      .setResolution(RES)
+      .setDepth(DEPTH_BANNER);
+    this.hintStep = arena.stage?.hints ? 0 : HINTS.length;
     this.bannerShown = '';
     this.acc = 0;
     this.prevX = session.local.x;
@@ -132,8 +178,10 @@ export class OnlineScene extends Phaser.Scene {
     this.shotAt = [];
     this.fx = new Effects();
     this.riscotes = new RiscoteAnimator(this.fx);
-    this.enemyAnim = new EnemyAnimator(this.fx, ENEMY_SIZE * TILE, BORRAO_SIZE * TILE, arena);
+    this.warn = warnTimes(session.difficulty);
+    this.enemyAnim = new EnemyAnimator(this.fx, ENEMY_SIZE * TILE, BORRAO_SIZE * TILE, arena, this.warn);
     this.stainAges.clear();
+    this.spits.clear();
     this.dropWatch = new DropWatcher(this.fx, RULES.dropSize * TILE);
     this.items.clear();
     const bossPage = arena.id === BOSS_ARENA.id;
@@ -216,7 +264,16 @@ export class OnlineScene extends Phaser.Scene {
     this.watchItems(state, live);
     this.watchStains(state, live);
     const enemyFrames = this.enemyAnim.frames(enemies, now, dt, live);
-    const dropDirs = this.dropWatch.dirs(drops, now);
+    const size = ENEMY_SIZE * TILE;
+    // A frente das borrachas que estão apagando (girando, não apagam): a gota que some ali vira farelo.
+    const erasers: EraserFront[] = enemies
+      .filter((e) => e.kind === ENEMY_BORRACHA && e.mode === MODE_WALK && e.skill !== SKILL_WARN)
+      .map((e) => ({ x: e.x + size / 2 + (e.facing * size) / 2, y: e.y + size / 2 }));
+    const dropDirs = this.dropWatch.dirs(drops, now, erasers);
+    const spits = session.spitViews(now);
+    const spitDirs = this.watchSpits(spits, live);
+    this.updateHint(state.phase, enemies);
+    const spitHalf = (RULES.spitSize * TILE) / 2;
 
     const art = this.art;
     if (art) {
@@ -231,28 +288,38 @@ export class OnlineScene extends Phaser.Scene {
         art.draw(`item-${item.kind}`, item.x + s / 2, item.y + s + bob * 1.5, DEPTH_ITEM, { angle: bob * 4 });
       });
       state.stains.forEach((stain) => {
-        const look = stainLook(stain.age, now);
+        const look = stainLook(stain.age, now, this.warn.stain);
         const half = (RULES.stainSize * TILE) / 2;
         art.draw('mancha', stain.x + half, stain.y + half, DEPTH_ITEM, { alpha: look.alpha, sx: look.scale, sy: look.scale });
       });
       for (const e of enemies) {
         const f = enemyFrames.get(e.id);
         if (!f) continue;
-        const flip = e.facing < 0;
+        const flip = f.flip ?? e.facing < 0;
         if (e.kind === ENEMY_BORRAO) {
-          const size = BORRAO_SIZE * TILE;
-          art.draw(f.key, e.x + size / 2, e.y + size / 2, DEPTH_ENEMY, { flip, sx: f.sx, sy: f.sy });
+          const big = BORRAO_SIZE * TILE;
+          art.draw(f.key, e.x + big / 2, e.y + big / 2, DEPTH_ENEMY, { flip, sx: f.sx, sy: f.sy });
           continue;
         }
-        const size = ENEMY_SIZE * TILE;
         if (e.mode !== MODE_WALK) {
           art.draw(f.key, e.x + size / 2, e.y + size / 2, DEPTH_ENEMY, { angle: f.angle, sx: f.sx, sy: f.sy });
           continue;
         }
-        art.draw(f.key, e.x + size / 2, e.y + size, DEPTH_ENEMY, { flip, sx: f.sx, sy: f.sy, angle: f.angle });
         const soaked = Math.min(1, e.soak / Math.max(1, state.soakToBall));
-        const soakKey = f.key.startsWith('traca') ? 'traca-tinta' : 'saltador-tinta';
+        const soakKey = SOAK_KEYS[e.kind] ?? 'traca-tinta';
+        if (e.kind === ENEMY_FIANDEIRA) {
+          // Desenhada pelo centro; pendurada, o fio de nanquim sai de baixo da plataforma.
+          if (e.anchorY >= 0) this.fxBack.lineStyle(1.2, INK, 0.85).lineBetween(e.x + size / 2, e.anchorY, e.x + size / 2, e.y + size / 2);
+          art.draw(f.key, e.x + size / 2, e.y + size / 2, DEPTH_ENEMY, { flip, sx: f.sx, sy: f.sy, angle: f.angle });
+          if (soaked > 0) art.draw(soakKey, e.x + size / 2, e.y + size / 2, DEPTH_ENEMY, { flip, alpha: 0.35 + 0.65 * soaked, sx: f.sx, sy: f.sy, angle: f.angle });
+          continue;
+        }
+        art.draw(f.key, e.x + size / 2, e.y + size, DEPTH_ENEMY, { flip, sx: f.sx, sy: f.sy, angle: f.angle });
         if (soaked > 0) art.draw(soakKey, e.x + size / 2, e.y + size, DEPTH_ENEMY, { flip, alpha: 0.35 + 0.65 * soaked, sx: f.sx, sy: f.sy, angle: f.angle });
+        if (e.kind === ENEMY_TINTEIRO && e.skill === SKILL_WARN) drawSpitWarning(g, e.x + size / 2, e.y + size, e.facing, now);
+      }
+      for (const s of spits) {
+        art.draw('cuspe', s.x + spitHalf, s.y + spitHalf, DEPTH_ENEMY + 0.4, { flip: (spitDirs.get(s.id) ?? 1) < 0 });
       }
       const dropSize = RULES.dropSize * TILE;
       for (const d of drops) {
@@ -272,10 +339,14 @@ export class OnlineScene extends Phaser.Scene {
       state.items.forEach((item) => drawItem(g, item.x, item.y, item.kind, item.ttl, now));
       state.stains.forEach((stain) => {
         const half = (RULES.stainSize * TILE) / 2;
-        const look = stainLook(stain.age, now);
+        const look = stainLook(stain.age, now, this.warn.stain);
         g.fillStyle(INK, look.alpha).fillCircle(stain.x + half, stain.y + half, half * look.scale);
       });
-      for (const e of enemies) drawEnemy(g, e.x, e.y, e, state.soakToBall);
+      for (const e of enemies) {
+        drawEnemy(g, e.x, e.y, e, state.soakToBall);
+        if (e.kind === ENEMY_TINTEIRO && e.skill === SKILL_WARN && e.mode === MODE_WALK) drawSpitWarning(g, e.x + size / 2, e.y + size, e.facing, now);
+      }
+      for (const s of spits) g.fillStyle(INK).fillEllipse(s.x + spitHalf, s.y + spitHalf * 1.2, spitHalf * 2.4, spitHalf * 1.4);
       for (const r of remotes) drawPlayerFull(g, r.x, r.y, session.params, { ...r, inkGauge }, PLAYER_COLORS[r.slot] ?? GREY, false, now);
       if (localLook) drawPlayerFull(g, localX, localY, session.params, localLook, PLAYER_COLORS[session.slot] ?? GREY, true, now);
       for (const d of drops) drawDrop(g, d.x, d.y, PLAYER_COLORS[d.slot] ?? INK);
@@ -307,9 +378,32 @@ export class OnlineScene extends Phaser.Scene {
       // Sombra de aguada no chão: ancora o boneco e encolhe no ar.
       const lift = motion.onGround || look.down ? 1 : 0.6;
       this.fxBack.fillStyle(0x6d665a, 0.18 * lift).fillEllipse(x + w / 2, y + h, w * 1.3 * lift * f.sx, 3);
+      if (!look.down) this.drawAuras(art, slot, x + w / 2, y + h - AURA_CENTER, look, now, depth - 0.2);
     }
     art.draw(riscoteKey(slot, f.pose), x + w / 2, y + h, depth, { flip: look.facing < 0, alpha: playerAlpha(look, now), sx: f.sx, sy: f.sy });
-    drawPlayerOverlay(this.gfx, x, y, params, look, color, isLocal, now);
+    drawPlayerOverlay(this.gfx, x, y, params, look, color, isLocal, now, false);
+  }
+
+  /**
+   * Auras atrás do boneco: o halo dourado da invencibilidade (pulsa, solta brilhos e pisca no
+   * último segundo e meio) e a bolha de proteção do fácil, na cor do jogador, respirando devagar.
+   */
+  private drawAuras(art: ArtLayer, slot: number, cx: number, cy: number, look: PlayerLook, now: number, depth: number): void {
+    const star = look.star ?? 0;
+    if (star > 0) {
+      const beat = Math.sin(now / 110);
+      const ending = star < 1.5 && Math.floor(now / 120) % 2 === 0;
+      art.draw('aura-estrela', cx, cy, depth, { alpha: ending ? 0.25 : 0.8 + 0.2 * beat, sx: 1 + 0.05 * beat, sy: 1 + 0.04 * beat });
+      if (now - (this.sparkAt[slot] ?? 0) > 220) {
+        this.sparkAt[slot] = now;
+        const a = Math.random() * Math.PI * 2;
+        this.fx.sparkle(cx + Math.cos(a) * 14, cy + Math.sin(a) * 19, STAR_GOLD, 3, 5);
+      }
+    }
+    if ((look.hp ?? 1) > 1) {
+      const breath = Math.sin(now / 420 + slot);
+      art.draw(protecaoKey(slot), cx, cy, depth - 0.05, { alpha: 0.9, sx: 1 + 0.03 * breath, sy: 1 - 0.02 * breath });
+    }
   }
 
   /** Esguicho de tinta saindo da mão de quem atirou. */
@@ -362,12 +456,43 @@ export class OnlineScene extends Phaser.Scene {
       const cx = stain.x + half;
       const cy = stain.y + half;
       if (live && prev === undefined) this.fx.splat(cx, cy, false, 0.9, INK);
-      else if (live && prev !== undefined && prev < RULES.stainWarn && stain.age >= RULES.stainWarn) {
+      else if (live && prev !== undefined && prev < this.warn.stain && stain.age >= this.warn.stain) {
         this.fx.droplets(cx, cy, INK, 8, 110);
       }
       this.stainAges.set(id, stain.age);
     });
     for (const id of this.stainAges.keys()) if (!seen.has(id)) this.stainAges.delete(id);
+  }
+
+  /** Cuspe do tinteiro: direção do desenho, um rastro de pingos e o respingo de nanquim quando some. */
+  private watchSpits(spits: Array<{ id: string; x: number; y: number }>, live: boolean): Map<string, number> {
+    const out = new Map<string, number>();
+    const half = (RULES.spitSize * TILE) / 2;
+    const seen = new Set<string>();
+    for (const s of spits) {
+      seen.add(s.id);
+      const prev = this.spits.get(s.id);
+      const dir = prev && s.x !== prev.x ? (s.x > prev.x ? 1 : -1) : (prev?.dir ?? 1);
+      if (live && prev && Math.floor(s.x / 6) !== Math.floor(prev.x / 6)) this.fx.droplets(s.x + half - dir * half, s.y + half * 1.6, INK, 1, 20, Math.PI / 2, 0.5);
+      this.spits.set(s.id, { x: s.x, y: s.y, dir });
+      out.set(s.id, dir);
+    }
+    for (const [id, s] of this.spits) {
+      if (seen.has(id)) continue;
+      this.spits.delete(id);
+      if (live) this.fx.splat(s.x + half, s.y + half, false, 0.6, INK);
+    }
+    return out;
+  }
+
+  /** Dicas da 1ª fase: a primeira some quando aparece uma bola; a segunda, no primeiro chute. */
+  private updateHint(phase: number, enemies: Array<{ mode: number }>): void {
+    if (phase === PHASE_PLAYING && this.hintStep < HINTS.length) {
+      if (this.hintStep === 0 && enemies.some((e) => e.mode !== MODE_WALK)) this.hintStep = 1;
+      if (this.hintStep === 1 && enemies.some((e) => e.mode === MODE_ROLL)) this.hintStep = HINTS.length;
+    }
+    const text = phase === PHASE_PLAYING && this.hintStep < HINTS.length ? HINTS[this.hintStep]! : '';
+    if (this.hint.text !== text) this.hint.setText(text);
   }
 
   /** Faixa com entrada de impacto: cresce e assenta quando o texto muda. */
@@ -395,13 +520,23 @@ export class OnlineScene extends Phaser.Scene {
  * Mancha no aviso: clara, crescendo e piscando (ainda não machuca). Firme: escura e cheia.
  * No último meio segundo, desbota.
  */
-function stainLook(age: number, now: number): { alpha: number; scale: number } {
-  if (age < RULES.stainWarn) {
-    const t = age / RULES.stainWarn;
+function stainLook(age: number, now: number, warn: number): { alpha: number; scale: number } {
+  if (age < warn) {
+    const t = age / warn;
     return { alpha: 0.2 + 0.25 * t + 0.1 * Math.sin(now / 45), scale: 0.45 + 0.5 * t };
   }
-  const left = RULES.stainWarn + RULES.stainLife - age;
+  const left = warn + RULES.stainLife - age;
   return { alpha: 0.95 * Math.min(1, left / 0.5), scale: 1 + 0.03 * Math.sin(now / 200) };
+}
+
+/** Aviso do cuspe: tracejado vermelho no chão, à frente do tinteiro, piscando. */
+function drawSpitWarning(g: Phaser.GameObjects.Graphics, x: number, feet: number, facing: number, now: number): void {
+  const x0 = x + facing * TILE * 0.6;
+  g.lineStyle(1.6, 0xc8402a, 0.55 + 0.35 * Math.sin(now / 60));
+  for (let k = 0; k < 6; k++) {
+    const a = x0 + facing * k * 9;
+    g.lineBetween(a, feet - 3, a + facing * 5, feet - 3);
+  }
 }
 
 function bannerText(session: OnlineSession): string {

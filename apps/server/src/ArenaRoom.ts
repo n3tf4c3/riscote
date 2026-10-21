@@ -30,7 +30,7 @@ import {
 } from '@riscote/shared';
 import { recordTick, processMetrics } from './metrics.ts';
 import { RecordBook } from './records.ts';
-import { BossSchema, DropSchema, EnemySchema, GameState, HazardSchema, ItemSchema, PlayerSchema, StainSchema } from './state.ts';
+import { BossSchema, DropSchema, EnemySchema, GameState, HazardSchema, ItemSchema, PlayerSchema, SpitSchema, StainSchema } from './state.ts';
 
 /** Fila acima disto descarta os comandos mais antigos: limita o atraso acumulado (~130 ms). */
 const MAX_QUEUE = 8;
@@ -81,7 +81,7 @@ export class ArenaRoom extends Room<{ state: GameState }> {
     this.maxClients = MAX_PLAYERS;
     // 60 comandos/s mais folga; acima disso o cliente é desconectado.
     this.maxMessagesPerSecond = 120;
-    // Capítulo da arena escolhida na criação da sala, começando por ela; o chefe fecha o capítulo.
+    // Capítulo da arena escolhida na criação da sala, sempre da 1ª fase; o chefe fecha o capítulo.
     const arenas = chapterFrom(options.arenaId);
     const chapter = withBoss(arenas, arenas.length);
     const difficulty = parseDifficulty(options.difficulty);
@@ -322,6 +322,19 @@ export class ArenaRoom extends Room<{ state: GameState }> {
       net.facing = e.dir;
       net.soak = e.soak;
       net.skill = e.skill;
+      net.anchorY = e.anchorY;
+    }
+
+    for (const id of [...s.spits.keys()]) if (!w.spits.has(Number(id))) s.spits.delete(id);
+    for (const spit of w.spits.values()) {
+      const key = String(spit.id);
+      let net = s.spits.get(key);
+      if (!net) {
+        net = new SpitSchema();
+        s.spits.set(key, net);
+      }
+      net.x = spit.x;
+      net.y = spit.y;
     }
 
     for (const id of [...s.stains.keys()]) if (!w.stains.has(Number(id))) s.stains.delete(id);

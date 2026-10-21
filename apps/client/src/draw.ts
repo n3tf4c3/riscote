@@ -1,9 +1,14 @@
 import type * as Phaser from 'phaser';
 import {
   BORRAO_SIZE,
+  ENEMY_BORRACHA,
   ENEMY_BORRAO,
+  ENEMY_FIANDEIRA,
+  ENEMY_GRAMPO,
   ENEMY_SALTADOR,
   ENEMY_SIZE,
+  ENEMY_TINTEIRO,
+  ENEMY_TRACA,
   MODE_WALK,
   ONE_WAY,
   RULES,
@@ -23,8 +28,18 @@ const ONE_WAY_FILL = 0x8a8478;
 /** Azul da tinta dos jogadores: tubos, gotas, medidores e inimigos encharcados. */
 export const INK_BLUE = 0x2f6fd6;
 const TUBE = INK_BLUE;
-const TRACA = 0x8b6f4e;
-const SALTADOR = 0x5d4f8f;
+const TRACA = 0xe8247c;
+const SALTADOR = 0x6a2fc4;
+const BORRACHA_FRENTE = 0xff4f8b;
+/** Corpo de cada inimigo no greybox (o borrão tem desenho próprio). */
+const ENEMY_COLORS: Record<number, number> = {
+  [ENEMY_TRACA]: TRACA,
+  [ENEMY_SALTADOR]: SALTADOR,
+  [ENEMY_GRAMPO]: 0x2fb64a,
+  [ENEMY_FIANDEIRA]: 0xc8282e,
+  [ENEMY_TINTEIRO]: 0xe08a2a,
+  [ENEMY_BORRACHA]: 0x8fd04a,
+};
 const ENEMY_MARK = 0xc8402a;
 const STAR_GOLD = 0xe8b400;
 /** Cor do líquido de cada item, na ordem ITEM_FORCA..ITEM_INVENCIVEL. */
@@ -138,7 +153,10 @@ export function playerAlpha(look: PlayerLook, now: number): number {
   return look.invuln > 0 && Math.floor(now / 100) % 2 === 0 ? 0.35 : 1;
 }
 
-/** O que vai por cima do boneco (greybox ou arte): anel de resgate, aura, proteção, medidor e o marcador do próprio. */
+/**
+ * O que vai por cima do boneco (greybox ou arte): anel de resgate, aura, proteção, medidor e o marcador
+ * do próprio. Com a arte carregada, as auras são desenhos de pincel atrás do boneco (`auras` = false).
+ */
 export function drawPlayerOverlay(
   g: Phaser.GameObjects.Graphics,
   x: number,
@@ -148,6 +166,7 @@ export function drawPlayerOverlay(
   color: number,
   marker: boolean,
   now: number,
+  auras = true,
 ): void {
   const w = p.playerWidth * TILE;
   const h = p.playerHeight * TILE;
@@ -165,11 +184,11 @@ export function drawPlayerOverlay(
     // Marcador acima da cabeça (a arte é mais alta que a caixa de colisão).
     g.fillStyle(INK).fillTriangle(x + w / 2 - 4, y - 14, x + w / 2 + 4, y - 14, x + w / 2, y - 9);
   }
-  if ((look.star ?? 0) > 0) {
+  if (auras && (look.star ?? 0) > 0) {
     const pulse = 0.55 + 0.45 * Math.sin(now / 90);
     g.lineStyle(3, STAR_GOLD, pulse).strokeRoundedRect(x - 6, y - 6, w + 12, h + 12, 7);
   }
-  if ((look.hp ?? 1) > 1) {
+  if (auras && (look.hp ?? 1) > 1) {
     // Proteção do modo fácil: contorno extra que some no primeiro toque.
     g.lineStyle(2, color, 0.9).strokeRoundedRect(x - 4, y - 4, w + 8, h + 8, 5);
   }
@@ -204,13 +223,17 @@ export function drawEnemy(g: Phaser.GameObjects.Graphics, x: number, y: number, 
     g.lineStyle(2, 0xffffff, 0.8).lineBetween(cx - Math.cos(a) * r * 0.6, cy - Math.sin(a) * r * 0.6, cx + Math.cos(a) * r * 0.6, cy + Math.sin(a) * r * 0.6);
     return;
   }
-  const body = e.kind === ENEMY_SALTADOR ? SALTADOR : TRACA;
-  if (e.kind === ENEMY_SALTADOR) g.fillStyle(body).fillRoundedRect(x, y, size, size, 6);
+  const body = ENEMY_COLORS[e.kind] ?? TRACA;
+  const round = e.kind === ENEMY_SALTADOR || e.kind === ENEMY_FIANDEIRA || e.kind === ENEMY_TINTEIRO;
+  if (round) g.fillStyle(body).fillRoundedRect(x, y, size, size, 6);
   else g.fillStyle(body).fillRect(x, y + 3, size, size - 3);
+  // Borracha: a frente (o lado que apaga) em rosa.
+  if (e.kind === ENEMY_BORRACHA) g.fillStyle(BORRACHA_FRENTE).fillRect(e.facing > 0 ? x + size / 2 : x, y + 3, size / 2, size - 3);
   const soaked = Math.min(1, e.soak / Math.max(1, soakToBall));
   if (soaked > 0) g.fillStyle(INK_BLUE, 0.75).fillRect(x, y + size * (1 - soaked), size, size * soaked);
   g.lineStyle(2, INK);
-  if (e.kind === ENEMY_SALTADOR) g.strokeRoundedRect(x, y, size, size, 6);
+  if (round) g.strokeRoundedRect(x, y, size, size, 6);
+  else if (e.kind !== ENEMY_TRACA) g.strokeRect(x, y + 3, size, size - 3);
   else {
     g.strokeRect(x, y + 3, size, size - 3);
     // Antenas da traça.

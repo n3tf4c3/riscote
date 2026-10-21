@@ -117,6 +117,7 @@ body.inicio #panel-online > p.keys a { color: var(--muted); text-decoration-styl
 
 /* Escolhas: contorno de mão; a escolhida ganha mancha de nanquim */
 #lobby .escolhas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 0; }
+#lobby .escolhas.capitulos { grid-template-columns: 1fr; }
 #lobby .escolhas p.keys {
   grid-column: 1 / -1; margin: 4px 0 0;
   font: 400 15px/1 var(--titulo); letter-spacing: .06em; color: var(--muted);

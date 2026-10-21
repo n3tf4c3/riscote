@@ -1,7 +1,223 @@
-import { parseArena, type Arena } from './arena.ts';
+import { parseArena, type Arena, type Stage } from './arena.ts';
+import { ENEMY_BORRACHA, ENEMY_FIANDEIRA, ENEMY_GRAMPO, ENEMY_SALTADOR, ENEMY_TINTEIRO, ENEMY_TRACA } from './world.ts';
 
-// Capítulo 1: três tamanhos greybox para comparar com 1, 3 e 5 jogadores (plano, seção 2.2).
-// Andares a cada 3 células; tubos de tinta nos cantos inferiores (C21).
+// Cada capítulo tem 4 fases e o chefe na 5ª (withBoss, no servidor). A fase 1 ensina tiro, bola e chute
+// com inimigos sem habilidade; a 2 traz plataformas novas e mais tipos simples; a 3 liga as primeiras
+// habilidades; a 4 junta tudo. Andares a cada 3 células; tubos de tinta nos cantos inferiores (C21).
+
+const T = ENEMY_TRACA;
+const S = ENEMY_SALTADOR;
+const G = ENEMY_GRAMPO;
+const F = ENEMY_FIANDEIRA;
+const I = ENEMY_TINTEIRO;
+const B = ENEMY_BORRACHA;
+
+const stage = (s: Partial<Stage> & Pick<Stage, 'step' | 'roster'>): Stage => ({
+  skills: [], base: 4, perPlayer: 1.5, maxOnScreen: 8, spawnDelay: 1, hurryTime: 60, skillCdMult: 1, hints: false, ...s,
+});
+
+// Capítulo 1: caderno pautado.
+
+/** Fase 1. Chão inteiro, dois andares longos e um topo curto, sem blocos: só correr, atirar e chutar. */
+const MARGEM = [
+  '#..........................#',
+  '#..........................#',
+  '#..........................#',
+  '#............E.............#',
+  '#..........................#',
+  '#..........................#',
+  '#.........========.........#',
+  '#....E................E....#',
+  '#..........................#',
+  '#...====================...#',
+  '#..........................#',
+  '#.E......................E.#',
+  '#=========........=========#',
+  '#..........................#',
+  '#T..........PPPPP.........T#',
+  '############################',
+];
+
+/** Fase 2. Pirâmide de degraus no meio até um patamar, com plataformas curtas dos lados. */
+const ESCADARIA = [
+  '#............................#',
+  '#.............E..............#',
+  '#............................#',
+  '#............................#',
+  '#..======...======...======..#',
+  '#....E.........A........E....#',
+  '#............................#',
+  '#.=====......####......=====.#',
+  '#...A........####........A...#',
+  '#............####............#',
+  '#..====....########....====..#',
+  '#.E........########........E.#',
+  '#..........########..........#',
+  '#.====...############...====.#',
+  '#........############........#',
+  '#T..PPP..############..PP...T#',
+  '##############################',
+];
+
+/** Fase 3. Vão aberto no meio, cruzado por duas pontes finas; torres de plataformas desencontradas. */
+const POCO = [
+  '#..............................#',
+  '#..............E...............#',
+  '#..............................#',
+  '#..............................#',
+  '#.......E..............E.......#',
+  '#....=====..========..=====....#',
+  '#..............A........A......#',
+  '#..E........................E..#',
+  '#=====...##..........##...=====#',
+  '#..............................#',
+  '#..............................#',
+  '#...=====..==========..=====...#',
+  '#...............A..............#',
+  '#..............................#',
+  '#======..................======#',
+  '#..............................#',
+  '#T....PPP..............PP.....T#',
+  '################################',
+];
+
+/** Fase 4. Rota de cima pelas tábuas e rota de baixo pelo túnel sob o bloco largo. */
+const ANDAIME = [
+  '#................................#',
+  '#...............E................#',
+  '#................................#',
+  '#............========............#',
+  '#...E........................E...#',
+  '#................................#',
+  '#.=======................=======.#',
+  '#................................#',
+  '#................................#',
+  '#.......======......======.......#',
+  '#...........A...##...A...........#',
+  '#...............##...............#',
+  '#..........############..........#',
+  '#..........############..........#',
+  '#.............A.E..A.............#',
+  '#.======..................======.#',
+  '#................................#',
+  '#T.....PPP..............PP......T#',
+  '##################################',
+];
+
+// Capítulo 2: as mesmas regras em páginas com outro desenho de fundo.
+
+/** Fase 1. Pautas compridas com vãos alternados. */
+const PARTITURA = [
+  '#..............................#',
+  '#...............E..............#',
+  '#.........============.........#',
+  '#..............................#',
+  '#...E......................E...#',
+  '#============......============#',
+  '#..............................#',
+  '#..E........................E..#',
+  '#====....==============....====#',
+  '#..............................#',
+  '#..............................#',
+  '#===========........===========#',
+  '#..............................#',
+  '#...............E..............#',
+  '#=====....============....=====#',
+  '#..............................#',
+  '#T............PPPPP...........T#',
+  '################################',
+];
+
+/** Fase 2. Escadas em zigue-zague nas laterais e um pilar no meio. */
+const QUADRICULADA = [
+  '#............................#',
+  '#..............E.............#',
+  '#..........========..........#',
+  '#...........A....A...........#',
+  '#..E......................E..#',
+  '#.====........##........====.#',
+  '#.............##.............#',
+  '#.....====..E.##.E..====.....#',
+  '#..........===##===..........#',
+  '#.====........##........====.#',
+  '#.............##.............#',
+  '#.....====..........====.....#',
+  '#......A.......E......A......#',
+  '#.====....==========....====.#',
+  '#............................#',
+  '#T...........PPPPP..........T#',
+  '##############################',
+];
+
+/** Fase 3. Ilhas de tamanhos diferentes, pedras no caminho e rotas por cima e por baixo até o X do topo. */
+const MAPA = [
+  '#................................#',
+  '#................................#',
+  '#................E...............#',
+  '#.............======.............#',
+  '#...............A................#',
+  '#....E......................E....#',
+  '#..====...==..........==...====..#',
+  '#................................#',
+  '#...........E...........E........#',
+  '#===....====#=====.....====......#',
+  '#................................#',
+  '#................................#',
+  '#....####.....========.....####..#',
+  '#.....A...........A..............#',
+  '#................................#',
+  '#.========.....##.##......======.#',
+  '#................................#',
+  '#T......PPPPP...................T#',
+  '##################################',
+];
+
+/** Fase 4. Os dias do mês: blocos em fileiras desencontradas, pouco chão contínuo, e o mês no topo. */
+const CALENDARIO = [
+  '#................................#',
+  '#...............E................#',
+  '#................................#',
+  '#.........==============.........#',
+  '#......E...................E.....#',
+  '#................................#',
+  '#.....###..###.......###..###....#',
+  '#......A...................A.....#',
+  '#................................#',
+  '#..###..###..########..###..###..#',
+  '#...............A................#',
+  '#................................#',
+  '#.....###..###..###..###..###....#',
+  '#................................#',
+  '#................................#',
+  '#..###..###..###..###..###..###..#',
+  '#................................#',
+  '#T.....PPP..............PP......T#',
+  '##################################',
+];
+
+/** Capítulos: a sala joga as quatro fases de um deles, sempre a partir da primeira, dando a volta. */
+export const CHAPTERS: readonly (readonly Arena[])[] = [
+  [
+    parseArena('margem', 'Margem 28×16', MARGEM, stage({ step: 1, roster: [T, G, T, G], base: 3, perPlayer: 1, maxOnScreen: 4, spawnDelay: 1.5, hurryTime: 75, hints: true })),
+    parseArena('escadaria', 'Escadaria 30×17', ESCADARIA, stage({ step: 2, roster: [T, G, S, F, T, G], perPlayer: 1.25, maxOnScreen: 5, spawnDelay: 1.2 })),
+    parseArena('poco', 'Poço 32×18', POCO, stage({ step: 3, roster: [T, I, G, T, S, F], skills: [T, I], maxOnScreen: 6 })),
+    parseArena('andaime', 'Andaime 34×19', ANDAIME, stage({ step: 4, roster: [T, B, I, S, G, F, T, S], skills: [T, S, I], base: 5 })),
+  ],
+  [
+    parseArena('partitura', 'Partitura 32×18', PARTITURA, stage({ step: 1, roster: [T, G, S], base: 3, perPlayer: 1, maxOnScreen: 4, spawnDelay: 1.5, hurryTime: 75, hints: true })),
+    parseArena('quadriculada', 'Quadriculada 30×17', QUADRICULADA, stage({ step: 2, roster: [T, G, S, F], perPlayer: 1.25, maxOnScreen: 6 })),
+    parseArena('mapa', 'Mapa 34×19', MAPA, stage({ step: 3, roster: [T, S, I, G, F, T], skills: [T, I], maxOnScreen: 6 })),
+    parseArena('calendario', 'Calendário 34×19', CALENDARIO, stage({ step: 4, roster: [T, B, I, S, G, F, B, T], skills: [T, S, I], base: 5, skillCdMult: 0.8 })),
+  ],
+];
+
+export const ARENAS: readonly Arena[] = CHAPTERS.flat();
+
+/** Nome de cada capítulo no menu. */
+export const CHAPTER_NAMES: readonly string[] = ['Caderno', 'Partituras e mapas'];
+
+// Greybox da etapa 1: três tamanhos para comparar com 1, 3 e 5 jogadores (plano, seção 2.2).
+// Fora dos capítulos; ficam no modo local (`?local`).
 
 const COMPACTA = [
   '#..........................#',
@@ -66,93 +282,17 @@ const AMPLA = [
   '####################################',
 ];
 
-// Capítulo 2: as mesmas regras em páginas com outro desenho de fundo.
-// Quadriculada: escadas em zigue-zague nas laterais e um pilar no meio.
-const QUADRICULADA = [
-  '#............................#',
-  '#..............E.............#',
-  '#..........========..........#',
-  '#............................#',
-  '#..E......................E..#',
-  '#.====........##........====.#',
-  '#.............##.............#',
-  '#.....====..E.##.E..====.....#',
-  '#..........===##===..........#',
-  '#.====........##........====.#',
-  '#.............##.............#',
-  '#.....====..........====.....#',
-  '#..............E.............#',
-  '#.====....==========....====.#',
-  '#............................#',
-  '#T...........PPPPP..........T#',
-  '##############################',
+export const GREYBOX: readonly Arena[] = [
+  parseArena('compacta', 'Compacta 28×16', COMPACTA),
+  parseArena('padrao', 'Padrão 32×18', PADRAO),
+  parseArena('ampla', 'Ampla 36×20', AMPLA),
 ];
 
-// Partitura: pautas compridas com vãos alternados e notas (blocos) embaixo dos vãos de cima.
-const PARTITURA = [
-  '#..............................#',
-  '#...............E..............#',
-  '#.........============.........#',
-  '#..............................#',
-  '#...E..##..............##..E...#',
-  '#============......============#',
-  '#..............................#',
-  '#..E...........##...........E..#',
-  '#====....==============....====#',
-  '#..............................#',
-  '#....##..................##....#',
-  '#===========........===========#',
-  '#..............................#',
-  '#...............E..............#',
-  '#=====....============....=====#',
-  '#..............................#',
-  '#T............PPPPP...........T#',
-  '################################',
-];
-
-// Mapa do tesouro: ilhas espalhadas e duas pedras (blocos) no caminho até o X do topo.
-const MAPA = [
-  '#................................#',
-  '#................................#',
-  '#................E...............#',
-  '#.............=======............#',
-  '#................................#',
-  '#.....E....................E.....#',
-  '#...=====.......###......=====...#',
-  '#................................#',
-  '#..........E..........E..........#',
-  '#===.....=====......=====.....===#',
-  '#................................#',
-  '#................E...............#',
-  '#...====......######......====...#',
-  '#................................#',
-  '#................................#',
-  '#........====........====........#',
-  '#................................#',
-  '#T.............PPPPP............T#',
-  '##################################',
-];
-
-/** Capítulos: a sala joga as arenas de um deles, na ordem, dando a volta. */
-export const CHAPTERS: readonly (readonly Arena[])[] = [
-  [
-    parseArena('compacta', 'Compacta 28×16', COMPACTA),
-    parseArena('padrao', 'Padrão 32×18', PADRAO),
-    parseArena('ampla', 'Ampla 36×20', AMPLA),
-  ],
-  [
-    parseArena('quadriculada', 'Quadriculada 30×17', QUADRICULADA),
-    parseArena('partitura', 'Partitura 32×18', PARTITURA),
-    parseArena('mapa', 'Mapa 34×19', MAPA),
-  ],
-];
-
-export const ARENAS: readonly Arena[] = CHAPTERS.flat();
-
-/** Capítulo da arena escolhida, começando por ela. Arena desconhecida: a Padrão. */
+/**
+ * Capítulo da arena escolhida, sempre a partir da 1ª fase: começar no meio quebraria a curva.
+ * Arena desconhecida (ou um id antigo do greybox, de links velhos): o capítulo 1.
+ */
 export function chapterFrom(arenaId: unknown): Arena[] {
-  const id = ARENAS.some((a) => a.id === arenaId) ? arenaId : 'padrao';
-  const chapter = CHAPTERS.find((c) => c.some((a) => a.id === id))!;
-  const first = chapter.findIndex((a) => a.id === id);
-  return [...chapter.slice(first), ...chapter.slice(0, first)];
+  const chapter = CHAPTERS.find((c) => c.some((a) => a.id === arenaId)) ?? CHAPTERS[0]!;
+  return [...chapter];
 }

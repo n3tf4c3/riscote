@@ -10,7 +10,9 @@ import {
   BTN_LEFT,
   BTN_RIGHT,
   DEFAULT_PARAMS,
+  ENEMY_FIANDEIRA,
   Interpolator,
+  TILE,
   MAX_PLAYERS,
   MSG_GIVE_UP,
   MSG_INPUT,
@@ -23,6 +25,7 @@ import {
   ROOM_NAME,
   ITEM_AGILIDADE,
   TOO_MANY_JOINS,
+  SERVER_FULL,
   movementParams,
   parseDifficulty,
   seededRandom,
@@ -32,9 +35,11 @@ import {
   stepPlayer,
 } from '@riscote/shared';
 import { ArenaRoom } from '../src/ArenaRoom.ts';
-import { AttemptLimiter, limitJoins, markPeerAddress } from '../src/joinLimit.ts';
+import { AttemptLimiter, limitJoins, limitRooms, markPeerAddress } from '../src/joinLimit.ts';
 
 const ROOM_WITH_ENEMIES = 'arena-com-inimigos';
+/** Regras da 1ª fase do capítulo 1, onde as salas de teste começam. */
+const margem = ARENAS.find((a) => a.id === 'margem')!.stage!;
 
 /** Sala sem inimigos: isola os testes de rede e autoridade do movimento. */
 class QuietRoom extends ArenaRoom {
@@ -75,7 +80,7 @@ async function until(cond: () => boolean, ms = 3000): Promise<void> {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function newRoom(arenaId = 'padrao'): Promise<ArenaRoom> {
+async function newRoom(arenaId = 'margem'): Promise<ArenaRoom> {
   return (await t.createRoom(ROOM_NAME, { arenaId })) as unknown as ArenaRoom;
 }
 
@@ -89,11 +94,11 @@ async function joinError(roomId: string): Promise<string> {
 }
 
 describe('salas', () => {
-  it('cria a sala com código legível e a arena escolhida', async () => {
-    const room = await newRoom('ampla');
+  it('cria a sala com código legível e o capítulo da arena escolhida, a partir da 1ª fase', async () => {
+    const room = await newRoom('mapa');
     expect(normalizeRoomCode(room.roomId)).toBe(room.roomId);
-    expect(room.state.arenaId).toBe('ampla');
-    expect((await newRoom('inexistente')).state.arenaId).toBe('padrao');
+    expect(room.state.arenaId).toBe('partitura');
+    expect((await newRoom('inexistente')).state.arenaId).toBe('margem');
   });
 
   it('a dificuldade escolhida vale para a sala; valor desconhecido vira médio', async () => {
@@ -179,7 +184,7 @@ describe('autoridade do servidor', () => {
     const room = await newRoom();
     const mover = await t.connectTo(room);
     const watcher = await t.connectTo(room);
-    const arena = ARENAS.find((x) => x.id === 'padrao')!;
+    const arena = ARENAS.find((x) => x.id === 'margem')!;
     const params = { ...DEFAULT_PARAMS };
     const local = createPlayer(arena.playerSpawns[0]!, params);
 
@@ -236,7 +241,7 @@ describe('previsão e interpolação sob latência (critério da etapa 2)', () =
     const room = await newRoom();
     const mover = await t.connectTo(room);
     const watcher = await t.connectTo(room);
-    const arena = ARENAS.find((x) => x.id === 'padrao')!;
+    const arena = ARENAS.find((x) => x.id === 'margem')!;
 
     const predictor = new Predictor(arena, { ...DEFAULT_PARAMS }, mover.state.players.get(mover.sessionId)!);
     mover.onStateChange((s: any) => predictor.reconcile(s.players.get(mover.sessionId)));
@@ -292,7 +297,7 @@ describe("partida com inimigos (etapa 3)", () => {
     const b = await t.connectTo(room);
     a.send(MSG_START);
     await until(() => (a.state as any).enemies.size > 0 && (b.state as any).enemies.size > 0);
-    expect((a.state as any).enemiesLeft).toBe(Math.round(4 + 1.5 * 2));
+    expect((a.state as any).enemiesLeft).toBe(Math.round(margem.base + margem.perPlayer * 2));
 
     let seqA = 0;
     let seqB = 0;
@@ -338,13 +343,13 @@ describe("partida com inimigos (etapa 3)", () => {
 
 describe('progressão entre arenas (etapa 4)', () => {
   it('arena limpa: os clientes recebem o relatório e passam juntos para a próxima arena', async () => {
-    const room = (await t.createRoom(ROOM_WITH_ENEMIES, { arenaId: 'compacta' })) as unknown as ArenaRoom;
+    const room = (await t.createRoom(ROOM_WITH_ENEMIES, { arenaId: 'margem' })) as unknown as ArenaRoom;
     const a = await t.connectTo(room);
     const b = await t.connectTo(room);
     const reports: any[] = [];
     a.onMessage(MSG_REPORT, (r: any) => reports.push(r));
-    expect((a.state as any).arenaId).toBe('compacta');
-    expect((a.state as any).arenaCount).toBe(4); // só o capítulo da arena escolhida, com o chefe no fim
+    expect((a.state as any).arenaId).toBe('margem');
+    expect((a.state as any).arenaCount).toBe(5); // as 4 fases do capítulo da arena escolhida, com o chefe no fim
     a.send(MSG_START);
     await until(() => (a.state as any).enemiesLeft > 0);
 
@@ -354,18 +359,34 @@ describe('progressão entre arenas (etapa 4)', () => {
     world.spawnQueue = 0;
 
     await until(() => reports.length === 1, 2000);
-    expect(reports[0]).toMatchObject({ arena: 'compacta', position: 1, outcome: 'limpa', players: 2 });
-    await until(() => (a.state as any).arenaId === 'padrao' && (b.state as any).arenaId === 'padrao', 8000);
+    expect(reports[0]).toMatchObject({ arena: 'margem', position: 1, outcome: 'limpa', players: 2 });
+    await until(() => (a.state as any).arenaId === 'escadaria' && (b.state as any).arenaId === 'escadaria', 8000);
     expect((b.state as any).arenaIndex).toBe(1);
-    expect((b.state as any).enemiesLeft).toBe(Math.round(4 + 1.5 * 2));
+    const stage = ARENAS.find((x) => x.id === 'escadaria')!.stage!;
+    expect((b.state as any).enemiesLeft).toBe(Math.round(stage.base + stage.perPlayer * 2));
   }, 15000);
 
+  it('a fiandeira chega com o ponto do fio e o cuspe do tinteiro aparece para os clientes', async () => {
+    const room = await newRoom();
+    const c = await t.connectTo(room);
+    const world = (room as any).world;
+    // Margem: plataforma da linha 12 nas colunas 1 a 9.
+    world.spawnEnemy(ENEMY_FIANDEIRA, { col: 5, row: 13 });
+    world.spits.set(9001, { id: 9001, x: 10 * TILE, y: 14 * TILE, vx: 0, life: 5 });
+    await until(() => (c.state as any).spits.size === 1 && (c.state as any).enemies.size === 1);
+    let anchorY = 0;
+    (c.state as any).enemies.forEach((e: any) => (anchorY = e.anchorY));
+    expect(anchorY).toBe(13 * TILE);
+    world.spits.clear();
+    await until(() => (c.state as any).spits.size === 0);
+  });
+
   it('depois da virada de página o servidor segue aceitando os comandos da previsão nova', async () => {
-    const room = (await t.createRoom(ROOM_WITH_ENEMIES, { arenaId: 'compacta' })) as unknown as ArenaRoom;
+    const room = (await t.createRoom(ROOM_WITH_ENEMIES, { arenaId: 'margem' })) as unknown as ArenaRoom;
     const c = await t.connectTo(room);
     const me = () => (c.state as any).players.get(c.sessionId);
     const params = (level: number) => movementParams(parseDifficulty((c.state as any).difficulty), level);
-    let predictor = new Predictor(ARENAS.find((a) => a.id === 'compacta')!, params, me());
+    let predictor = new Predictor(ARENAS.find((a) => a.id === 'margem')!, params, me());
     c.send(MSG_START);
     for (let i = 0; i < 30; i++) c.send(MSG_INPUT, predictor.tick(0));
     await until(() => me().ack === 30);
@@ -373,10 +394,10 @@ describe('progressão entre arenas (etapa 4)', () => {
     const world = (room as any).world;
     world.enemies.clear();
     world.spawnQueue = 0;
-    await until(() => (c.state as any).arenaId === 'padrao', 8000);
+    await until(() => (c.state as any).arenaId === 'escadaria', 8000);
 
     // Como o cliente faz ao virar a página: previsão nova na arena nova, continuando a numeração.
-    predictor = new Predictor(ARENAS.find((a) => a.id === 'padrao')!, params, me(), predictor.lastSeq);
+    predictor = new Predictor(ARENAS.find((a) => a.id === 'escadaria')!, params, me(), predictor.lastSeq);
     for (let i = 0; i < 10; i++) c.send(MSG_INPUT, predictor.tick(0));
     await until(() => me().ack === 40, 2000);
   }, 15000);
@@ -400,7 +421,7 @@ describe('aquecimento e anfitrião', () => {
     guest.send(MSG_START);
     await until(() => room.state.phase === PHASE_PLAYING);
     // Dois jogadores na sala ao começar: a arena é dimensionada para eles.
-    expect(room.state.enemiesLeft).toBe(Math.round(4 + 1.5 * 2));
+    expect(room.state.enemiesLeft).toBe(Math.round(margem.base + margem.perPlayer * 2));
     // Os outros clientes recebem o novo anfitrião no patch seguinte.
     await until(() => (third.state as any).hostId === guest.sessionId);
   });
@@ -496,11 +517,39 @@ describe('limite de tentativas de entrada (etapa 5)', () => {
     expect(limiter.allow('a')).toBe(true);
   });
 });
+describe('limite de salas abertas', () => {
+  it('no limite, criar sala recebe HTTP 503 com mensagem clara; entrar pelo código continua; liberando uma, volta a criar', async () => {
+    let open = 0;
+    const undo = limitRooms(2, () => open);
+    try {
+      const first = await t.sdk.create(ROOM_NAME, {});
+      open++;
+      await t.sdk.create(ROOM_NAME, {});
+      open++;
+      let refusal = '';
+      try {
+        await t.sdk.create(ROOM_NAME, {});
+      } catch (e) {
+        refusal = describeJoinError(e);
+      }
+      expect(refusal).toBe(SERVER_FULL);
+      const port = (t.server as any).port;
+      const res = await fetch(`http://127.0.0.1:${port}/matchmake/create/${ROOM_NAME}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+      expect(res.status).toBe(503);
+
+      expect((await t.sdk.joinById(first.roomId)).roomId).toBe(first.roomId);
+      open--;
+      expect((await t.sdk.create(ROOM_NAME, {})).roomId).toBeTruthy();
+    } finally {
+      undo();
+    }
+  });
+});
 describe('modo fácil na rede', () => {
   it('a previsão usa a velocidade do modo: sem correções e mesmo estado final do servidor', async () => {
     const room = (await t.createRoom(ROOM_NAME, { difficulty: 'facil' })) as unknown as ArenaRoom;
     const c = await t.connectTo(room);
-    const arena = ARENAS.find((x) => x.id === 'padrao')!;
+    const arena = ARENAS.find((x) => x.id === 'margem')!;
     const predictor = new Predictor(arena, movementParams(parseDifficulty((c.state as any).difficulty)), c.state.players.get(c.sessionId)!);
     c.onStateChange((s: any) => predictor.reconcile(s.players.get(c.sessionId)));
     for (let tick = 0; tick < 90; tick++) {
@@ -522,7 +571,7 @@ describe('itens na rede', () => {
     const world = (room as any).world;
     const me = world.players.get(a.sessionId);
     // Atalho de teste: item de agilidade no chão, sob o jogador A.
-    world.spawnItem(ITEM_AGILIDADE, { col: Math.floor((me.body.x + 8) / 20), row: 17 });
+    world.spawnItem(ITEM_AGILIDADE, { col: Math.floor((me.body.x + 8) / 20), row: world.arena.rows - 1 });
     await until(() => room.state.players.get(a.sessionId)!.speed === 1);
     await until(() => (b.state as any).players.get(a.sessionId)?.speed === 1);
     expect(room.state.items.size).toBe(0);
