@@ -244,6 +244,28 @@ describe('placar na sala', () => {
     expect(new RecordBook(dataDir).list('medio').find((e) => e.id === first.entryId)!.names).toEqual(['Ana', 'Bia']);
   });
 
+  it('quem entrou com nome já vai com ele para o placar e não precisa escrever', async () => {
+    const room = (await t.createRoom(ROOM_NAME, {})) as unknown as ArenaRoom;
+    const world = (room as unknown as { world: World }).world;
+    const named = await t.connectTo(room, { name: 'netface' });
+    const other = await t.connectTo(room);
+    const inbox: RecordsMessage[] = [];
+    named.onMessage(MSG_RECORDS, (m: RecordsMessage) => inbox.push(m));
+    named.send(MSG_START);
+    await until(() => world.phase !== PHASE_LOBBY);
+    gameOver(world, 400);
+    await until(() => inbox.length === 1);
+    const msg = inbox[0]!;
+    expect(msg.waiting).toEqual([other.sessionId]);
+    expect(msg.entries.find((e) => e.id === msg.entryId)!.names).toEqual(['netface', 'Jogador 2']);
+    // O nome da entrada vale uma vez: mandar outro no fim de jogo não troca.
+    named.send(MSG_NAME, { name: 'Outro' });
+    other.send(MSG_NAME, { name: 'Bia' });
+    await until(() => inbox.length === 2);
+    expect(inbox[1]!.entries.find((e) => e.id === msg.entryId)!.names).toEqual(['netface', 'Bia']);
+    expect(inbox[1]!.waiting).toEqual([]);
+  });
+
   it('nome inválido não entra e as tentativas são limitadas', async () => {
     const { room, world, clients, inbox } = await playing();
     gameOver(world, 300);

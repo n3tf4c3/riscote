@@ -84,7 +84,7 @@ export interface NetState {
   score: number;
   enemiesLeft: number;
   soakToBall: number;
-  players: NetMap<NetPlayer>;
+  players: NetMap<NetPlayer & { name: string }>;
   enemies: NetMap<NetEnemy>;
   drops: NetMap<NetDrop>;
   items: NetMap<NetItem>;
@@ -119,6 +119,13 @@ export interface PlayerView extends Positioned {
   onGround: boolean;
 }
 
+/** Aviso de alguém que entrou, saiu, caiu ou voltou (o próprio jogador não gera aviso). */
+export interface Presence {
+  slot: number;
+  name: string;
+  event: 'entrou' | 'saiu' | 'caiu' | 'voltou';
+}
+
 export type EnemyView = Positioned & NetEnemy;
 export type DropView = Positioned & NetDrop;
 export type SpitView = Positioned & NetSpit;
@@ -139,6 +146,10 @@ export class OnlineSession {
   onArenaChange: ((arena: Arena) => void) | null = null;
   /** A conexão caiu e o SDK está tentando voltar. */
   reconnecting = false;
+  /** Chamado a cada entrada, saída, queda ou volta de outro jogador. */
+  onPresence: ((p: Presence) => void) | null = null;
+  /** Quem estava na sala no último estado; null até o primeiro, que não gera aviso. */
+  private known: Map<string, { slot: number; name: string; away: boolean }> | null = null;
   private predictor: Predictor;
   private players = new Interpolator<PlayerView>();
   private enemies = new Interpolator<EnemyView>();
@@ -157,6 +168,8 @@ export class OnlineSession {
     this.params = movementParams(this.difficulty);
     this.slot = me.slot;
     this.predictor = new Predictor(arena, (level) => movementParams(this.difficulty, level), me);
+    // Quem já estava na sala ao entrar não gera aviso.
+    this.diffPresence(state);
     room.onStateChange((s: NetState) => this.onState(s));
     room.onMessage(MSG_REPORT, (r: ArenaReport) => this.reports.push(r));
     room.onMessage(MSG_RECORDS, (r: RecordsMessage) => {
@@ -248,11 +261,29 @@ export class OnlineSession {
     return this.hazards.sample(now);
   }
 
+  /** Compara quem está na sala com o estado anterior e avisa as mudanças. */
+  private diffPresence(state: NetState): void {
+    const now = new Map<string, { slot: number; name: string; away: boolean }>();
+    state.players.forEach((p, id) => {
+      if (id !== this.room.sessionId) now.set(id, { slot: p.slot, name: p.name, away: p.away });
+    });
+    const before = this.known;
+    this.known = now;
+    if (!before || !this.onPresence) return;
+    for (const [id, p] of now) {
+      const old = before.get(id);
+      if (!old) this.onPresence({ slot: p.slot, name: p.name, event: 'entrou' });
+      else if (p.away !== old.away) this.onPresence({ slot: p.slot, name: p.name, event: p.away ? 'caiu' : 'voltou' });
+    }
+    for (const [id, p] of before) if (!now.has(id)) this.onPresence({ slot: p.slot, name: p.name, event: 'saiu' });
+  }
+
   private onState(state: NetState): void {
     // A mensagem do placar pode chegar antes do estado com a pausa: só some quando a pausa termina.
     const paused = state.phase === PHASE_RESTART || state.phase === PHASE_CHAPTER;
     if (this.wasPaused && !paused) this.records = null;
     this.wasPaused = paused;
+    this.diffPresence(state);
     const me = state.players.get(this.room.sessionId);
     if (!me) return;
     let switched = false;

@@ -14,6 +14,8 @@ import {
   ROOM_CODE_ALPHABET,
   ROOM_CODE_LENGTH,
   TICK_RATE,
+  CHAPTERS,
+  PHASE_LOBBY,
   World,
   chapterFrom,
   isBossArena,
@@ -24,7 +26,9 @@ import {
   placeholderName,
   type CreateRoomOptions,
   type InputMessage,
+  type JoinOptions,
   type RecordsMessage,
+  type RoomSummary,
   type RunEnd,
   type WorldPlayer,
 } from '@riscote/shared';
@@ -63,6 +67,8 @@ function randomCode(): string {
 export class ArenaRoom extends Room<{ state: GameState }> {
   /** Placar de recordes do servidor, comum a todas as salas (index.ts liga a pasta de dados). */
   static records = new RecordBook(null);
+  /** Salas abertas neste processo, para a lista da capa (`summary`). */
+  static rooms = new Set<ArenaRoom>();
   /** Ondas automáticas de inimigos. Só subclasses de teste desligam; nunca vem do cliente. */
   protected readonly waves: boolean = true;
   /** Segundos de vaga reservada depois de uma queda de conexão (plano, seção 4.4). */
@@ -72,6 +78,12 @@ export class ArenaRoom extends Room<{ state: GameState }> {
   /** Ordem de chegada: o primeiro é o anfitrião; se ele sair, o seguinte assume. */
   private arrivals: string[] = [];
   private pending: PendingRecord | null = null;
+  /** Nomes escolhidos na entrada; quem não escolheu fica de fora e aparece como "Jogador N". */
+  private names = new Map<string, string>();
+  /** Aberta: código e nomes na lista da capa. Privada: só a contagem. */
+  private open = false;
+  /** Índice em CHAPTERS do capítulo da sala. */
+  private chapterIndex = 0;
 
   async onCreate(options: CreateRoomOptions = {}): Promise<void> {
     let code = randomCode();
@@ -84,6 +96,9 @@ export class ArenaRoom extends Room<{ state: GameState }> {
     // Capítulo da arena escolhida na criação da sala, sempre da 1ª fase; o chefe fecha o capítulo.
     const arenas = chapterFrom(options.arenaId);
     const chapter = withBoss(arenas, arenas.length);
+    this.chapterIndex = Math.max(0, CHAPTERS.findIndex((c) => c[0]?.id === arenas[0]?.id));
+    // Só `true` abre a sala: cliente antigo, sem o campo, continua com sala privada.
+    this.open = options.open === true;
     const difficulty = parseDifficulty(options.difficulty);
     this.world = new World(chapter, randomInt(2 ** 31), { waves: this.waves, difficulty });
 
@@ -112,13 +127,36 @@ export class ArenaRoom extends Room<{ state: GameState }> {
       recordTick(performance.now() - started);
     }, TICK_RATE);
     processMetrics.rooms++;
+    ArenaRoom.rooms.add(this);
   }
 
   onDispose(): void {
     processMetrics.rooms--;
+    ArenaRoom.rooms.delete(this);
   }
 
-  onJoin(client: Client): void {
+  /** Lista da capa: abertas primeiro, depois as mais cheias. */
+  static list(): RoomSummary[] {
+    return [...ArenaRoom.rooms].map((r) => r.summary()).sort((a, b) => Number(!!b.code) - Number(!!a.code) || b.players - a.players);
+  }
+
+  /** A sala na lista da capa; a privada não revela código nem nomes. */
+  summary(): RoomSummary {
+    const s = this.state;
+    const names = this.arrivals.map((id) => s.players.get(id)?.name ?? '').filter(Boolean);
+    return {
+      code: this.open ? this.roomId : null,
+      players: this.world.players.size,
+      names: this.open ? names : [],
+      chapter: this.chapterIndex,
+      difficulty: this.world.difficulty,
+      playing: this.world.phase !== PHASE_LOBBY,
+      page: this.world.arenaIndex,
+      pages: this.world.chapter.length,
+    };
+  }
+
+  onJoin(client: Client, options: JoinOptions = {}): void {
     const used = new Set([...this.world.players.values()].map((p) => p.slot));
     let slot = 0;
     while (used.has(slot)) slot++;
@@ -128,6 +166,9 @@ export class ArenaRoom extends Room<{ state: GameState }> {
     const net = new PlayerSchema();
     net.slot = slot;
     net.ack = 0;
+    const name = parseRecordName(options?.name);
+    if (name) this.names.set(client.sessionId, name);
+    net.name = name ?? placeholderName(slot);
     this.state.players.set(client.sessionId, net);
     copyPlayer(player, net);
     this.arrivals.push(client.sessionId);
@@ -155,6 +196,7 @@ export class ArenaRoom extends Room<{ state: GameState }> {
   onLeave(client: Client): void {
     this.world.removePlayer(client.sessionId);
     this.seats.delete(client.sessionId);
+    this.names.delete(client.sessionId);
     this.state.players.delete(client.sessionId);
     this.arrivals = this.arrivals.filter((id) => id !== client.sessionId);
     processMetrics.players--;
@@ -168,10 +210,12 @@ export class ArenaRoom extends Room<{ state: GameState }> {
     const book = ArenaRoom.records;
     const difficulty = this.world.difficulty;
     const players = run.players.filter((id) => this.world.players.has(id));
-    const names = players.map((id) => placeholderName(this.world.players.get(id)!.slot));
+    // Quem entrou com nome já vai com ele; os outros ficam provisórios até escrever.
+    const names = players.map((id) => this.names.get(id) ?? placeholderName(this.world.players.get(id)!.slot));
+    const unnamed = players.filter((id) => !this.names.has(id));
     const entryId = book.add(difficulty, { score: run.score, names, reason: run.reason, arena: run.arena });
     this.pending = {
-      message: { difficulty, entries: book.list(difficulty), entryId, score: run.score, reason: run.reason, waiting: entryId ? players : [] },
+      message: { difficulty, entries: book.list(difficulty), entryId, score: run.score, reason: run.reason, waiting: entryId ? unnamed : [] },
       index: new Map(players.map((id, i) => [id, i])),
       tries: new Map(),
     };

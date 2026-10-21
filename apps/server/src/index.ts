@@ -7,6 +7,7 @@ import { ArenaRoom } from './ArenaRoom.ts';
 import { AttemptLimiter, limitJoins, limitRooms, markPeerAddress } from './joinLimit.ts';
 import { processMetrics, startMetricsLog } from './metrics.ts';
 import { RecordBook } from './records.ts';
+import { serveRoomList } from './roomList.ts';
 
 // Variáveis de ambiente:
 // - PORT: porta do servidor (padrão 2567).
@@ -30,6 +31,7 @@ ArenaRoom.records = new RecordBook(process.env.RISCOTE_DATA_DIR || fileURLToPath
 
 const http = createServer();
 markPeerAddress(http, process.env.RISCOTE_IP_HEADER || undefined);
+serveRoomList(http, () => ArenaRoom.list());
 const joinLimit = Number(process.env.RISCOTE_JOIN_LIMIT ?? 20);
 if (joinLimit > 0) limitJoins(new AttemptLimiter(joinLimit, 60_000));
 const maxRooms = Number(process.env.RISCOTE_MAX_ROOMS ?? 20);

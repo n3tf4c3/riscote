@@ -8,6 +8,8 @@ import {
   MAX_PLAYERS,
   PHASE_LOBBY,
   PHASE_PLAYING,
+  RECORD_NAME_MAX,
+  ROOM_LIST_PATH,
   ROOM_NAME,
   RULES,
   TICK_DT,
@@ -16,14 +18,18 @@ import {
   describeJoinError,
   normalizeRoomCode,
   parseDifficulty,
+  parseRecordName,
+  parseRoomList,
   type Arena,
   type ArenaReport,
   type CreateRoomOptions,
   type Difficulty,
+  type JoinOptions,
+  type RoomSummary,
 } from '@riscote/shared';
 import { el } from './dom';
 import type { InputSource } from './input';
-import { OnlineSession, type NetState } from './net';
+import { OnlineSession, type NetState, type Presence } from './net';
 import { OnlineScene } from './OnlineScene';
 import { bindRecords } from './records';
 import { RES, commonSpecs, prepareArt } from './art/textures';
@@ -42,6 +48,49 @@ const DIFFICULTY_HINTS: Record<Difficulty, string> = {
   medio: 'Um toque derruba. Tinta infinita.',
   dificil: 'Um toque derruba e a tinta acaba: recarregue nos tubos dos cantos.',
 };
+
+const VISIBILITY_HINTS = {
+  aberta: 'Aparece em “Salas agora”, com o código e os nomes: qualquer um pode entrar.',
+  privada: 'Só entra quem tiver o código; na lista aparece só quantos estão jogando.',
+};
+const NAME_HINT = `Nome: até ${RECORD_NAME_MAX} letras ou números; vale espaço, ponto, hífen e sublinhado.`;
+const PRESENCE_TEXT: Record<Presence['event'], string> = {
+  entrou: 'entrou na sala',
+  saiu: 'saiu da sala',
+  caiu: 'perdeu a conexão',
+  voltou: 'voltou para a sala',
+};
+/** Intervalo entre as consultas da lista de salas, com a capa na tela. */
+const ROOM_LIST_MS = 5000;
+const NOTICE_MS = 4600;
+const MAX_NOTICES = 4;
+
+/** Nome escolhido na capa, lembrado por navegador. */
+const NAME_KEY = 'riscote.nome.v1';
+
+function loadName(): string {
+  try {
+    return localStorage.getItem(NAME_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function saveName(name: string): void {
+  try {
+    localStorage.setItem(NAME_KEY, name);
+  } catch {
+    // Sem armazenamento: o nome só não fica lembrado.
+  }
+}
+
+/** Bolinha com a cor do jogador, para reconhecer o boneco na arena. */
+function colorDot(slot: number): HTMLSpanElement {
+  const dot = document.createElement('span');
+  dot.className = 'cor';
+  dot.style.background = `#${(PLAYER_COLORS[slot] ?? 0x888888).toString(16).padStart(6, '0')}`;
+  return dot;
+}
 
 /** Marca a escolha de um grupo de botões (visual e leitor de tela). */
 function choose(group: HTMLElement, chosen: HTMLButtonElement): void {
@@ -108,7 +157,9 @@ export function bootOnline(input: InputSource): void {
   // Em riscote.win o servidor de partidas fica em play.riscote.win (túnel nomeado da Cloudflare).
   const defaultServer =
     location.hostname === 'riscote.win' ? 'wss://play.riscote.win' : `ws://${location.hostname}:2567`;
-  const sdk = new ColyseusSDK(query.get('servidor') ?? defaultServer);
+  const serverUrl = query.get('servidor') ?? defaultServer;
+  const sdk = new ColyseusSDK(serverUrl);
+  const roomListUrl = serverUrl.replace(/^ws/, 'http').replace(/\/+$/, '') + ROOM_LIST_PATH;
 
   let session: OnlineSession | null = null;
   let game: Phaser.Game | null = null;
@@ -187,9 +238,127 @@ export function bootOnline(input: InputSource): void {
     if (mode === difficulty) pick();
   }
 
+  let open = true;
+  const visibilityButtons = el('online-visibility');
+  visibilityButtons.querySelectorAll<HTMLButtonElement>('button').forEach((button) => {
+    const pick = () => {
+      open = button.dataset.aberta === '1';
+      choose(visibilityButtons, button);
+      el('visibility-hint').textContent = open ? VISIBILITY_HINTS.aberta : VISIBILITY_HINTS.privada;
+    };
+    button.addEventListener('click', pick);
+    if (button.dataset.aberta === '1') pick();
+  });
+
+  const nameInput = el<HTMLInputElement>('player-name');
+  nameInput.value = loadName();
+  /** Opções de entrada com o nome do campo; null se o nome não vale (a mensagem já foi para a tela). */
+  function joinOptions(): JoinOptions | null {
+    const raw = nameInput.value.trim();
+    if (!raw) {
+      saveName('');
+      return {};
+    }
+    const name = parseRecordName(raw);
+    if (!name) {
+      statusOut.textContent = NAME_HINT;
+      nameInput.focus();
+      return null;
+    }
+    saveName(name);
+    return { name };
+  }
+
+  function joinRoom(code: string): void {
+    const options = joinOptions();
+    if (options) void enter(sdk.joinById(code, options));
+  }
+
   function setBusy(busy: boolean): void {
     createButton.disabled = busy;
     joinButton.disabled = busy;
+    roomList.querySelectorAll('button').forEach((b) => (b.disabled = busy || b.dataset.cheia === '1'));
+  }
+
+  // Salas no servidor: consultadas enquanto a capa está na tela e a aba, visível.
+  const roomList = el<HTMLUListElement>('room-list');
+  const roomListStatus = el('room-list-status');
+  let shownRooms = '';
+  function renderRooms(rooms: RoomSummary[]): void {
+    const key = JSON.stringify(rooms);
+    if (key === shownRooms) return;
+    // Só redesenha quando muda: o foco do teclado num botão Entrar não se perde.
+    shownRooms = key;
+    const items = rooms.map((r) => {
+      const li = document.createElement('li');
+      li.classList.toggle('privada', !r.code);
+      const title = document.createElement('span');
+      title.className = 'sala-titulo';
+      if (r.code) title.append(Object.assign(document.createElement('code'), { textContent: r.code }));
+      title.append(r.code ? `${r.players}/${MAX_PLAYERS}` : `Sala privada · ${r.players}/${MAX_PLAYERS}`);
+      const info = document.createElement('span');
+      info.className = 'sala-info';
+      const where = r.playing ? `jogando, página ${r.page + 1} de ${r.pages}` : 'no aquecimento';
+      info.textContent = `Capítulo ${r.chapter + 1} · ${CHAPTER_NAMES[r.chapter] ?? ''} · ${DIFFICULTY_NAMES[r.difficulty]} · ${where}`;
+      li.append(title, info);
+      if (r.names.length) {
+        // Nomes de outros jogadores: só como texto.
+        li.append(Object.assign(document.createElement('span'), { className: 'sala-nomes', textContent: r.names.join(', ') }));
+      }
+      const code = r.code;
+      if (code) {
+        const full = r.players >= MAX_PLAYERS;
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = full ? 'Cheia' : 'Entrar';
+        button.dataset.cheia = full ? '1' : '0';
+        button.disabled = full || createButton.disabled;
+        button.setAttribute('aria-label', full ? `Sala ${code} cheia` : `Entrar na sala ${code}`);
+        button.addEventListener('click', () => {
+          codeInput.value = code;
+          joinRoom(code);
+        });
+        li.append(button);
+      }
+      return li;
+    });
+    if (items.length === 0) {
+      items.push(Object.assign(document.createElement('li'), { className: 'vazia', textContent: 'Nenhuma sala agora. Crie a sua e chame alguém!' }));
+    }
+    roomList.replaceChildren(...items);
+    const people = rooms.reduce((n, r) => n + r.players, 0);
+    roomListStatus.textContent = rooms.length
+      ? `${rooms.length} ${rooms.length === 1 ? 'sala' : 'salas'}, ${people} ${people === 1 ? 'pessoa' : 'pessoas'} jogando.`
+      : '';
+  }
+  let fetchingRooms = false;
+  async function refreshRooms(): Promise<void> {
+    if (session || lobby.hidden || document.visibilityState !== 'visible' || fetchingRooms) return;
+    fetchingRooms = true;
+    try {
+      const res = await fetch(roomListUrl, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      renderRooms(parseRoomList(await res.json()));
+    } catch {
+      shownRooms = '';
+      roomList.replaceChildren();
+      roomListStatus.textContent = 'Não deu para ver as salas agora; o código continua valendo.';
+    } finally {
+      fetchingRooms = false;
+    }
+  }
+  setInterval(() => void refreshRooms(), ROOM_LIST_MS);
+  document.addEventListener('visibilitychange', () => void refreshRooms());
+  void refreshRooms();
+
+  // Quem entra, sai, cai ou volta: bilhete no canto da arena.
+  const notices = el('avisos');
+  function notify(p: Presence): void {
+    const note = document.createElement('p');
+    note.append(colorDot(p.slot), `${p.name} ${PRESENCE_TEXT[p.event]}`);
+    notices.append(note);
+    while (notices.childElementCount > MAX_NOTICES) notices.firstElementChild!.remove();
+    setTimeout(() => note.remove(), NOTICE_MS);
   }
 
   function showLobby(message: string): void {
@@ -200,6 +369,8 @@ export function bootOnline(input: InputSource): void {
     setCover(true);
     som.music('capa');
     som.localSlot = -1;
+    notices.replaceChildren();
+    void refreshRooms();
   }
 
   function startGame(arena: Arena): void {
@@ -236,6 +407,7 @@ export function bootOnline(input: InputSource): void {
       await firstState(room);
       const current = new OnlineSession(room);
       current.onArenaChange = (arena) => startGame(arena);
+      current.onPresence = notify;
       session = current;
       saveSeat(room);
       // Queda de rede: o SDK tenta reconectar sozinho; a vaga fica reservada no servidor.
@@ -269,7 +441,9 @@ export function bootOnline(input: InputSource): void {
   }
 
   createButton.addEventListener('click', () => {
-    const options: CreateRoomOptions = { arenaId, difficulty };
+    const join = joinOptions();
+    if (!join) return;
+    const options: CreateRoomOptions = { ...join, arenaId, difficulty, open };
     void enter(sdk.create(ROOM_NAME, options));
   });
 
@@ -280,7 +454,7 @@ export function bootOnline(input: InputSource): void {
       statusOut.textContent = 'O código tem 6 letras ou números.';
       return;
     }
-    void enter(sdk.joinById(code));
+    joinRoom(code);
   });
 
   el('start').addEventListener('click', () => session?.start());
@@ -339,7 +513,9 @@ export function bootOnline(input: InputSource): void {
   const saved = loadSeat();
   if (invited && invited !== saved?.code) {
     codeInput.value = invited;
-    void enter(sdk.joinById(invited));
+    // Pelo convite entra direto; um nome guardado que não valha mais fica de fora.
+    const name = parseRecordName(nameInput.value);
+    void enter(sdk.joinById(invited, name ? { name } : {}));
   } else if (saved) {
     // Página recarregada: volta ao mesmo boneco se a vaga ainda estiver reservada.
     codeInput.value = saved.code;
@@ -365,9 +541,33 @@ export function bootOnline(input: InputSource): void {
   const correctionsOut = el('r-corrections');
   const pendingOut = el('r-pending');
   const updateRecords = bindRecords(() => session);
+  const roomPlayers = el<HTMLUListElement>('room-players');
+  let shownPlayers = '';
+  /** Quem está na sala, na cor do boneco; só redesenha quando muda. */
+  function renderPlayers(current: OnlineSession): void {
+    const state = current.state;
+    const rows: { slot: number; text: string; away: boolean }[] = [];
+    state.players.forEach((p, id) => {
+      const tags = [id === current.room.sessionId && 'você', id === state.hostId && 'anfitrião', p.away && 'sem conexão'].filter(Boolean);
+      rows.push({ slot: p.slot, text: tags.length ? `${p.name} (${tags.join(', ')})` : p.name, away: p.away });
+    });
+    rows.sort((a, b) => a.slot - b.slot);
+    const key = JSON.stringify(rows);
+    if (key === shownPlayers) return;
+    shownPlayers = key;
+    roomPlayers.replaceChildren(
+      ...rows.map((r) => {
+        const li = document.createElement('li');
+        li.classList.toggle('dim', r.away);
+        li.append(colorDot(r.slot), r.text);
+        return li;
+      }),
+    );
+  }
   setInterval(() => {
     updateRecords();
     if (!session) return;
+    renderPlayers(session);
     const state = session.state;
     const me = session.me;
     lobbyStart.hidden = state.phase !== PHASE_LOBBY;
