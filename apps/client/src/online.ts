@@ -78,7 +78,10 @@ function clearSeat(): void {
 export function bootOnline(input: InputSource): void {
   el('panel-online').hidden = false;
   const query = new URLSearchParams(location.search);
-  const sdk = new ColyseusSDK(query.get('servidor') ?? `ws://${location.hostname}:2567`);
+  // Em riscote.win o servidor de partidas fica em play.riscote.win (túnel nomeado da Cloudflare).
+  const defaultServer =
+    location.hostname === 'riscote.win' ? 'wss://play.riscote.win' : `ws://${location.hostname}:2567`;
+  const sdk = new ColyseusSDK(query.get('servidor') ?? defaultServer);
 
   let session: OnlineSession | null = null;
   let game: Phaser.Game | null = null;

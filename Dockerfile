@@ -37,6 +37,7 @@ COPY packages/shared packages/shared
 COPY apps/client apps/client
 RUN pnpm --filter @riscote/client build
 
-FROM nginx:1.29-alpine AS client
+# nginx sem root (usuário 101, porta 8080), para rodar sem capabilities e só leitura.
+FROM nginxinc/nginx-unprivileged:1.29-alpine AS client
 COPY --from=client-build /app/apps/client/dist /usr/share/nginx/html
-EXPOSE 80
+EXPOSE 8080
