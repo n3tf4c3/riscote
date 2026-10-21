@@ -19,6 +19,7 @@ import {
 import { type BossPose } from './art/boss';
 import type { ArtLayer } from './art/layer';
 import { RES } from './art/textures';
+import { som } from './audio/som';
 import { INK, INK_BLUE } from './draw';
 import type { Effects } from './fx';
 
@@ -142,6 +143,7 @@ export class BossView {
       this.impacts = b.impacts;
       this.landAt = now;
       this.fx.shake(first ? 520 : 300, first ? 0.018 : 0.01);
+      som.play(first ? 'chefe-entrada' : 'chefe-carimbo', { x: cx });
       this.fx.dust(b.x + this.w * 0.15, floor, 1);
       this.fx.dust(b.x + this.w * 0.85, floor, 1);
       this.fx.splat(cx, floor - 4, false, first ? 2.4 : 1.4, INK);
@@ -154,8 +156,12 @@ export class BossView {
       this.fx.droplets(cx, b.y + this.h * 0.4, INK_BLUE, 18, 240);
       this.fx.sparkle(cx, b.y + this.h * 0.4, 0xe8b400, 10, 14);
       this.fx.shake(220, 0.008);
+      som.play('chefe-golpe', { x: cx });
     }
     if (b.state !== this.state) {
+      if (b.state === BOSS_WINDUP) som.play('chefe-aviso', { x: cx });
+      else if (b.state === BOSS_HEAVY) som.play('chefe-pesado', { x: cx });
+      else if (b.state === BOSS_DEFEATED) som.play('chefe-derrota', { x: cx });
       if (b.state === BOSS_HEAVY) {
         this.fx.splat(cx, b.y + this.h * 0.7, true, 2.2, INK_BLUE);
         this.fx.droplets(cx, b.y + this.h * 0.5, INK_BLUE, 20, 200, -Math.PI / 2, Math.PI * 1.5);
@@ -191,7 +197,10 @@ export class BossView {
       if (seen.has(id)) continue;
       this.hazards.delete(id);
       // Borrão que chegou ao chão ou a uma plataforma: estoura em nanquim.
-      if (z.kind !== HAZARD_WAVE && z.wait <= 0 && b.state !== BOSS_DEFEATED) this.fx.splat(z.x + z.w / 2, z.y + z.h, false, 1.1, INK);
+      if (z.kind !== HAZARD_WAVE && z.wait <= 0 && b.state !== BOSS_DEFEATED) {
+        this.fx.splat(z.x + z.w / 2, z.y + z.h, false, 1.1, INK);
+        som.play('mancha', { x: z.x + z.w / 2 });
+      }
     }
   }
 

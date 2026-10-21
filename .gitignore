@@ -7,3 +7,5 @@ coverage/
 relatorios/
 backups/
 apps/server/dados/
+# Masters de áudio: refeitos de forma determinística por `node audio/gerar.ts` (docs/audio.md).
+audio/masters/

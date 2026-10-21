@@ -18,6 +18,7 @@ import {
   type WarnTimes,
 } from '@riscote/shared';
 import { runPose, type Pose } from './art/riscote';
+import { som } from './audio/som';
 import { grampoKey, tracaKey } from './art/textures';
 import { INK_BLUE, INK } from './draw';
 import type { Effects } from './fx';
@@ -82,7 +83,11 @@ export class RiscoteAnimator {
       this.fx.splat(feetX, feetY - 4, false, 1.4, INK);
       this.fx.droplets(feetX, feetY - 8, color, 10, 160);
       this.fx.shake(180, 0.004);
-    } else if (!down && s.down) this.fx.sparkle(feetX, m.y + h / 2, color, 10, 12);
+      som.play('derrubado', { x: feetX, slot });
+    } else if (!down && s.down) {
+      this.fx.sparkle(feetX, m.y + h / 2, color, 10, 12);
+      som.play('resgate', { x: feetX, slot });
+    }
     s.down = down;
 
     if (!down) {
@@ -91,10 +96,12 @@ export class RiscoteAnimator {
         s.landAt = now;
         s.landPower = Math.min(1, Math.max(0.35, s.fallVy / 450));
         this.fx.dust(feetX, feetY, s.landPower);
+        som.play('pouso', { x: feetX, slot, volume: 0.4 + 0.6 * s.landPower });
         s.fallVy = 0;
       } else if (!m.onGround && s.ground && m.vy < 0) {
         s.jumpAt = now;
         this.fx.dust(feetX, feetY, 0.2);
+        som.play('pulo', { x: feetX, slot });
       }
     }
     s.ground = m.onGround;
@@ -203,9 +210,12 @@ export class EnemyAnimator {
   /** Entrada numa fase de habilidade: respingos, poeira e a onda da pancada. */
   private skillChanged(e: EnemyLike, prev: number, cx: number): void {
     const feet = e.y + this.size;
+    // Toda habilidade perigosa avisa também no som, no mesmo instante do aviso visual.
+    if (e.skill === SKILL_WARN && e.kind !== ENEMY_BORRACHA && e.kind !== ENEMY_BORRAO) som.play('aviso', { x: cx });
     if (e.kind === ENEMY_SALTADOR) {
       if (e.skill === SKILL_WARN) this.fx.dust(cx, feet, 0.4);
       else if (e.skill === SKILL_REST && prev === SKILL_ACT) {
+        som.play('pancada', { x: cx });
         // Pousou da pancada: a onda corre pelo mesmo trecho de chão que a simulação usa.
         const floor = Math.round(feet / TILE) * TILE;
         const [left, right] = floorSpan(this.arena, cx, floor, RULES.slamRadius);
@@ -218,6 +228,7 @@ export class EnemyAnimator {
       if (e.skill === SKILL_WARN) this.fx.sparkle(cx + e.facing * this.size * 0.3, e.y - 2, 0xc8402a, 6, 7);
       else if (e.skill === SKILL_ACT) {
         // Cuspiu: o nanquim espirra da boca, rente ao chão.
+        som.play('cuspe', { x: cx });
         this.fx.droplets(cx + e.facing * this.size * 0.5, feet - 4, INK, 8, 140, e.facing > 0 ? -0.15 : Math.PI + 0.15, 0.7, true);
         this.fx.dust(cx, feet, 0.4);
       }
@@ -247,6 +258,7 @@ export class EnemyAnimator {
           // Chegou um inimigo novo: cai na página com um respingo.
           this.fx.splat(cx, cy, false, e.kind === ENEMY_BORRAO ? 1.6 : 0.8, INK);
           if (e.kind === ENEMY_BORRAO) this.fx.shake(260, 0.005);
+          som.play(e.kind === ENEMY_BORRAO ? 'borrao' : 'chegada', { x: cx });
         }
       }
       const dx = e.x - s.x;
@@ -261,15 +273,21 @@ export class EnemyAnimator {
         if (e.mode === MODE_BALL && s.mode === MODE_WALK) {
           this.fx.splat(cx, cy, true, 1.2, INK_BLUE);
           this.fx.shake(90, 0.003);
+          som.play('bola', { x: cx });
         } else if (e.mode === MODE_ROLL) {
           this.fx.streaks(cx, cy, e.facing, 8);
           this.fx.droplets(cx, cy, INK_BLUE, 10, 180, e.facing > 0 ? 0 : Math.PI, 1.4, true);
           this.fx.shake(150, 0.005);
+          som.play('chute', { x: cx });
         } else if (e.mode === MODE_WALK) {
           // Escapou da bola: sacode a tinta para os lados.
           this.fx.droplets(cx, cy, INK_BLUE, 14, 170, -Math.PI / 2, Math.PI * 1.4);
+          som.play('escapou', { x: cx });
         }
-      } else if (e.mode === MODE_WALK && e.soak > s.soak) this.fx.splat(cx, cy, true, 0.55, INK_BLUE);
+      } else if (e.mode === MODE_WALK && e.soak > s.soak) {
+        this.fx.splat(cx, cy, true, 0.55, INK_BLUE);
+        som.play('encharcar', { x: cx });
+      }
       s.mode = e.mode;
       s.soak = e.soak;
       if (e.skill !== s.skill) {
@@ -399,7 +417,9 @@ export class EnemyAnimator {
       out.set(e.id, { key, sx, sy, angle, ...(flip === undefined ? {} : { flip }) });
     }
 
-    // Quem sumiu: bola que estourou, inimigo derrubado pela bola.
+    // Quem sumiu: bola que estourou, inimigo derrubado pela bola. Vários no mesmo quadro são um
+    // combo: cada estouro soa um pouco mais agudo que o anterior.
+    let chain = 0;
     for (const [id, s] of this.states) {
       if (s.seen === now) continue;
       this.states.delete(id);
@@ -415,6 +435,7 @@ export class EnemyAnimator {
         this.fx.sparkle(cx, cy, 0xe8b400, 8, 10);
         this.fx.shake(120, 0.004);
       }
+      som.play('estouro', { x: cx, rate: Math.min(1.5, 1 + 0.08 * chain++) });
     }
     this.primed = true;
     return out;
@@ -466,6 +487,7 @@ export class DropWatcher {
         // Apagada: farelo de borracha caindo, sem mancha azul.
         this.fx.droplets(cx, cy, ERASER_PINK, 6, 70, Math.PI / 2, 1.6);
         this.fx.dust(cx, cy + 6, 0.3);
+        som.play('apagar', { x: cx });
       } else this.fx.splat(cx, cy, true, 0.45, INK_BLUE);
     }
     return out;
