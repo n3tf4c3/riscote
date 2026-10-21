@@ -215,7 +215,9 @@ export class ArenaRoom extends Room<{ state: GameState }> {
     const unnamed = players.filter((id) => !this.names.has(id));
     const entryId = book.add(difficulty, { score: run.score, names, reason: run.reason, arena: run.arena });
     this.pending = {
-      message: { difficulty, entries: book.list(difficulty), entryId, score: run.score, reason: run.reason, waiting: entryId ? unnamed : [] },
+      message: {
+        difficulty, entries: book.list(difficulty), entryId, score: run.score, reason: run.reason, waiting: entryId ? unnamed : [], saved: book.saved,
+      },
       index: new Map(players.map((id, i) => [id, i])),
       tries: new Map(),
     };
@@ -245,6 +247,7 @@ export class ArenaRoom extends Room<{ state: GameState }> {
     const message = pending.message;
     message.waiting = message.waiting.filter((w) => w !== id);
     message.entries = ArenaRoom.records.list(message.difficulty);
+    message.saved = ArenaRoom.records.saved;
     this.broadcast(MSG_RECORDS, message);
     if (message.waiting.length === 0) this.world.closeRecords();
   }
