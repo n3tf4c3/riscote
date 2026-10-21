@@ -1,6 +1,12 @@
-import { DIFFICULTY_NAMES, RECORD_NAME_MAX, parseRecordName, type RecordsMessage } from '@riscote/shared';
+import { DIFFICULTY_NAMES, RECORD_NAME_MAX, parseRecordName, type RecordsMessage, type RunEndReason } from '@riscote/shared';
 import { el } from './dom';
 import type { OnlineSession } from './net';
+
+const REASON_TEXT: Record<RunEndReason, string> = {
+  capitulo: 'Capítulo concluído!',
+  'sem-vidas': 'A equipe ficou sem vidas.',
+  desistencia: 'A equipe desistiu.',
+};
 
 /**
  * Placar do fim de jogo: campo do nome (só para quem jogou a partida) e os recordes da dificuldade.
@@ -33,7 +39,7 @@ export function bindRecords(session: () => OnlineSession | null): () => void {
   });
 
   function render(r: RecordsMessage): void {
-    el('records-why').textContent = r.reason === 'capitulo' ? 'Capítulo concluído!' : 'A equipe ficou sem vidas.';
+    el('records-why').textContent = REASON_TEXT[r.reason] ?? 'Fim de jogo.';
     el('records-score').textContent = String(r.score);
     el('records-mode').textContent = DIFFICULTY_NAMES[r.difficulty] ?? r.difficulty;
     const rows = r.entries.map((entry, i) => {

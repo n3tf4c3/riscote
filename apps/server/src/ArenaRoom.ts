@@ -2,6 +2,7 @@ import { randomInt } from 'node:crypto';
 import { Room, matchMaker, type Client } from '@colyseus/core';
 import {
   MAX_PLAYERS,
+  MSG_GIVE_UP,
   MSG_INPUT,
   MSG_NAME,
   MSG_RECORDS,
@@ -99,6 +100,10 @@ export class ArenaRoom extends Room<{ state: GameState }> {
     // Só o anfitrião encerra o aquecimento; de outro jogador, a mensagem é ignorada.
     this.onMessage(MSG_START, (client) => {
       if (client.sessionId === this.state.hostId) this.world.start();
+    });
+    // Desistir também é só do anfitrião: a partida inteira vira fim de jogo.
+    this.onMessage(MSG_GIVE_UP, (client) => {
+      if (client.sessionId === this.state.hostId) this.world.giveUp();
     });
     this.onMessage(MSG_NAME, (client, raw) => this.receiveName(client, raw));
     this.setFixedTimestep(() => {

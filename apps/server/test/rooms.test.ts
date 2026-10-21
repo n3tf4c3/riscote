@@ -12,11 +12,13 @@ import {
   DEFAULT_PARAMS,
   Interpolator,
   MAX_PLAYERS,
+  MSG_GIVE_UP,
   MSG_INPUT,
   MSG_REPORT,
   MSG_START,
   PHASE_LOBBY,
   PHASE_PLAYING,
+  PHASE_RESTART,
   Predictor,
   ROOM_NAME,
   ITEM_AGILIDADE,
@@ -401,6 +403,23 @@ describe('aquecimento e anfitrião', () => {
     expect(room.state.enemiesLeft).toBe(Math.round(4 + 1.5 * 2));
     // Os outros clientes recebem o novo anfitrião no patch seguinte.
     await until(() => (third.state as any).hostId === guest.sessionId);
+  });
+
+  it('só o anfitrião desiste, e a desistência vira fim de jogo', async () => {
+    const room = (await t.createRoom(ROOM_WITH_ENEMIES, {})) as unknown as ArenaRoom;
+    const host = await t.connectTo(room);
+    const guest = await t.connectTo(room);
+    host.send(MSG_START);
+    await until(() => room.state.phase === PHASE_PLAYING);
+
+    guest.send(MSG_GIVE_UP);
+    await sleep(100);
+    expect(room.state.phase).toBe(PHASE_PLAYING);
+
+    host.send(MSG_GIVE_UP);
+    await until(() => room.state.phase === PHASE_RESTART);
+    expect([...room.state.players.values()].every((p) => p.down)).toBe(true);
+    expect(room.state.lives).toBe(0);
   });
 });
 describe('queda de conexão e reconexão (etapa 5)', () => {

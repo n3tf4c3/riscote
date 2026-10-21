@@ -15,7 +15,7 @@ export const RECORDS_FILE = 'recordes.json';
 
 type Ranking = Record<Difficulty, RecordEntry[]>;
 
-const REASONS: readonly unknown[] = ['capitulo', 'sem-vidas'] satisfies RunEndReason[];
+const REASONS: readonly unknown[] = ['capitulo', 'sem-vidas', 'desistencia'] satisfies RunEndReason[];
 
 function emptyRanking(): Ranking {
   return { facil: [], medio: [], dificil: [] };
