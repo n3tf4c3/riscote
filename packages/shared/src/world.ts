@@ -146,7 +146,7 @@ export interface ArenaReport {
   arenas: number;
   players: number;
   seconds: number;
-  outcome: 'limpa' | 'recomeço';
+  outcome: 'limpa' | 'recomeço' | 'desistência';
   hurry: boolean;
   downs: number;
   rescues: number;
@@ -541,6 +541,22 @@ export class World {
   /** Todos escreveram o nome (ou não há quem escreva): a pausa do placar encurta para RULES.recordShow. */
   closeRecords(): void {
     if (this.phase === PHASE_RESTART || this.phase === PHASE_CHAPTER) this.phaseTime = Math.min(this.phaseTime, RULES.recordShow);
+  }
+
+  /** O anfitrião desiste: a equipe cai junta e é fim de jogo, como se as vidas tivessem acabado. */
+  giveUp(): boolean {
+    if (this.phase !== PHASE_PLAYING || !this.waveStarted) return false;
+    this.lives = 0;
+    for (const p of this.players.values()) if (!p.down) this.knockDown(p);
+    this.gameOver('desistencia', 'desistência');
+    return true;
+  }
+
+  /** Fim de jogo: os pontos vão ao placar e a arena recomeça do zero. */
+  private gameOver(reason: RunEndReason, outcome: ArenaReport['outcome']): void {
+    if (this.waveStarted) this.report(outcome);
+    this.phase = PHASE_RESTART;
+    this.phaseTime = this.endRun(reason) ? RULES.recordDelay : RULES.restartDelay;
   }
 
   /** Fecha a partida para o placar; sem pontos, não há o que registrar. */
@@ -1280,19 +1296,23 @@ export class World {
         p.invuln = RULES.hitInvulnTime;
         continue;
       }
-      p.down = true;
-      // Derrubado perde tudo o que acumulou.
-      p.strength = 0;
-      p.speed = 0;
-      p.rate = 0;
-      p.range = 0;
-      p.star = 0;
-      p.downTime = 0;
-      p.rescue = 0;
-      p.body.vx = 0;
-      p.body.vy = 0;
+      this.knockDown(p);
       this.stats.downs++;
     }
+  }
+
+  /** Derrubado perde tudo o que acumulou. */
+  private knockDown(p: WorldPlayer): void {
+    p.down = true;
+    p.strength = 0;
+    p.speed = 0;
+    p.rate = 0;
+    p.range = 0;
+    p.star = 0;
+    p.downTime = 0;
+    p.rescue = 0;
+    p.body.vx = 0;
+    p.body.vy = 0;
   }
 
   /**
@@ -1441,10 +1461,7 @@ export class World {
         this.phase = PHASE_CLEAR;
         this.phaseTime = RULES.clearDelay;
       } else if (this.lives === 0 && this.players.size > 0 && [...this.players.values()].every((p) => p.down || p.away)) {
-        if (this.waveStarted) this.report('recomeço');
-        // Sem vidas é fim de jogo: os pontos vão ao placar e a arena recomeça do zero.
-        this.phase = PHASE_RESTART;
-        this.phaseTime = this.endRun('sem-vidas') ? RULES.recordDelay : RULES.restartDelay;
+        this.gameOver('sem-vidas', 'recomeço');
       }
       return;
     }

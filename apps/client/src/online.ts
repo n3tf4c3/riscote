@@ -7,6 +7,7 @@ import {
   DIFFICULTY_NAMES,
   MAX_PLAYERS,
   PHASE_LOBBY,
+  PHASE_PLAYING,
   ROOM_NAME,
   RULES,
   TICK_DT,
@@ -25,10 +26,15 @@ import type { InputSource } from './input';
 import { OnlineSession, type NetState } from './net';
 import { OnlineScene } from './OnlineScene';
 import { bindRecords } from './records';
-import { RES } from './art/textures';
+import { RES, commonSpecs, prepareArt } from './art/textures';
+import { PLAYER_COLORS } from './draw';
 import { setCover } from './capa';
 
 const INITIAL_STATE_TIMEOUT_MS = 5000;
+/** Tempo para o segundo clique em Desistir confirmar. */
+const GIVE_UP_CONFIRM_MS = 4000;
+/** Carregamentos mais curtos que isso não mostram o pote de tinta. */
+const LOADER_DELAY_MS = 150;
 
 const DIFFICULTY_HINTS: Record<Difficulty, string> = {
   facil: 'Cada riscote aguenta 2 toques e corre um pouco mais; os inimigos avisam com mais tempo e vêm em menor número. Tinta infinita.',
@@ -103,7 +109,26 @@ export function bootOnline(input: InputSource): void {
 
   let session: OnlineSession | null = null;
   let game: Phaser.Game | null = null;
-  const scene = new OnlineScene({ session: () => session, input });
+  // Pote de tinta enchendo enquanto a arte da arena carrega. Na virada de página, que costuma ser
+  // rápida, só aparece se demorar um pouco.
+  const loader = el('carregando');
+  const loaderPot = loader.querySelector<HTMLElement>('.pote')!;
+  const loaderPct = el('carregando-pct');
+  let loaderTimer: ReturnType<typeof setTimeout> | undefined;
+  function showLoading(done: number, total: number, now = false): void {
+    const level = total > 0 ? Math.min(1, done / total) : 1;
+    clearTimeout(loaderTimer);
+    loaderTimer = undefined;
+    if (level >= 1) {
+      loader.hidden = true;
+      return;
+    }
+    loaderPot.style.setProperty('--nivel', `${Math.round(level * 100)}%`);
+    loaderPct.textContent = `${Math.round(level * 100)}%`;
+    if (now) loader.hidden = false;
+    else if (loader.hidden) loaderTimer = setTimeout(() => (loader.hidden = false), LOADER_DELAY_MS);
+  }
+  const scene = new OnlineScene({ session: () => session, input, loading: showLoading });
   // A sala joga o capítulo inteiro a partir da 1ª fase: o menu escolhe o capítulo pela arena de abertura.
   let arenaId = CHAPTERS[0]![0]!.id;
   let difficulty: Difficulty = 'medio';
@@ -112,6 +137,11 @@ export function bootOnline(input: InputSource): void {
   window.addEventListener('pagehide', () => {
     unloading = true;
   });
+  // Enquanto a capa está na tela, os bonecos e inimigos já vão sendo rasterizados (variação 0 primeiro).
+  const common = commonSpecs(PLAYER_COLORS);
+  void prepareArt([...common.filter((s) => !s.key.includes('~')), ...common.filter((s) => s.key.includes('~'))]).catch(
+    (err: unknown) => console.warn('arte não adiantou; a cena carrega na entrada', err),
+  );
 
   const lobby = el('lobby');
   const inRoom = el('in-room');
@@ -163,17 +193,21 @@ export function bootOnline(input: InputSource): void {
     lobby.hidden = false;
     inRoom.hidden = true;
     statusOut.textContent = message;
+    showLoading(1, 1);
     setCover(true);
   }
 
   function startGame(arena: Arena): void {
     if (!game) {
+      // O Phaser leva um instante para subir: o pote já aparece vazio.
+      showLoading(0, 1, true);
       game = new Phaser.Game({
         type: Phaser.AUTO,
         parent: 'game',
         width: arenaWidth(arena) * RES,
         height: arenaHeight(arena) * RES,
-        backgroundColor: '#e7dfcc',
+        // Transparente: até o primeiro quadro aparece o papel da página, não o preto do WebGL.
+        transparent: true,
         scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
         scene,
       });
@@ -257,6 +291,29 @@ export function bootOnline(input: InputSource): void {
     void session?.room.leave();
   });
 
+  // Desistir encerra a partida de todos: o primeiro clique só pede confirmação.
+  const giveUpButton = el<HTMLButtonElement>('give-up');
+  let giveUpArmed: ReturnType<typeof setTimeout> | undefined;
+  function disarmGiveUp(): void {
+    clearTimeout(giveUpArmed);
+    giveUpArmed = undefined;
+    giveUpButton.textContent = 'Desistir';
+    giveUpButton.classList.remove('active');
+  }
+  giveUpButton.addEventListener('click', () => {
+    if (!session?.isHost) return;
+    if (giveUpArmed === undefined) {
+      giveUpButton.textContent = 'Confirmar: desistir';
+      giveUpButton.classList.add('active');
+      giveUpArmed = setTimeout(disarmGiveUp, GIVE_UP_CONFIRM_MS);
+      return;
+    }
+    disarmGiveUp();
+    session.giveUp();
+    // Devolve o teclado ao jogo.
+    giveUpButton.blur();
+  });
+
   el('copy-invite').addEventListener('click', () => {
     if (!session) return;
     const url = new URL(location.href);
@@ -306,6 +363,10 @@ export function bootOnline(input: InputSource): void {
     const me = session.me;
     lobbyStart.hidden = state.phase !== PHASE_LOBBY;
     startButton.disabled = !session.isHost;
+    giveUpButton.hidden = state.phase !== PHASE_PLAYING;
+    giveUpButton.disabled = !session.isHost;
+    giveUpButton.title = session.isHost ? 'Encerra a partida para toda a equipe' : 'Só o anfitrião pode desistir';
+    if (giveUpButton.hidden && giveUpArmed !== undefined) disarmGiveUp();
     startHint.textContent = session.isHost
       ? 'Você é o anfitrião. Comece (ou aperte Enter) quando todos tiverem entrado: a primeira arena é dimensionada para quem estiver na sala.'
       : 'Aquecimento: aguardando o anfitrião começar a partida.';

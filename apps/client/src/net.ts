@@ -3,6 +3,7 @@ import {
   ARENAS,
   BOSS_ARENA,
   Interpolator,
+  MSG_GIVE_UP,
   MSG_INPUT,
   MSG_NAME,
   MSG_RECORDS,
@@ -178,6 +179,11 @@ export class OnlineSession {
   /** Pede ao servidor o fim do aquecimento (só vale para o anfitrião). */
   start(): void {
     this.room.send(MSG_START);
+  }
+
+  /** Pede ao servidor o fim de jogo por desistência (só vale para o anfitrião, durante a partida). */
+  giveUp(): void {
+    this.room.send(MSG_GIVE_UP);
   }
 
   /** Nome para a linha desta partida no placar; a pontuação é sempre a do servidor. */
