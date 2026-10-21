@@ -37,6 +37,7 @@ O planejamento completo fica em `PLANEJAMENTO.md` na raiz (local, fora do Git po
   - `?sala=CODIGO` entra direto numa sala.
   - `?servidor=ws://…` troca o servidor.
 - `pnpm client:build`
+- `docker compose up -d --build`: servidor e cliente em containers (cliente em http://localhost:4173); `docker compose down` para. Detalhes em `docs/docker.md`.
 - `pnpm --filter ./apps/server carga -- --salas 10 --segundos 30 --servidor ws://localhost:2600`: robôs de carga. Rode antes um servidor separado com `RISCOTE_METRICS=1`, `RISCOTE_JOIN_LIMIT=0` e `PORT=2600`.
 - `node apps/server/scripts/sonda-rede.ts wss://…`: mede o atraso entre enviar um comando e recebê-lo confirmado. Serve para separar problema de rede/túnel de problema no cliente.
 - Variáveis do servidor: ver o comentário no topo de `apps/server/src/index.ts`.
@@ -116,6 +117,13 @@ Não rode scripts inline com `node -e` que gravam arquivos e disparam processos 
 
 ## Testes no navegador
 Uma aba ou painel que não está sendo desenhado congela o `requestAnimationFrame`, e o jogo não avança. Medições de tempo e movimento pelo navegador só valem com a aba visível. Para números confiáveis, use os testes (simulação e servidor real com latência simulada). Em desenvolvimento, `window.riscote` expõe o jogo e a sessão.
+
+## Hospedagem
+Decisão do usuário em 2026-10-20: o servidor sobe em Docker, e não como processo `node` solto. Primeira etapa: Docker Desktop neste PC (em uso). Segunda etapa: um Orange Pi rodando Docker, então as imagens precisam funcionar em `linux/arm64` além de `linux/amd64`.
+- `Dockerfile` (alvos `server` e `client`) e `compose.yaml` na raiz; uso, variáveis e Orange Pi em `docs/docker.md`; playtest pela internet em `docs/playtest-remoto.md` (perfil `tunel`).
+- O servidor roda o TypeScript direto e depende do `@riscote/shared` ligado por link do pnpm. Não troque por `pnpm deploy`: o Node não remove tipos dentro de `node_modules`.
+- As portas publicam em `127.0.0.1` por padrão; abrir para a rede é `RISCOTE_BIND=0.0.0.0`.
+- Ao mudar dependências ou a versão do Node, construa também para `linux/arm64` (`docker buildx build --platform linux/arm64 --target server .`).
 
 ## Limites
 - Não contratar serviços nem alterar o DNS de `riscote.win` sem pedido explícito.

@@ -1,0 +1,13 @@
+**/node_modules
+**/dist
+**/coverage
+**/*.log
+.git
+.claude
+.ai-memory.toml
+.env*
+PLANEJAMENTO.md
+design-sync
+docs
+relatorios
+backups

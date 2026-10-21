@@ -1,0 +1,43 @@
+# Riscote em Docker: `docker compose up -d --build` (detalhes em docs/docker.md).
+# Cliente em http://localhost:4173 (RISCOTE_CLIENT_PORT muda), servidor em ws://localhost:2567.
+name: riscote
+
+services:
+  server:
+    build:
+      context: .
+      target: server
+    image: riscote-server
+    init: true
+    restart: unless-stopped
+    environment:
+      # Com túnel da Cloudflare, use cf-connecting-ip; sem proxy na frente, deixe vazio.
+      RISCOTE_IP_HEADER: ${RISCOTE_IP_HEADER:-}
+      RISCOTE_METRICS: ${RISCOTE_METRICS:-1}
+    ports:
+      # 127.0.0.1: só este computador. Para jogar na rede local (Orange Pi), RISCOTE_BIND=0.0.0.0.
+      - ${RISCOTE_BIND:-127.0.0.1}:2567:2567
+
+  client:
+    build:
+      context: .
+      target: client
+    image: riscote-client
+    restart: unless-stopped
+    ports:
+      - ${RISCOTE_BIND:-127.0.0.1}:${RISCOTE_CLIENT_PORT:-4173}:80
+
+  # Túneis rápidos da Cloudflare (endereços temporários), só com `--profile tunel`.
+  tunel-servidor:
+    image: cloudflare/cloudflared:2026.10.1
+    profiles: [tunel]
+    command: tunnel --no-autoupdate --url http://server:2567
+    restart: unless-stopped
+    depends_on: [server]
+
+  tunel-cliente:
+    image: cloudflare/cloudflared:2026.10.1
+    profiles: [tunel]
+    command: tunnel --no-autoupdate --url http://client:80
+    restart: unless-stopped
+    depends_on: [client]
