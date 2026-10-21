@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -116,6 +116,26 @@ describe('placar', () => {
     expect(again.list('medio')[0]!.score).toBe(800);
     // Gravação atômica: sobra só o arquivo final.
     expect(readdirSync(dir)).toEqual([RECORDS_FILE]);
+  });
+
+  it('gravação que falha fica marcada (saved) e a próxima mudança tenta de novo', () => {
+    const dir = tempDir();
+    const book = new RecordBook(dir);
+    expect(book.saved).toBe(true);
+    // Uma pasta no lugar do arquivo temporário faz a escrita falhar (EISDIR), como disco cheio ou sem permissão.
+    const tmp = join(dir, `${RECORDS_FILE}.tmp`);
+    mkdirSync(tmp);
+    const id = book.add('medio', run(300))!;
+    expect(id).toBeTruthy();
+    expect(book.saved).toBe(false);
+    expect(new RecordBook(dir).list('medio')).toEqual([]);
+
+    rmSync(tmp, { recursive: true });
+    expect(book.rename('medio', id, 0, 'Ana')).toBe(true);
+    expect(book.saved).toBe(true);
+    expect(new RecordBook(dir).list('medio')[0]!.names).toEqual(['Ana']);
+    // Sem pasta, o placar é só da memória.
+    expect(new RecordBook(null).saved).toBe(false);
   });
 
   it('linhas adulteradas no arquivo são descartadas ao carregar', () => {
@@ -264,6 +284,31 @@ describe('placar na sala', () => {
     await until(() => inbox.length === 2);
     expect(inbox[1]!.entries.find((e) => e.id === msg.entryId)!.names).toEqual(['netface', 'Bia']);
     expect(inbox[1]!.waiting).toEqual([]);
+  });
+
+  it('se o servidor não grava o placar, a mensagem avisa em vez de confirmar', async () => {
+    const { world, clients, inbox } = await playing();
+    const kept = ArenaRoom.records;
+    const dir = tempDir();
+    ArenaRoom.records = new RecordBook(dir);
+    mkdirSync(join(dir, `${RECORDS_FILE}.tmp`));
+    try {
+      gameOver(world, 500);
+      await until(() => inbox[0]!.length === 1);
+      expect(inbox[0]![0]!.entryId).toBeTruthy();
+      expect(inbox[0]![0]!.saved).toBe(false);
+      // O nome também não ficou gravado: continua avisando.
+      clients[0]!.send(MSG_NAME, { name: 'Ana' });
+      await until(() => inbox[0]!.length === 2);
+      expect(inbox[0]![1]!.saved).toBe(false);
+      // Liberado o disco, a próxima gravação volta a confirmar.
+      rmSync(join(dir, `${RECORDS_FILE}.tmp`), { recursive: true });
+      clients[1]!.send(MSG_NAME, { name: 'Bia' });
+      await until(() => inbox[0]!.length === 3);
+      expect(inbox[0]![2]!.saved).toBe(true);
+    } finally {
+      ArenaRoom.records = kept;
+    }
   });
 
   it('nome inválido não entra e as tentativas são limitadas', async () => {

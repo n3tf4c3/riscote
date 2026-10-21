@@ -90,6 +90,8 @@ export function bindRecords(session: () => OnlineSession | null): () => void {
     form.hidden = !mayName;
     if (mayName && opening) input.focus();
     if (!r.entryId) status.textContent = 'Desta vez a equipe não entrou entre os 15 melhores.';
+    // A linha está no placar, mas o servidor não conseguiu gravar: não confirmar como gravada.
+    else if (r.saved === false) status.textContent = 'O servidor não conseguiu gravar o placar agora: esta linha pode se perder se ele reiniciar.';
     else if (sent && !current.mayName) status.textContent = 'Nome gravado no placar.';
     else if (!mayName && !sent) status.textContent = '';
 

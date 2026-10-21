@@ -19,13 +19,16 @@ import {
   normalizeRoomCode,
   parseDifficulty,
   parseRecordName,
+  normalizeServerUrl,
   parseRoomList,
+  seatForServer,
   type Arena,
   type ArenaReport,
   type CreateRoomOptions,
   type Difficulty,
   type JoinOptions,
   type RoomSummary,
+  type SavedSeat,
 } from '@riscote/shared';
 import { el } from './dom';
 import type { InputSource } from './input';
@@ -122,21 +125,26 @@ function firstState(room: Room): Promise<void> {
 /** Vaga na sala guardada por aba: recarregar a página volta ao mesmo boneco enquanto a vaga estiver reservada. */
 const SEAT_KEY = 'riscote.vaga.v1';
 
-function saveSeat(room: Room): void {
+function saveSeat(room: Room, server: string): void {
   try {
-    sessionStorage.setItem(SEAT_KEY, JSON.stringify({ code: room.roomId, token: room.reconnectionToken }));
+    const seat: SavedSeat = { server: normalizeServerUrl(server), code: room.roomId, token: room.reconnectionToken };
+    sessionStorage.setItem(SEAT_KEY, JSON.stringify(seat));
   } catch {
     // Sem armazenamento: só não haverá retomada após recarregar.
   }
 }
 
-function loadSeat(): { code: string; token: string } | null {
+/** A vaga guardada, só se for deste servidor; a de outro servidor (ou de versão antiga) é apagada. */
+function loadSeat(server: string): SavedSeat | null {
+  let raw: unknown = null;
   try {
-    const seat = JSON.parse(sessionStorage.getItem(SEAT_KEY) ?? 'null') as { code?: unknown; token?: unknown } | null;
-    return typeof seat?.code === 'string' && typeof seat.token === 'string' ? { code: seat.code, token: seat.token } : null;
+    raw = JSON.parse(sessionStorage.getItem(SEAT_KEY) ?? 'null');
   } catch {
-    return null;
+    // Vaga ilegível: tratada como de outro servidor.
   }
+  const seat = seatForServer(raw, server);
+  if (!seat && raw !== null) clearSeat();
+  return seat;
 }
 
 function clearSeat(): void {
@@ -409,7 +417,7 @@ export function bootOnline(input: InputSource): void {
       current.onArenaChange = (arena) => startGame(arena);
       current.onPresence = notify;
       session = current;
-      saveSeat(room);
+      saveSeat(room, serverUrl);
       // Queda de rede: o SDK tenta reconectar sozinho; a vaga fica reservada no servidor.
       room.onDrop(() => {
         if (session === current) current.reconnecting = true;
@@ -417,7 +425,7 @@ export function bootOnline(input: InputSource): void {
       room.onReconnect(() => {
         if (session !== current) return;
         current.reconnecting = false;
-        saveSeat(room);
+        saveSeat(room, serverUrl);
       });
       room.onLeave((code: number) => {
         if (session !== current) return;
@@ -510,7 +518,7 @@ export function bootOnline(input: InputSource): void {
 
   // Convite por link: ?sala=CODIGO já entra direto.
   const invited = normalizeRoomCode(query.get('sala') ?? '');
-  const saved = loadSeat();
+  const saved = loadSeat(serverUrl);
   if (invited && invited !== saved?.code) {
     codeInput.value = invited;
     // Pelo convite entra direto; um nome guardado que não valha mais fica de fora.
