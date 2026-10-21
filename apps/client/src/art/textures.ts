@@ -1,10 +1,21 @@
 import type * as Phaser from 'phaser';
 import type { Arena } from '@riscote/shared';
-import { arenaSvg, tuboSvg } from './arena';
-import { bolaSvg, borraoSvg, saltadorSoakSvg, saltadorSvg, tracaSoakSvg, tracaSvg } from './enemies';
+import { arenaFundoSvg, arenaSvg, tuboSvg } from './arena';
+import {
+  TRACA_FRAMES,
+  bolaSvg,
+  borraoSvg,
+  gotaSvg,
+  poeiraSvg,
+  respingoSvg,
+  saltadorSoakSvg,
+  saltadorSvg,
+  tracaSoakSvg,
+  tracaSvg,
+} from './enemies';
 import { itemSvg } from './items';
 import { POSES, riscoteSvg, type Pose } from './riscote';
-import { hex } from './svg';
+import { BOIL, INK, hex } from './svg';
 
 /** Pixels de tela por pixel do mundo: o jogo online roda com a câmera em zoom 2 para a arte não borrar. */
 export const RES = 2;
@@ -45,31 +56,56 @@ function spec(key: string, svg: string, k: number, ax: number, ay: number): ArtS
   return { key, svg, k, ...anchor(svg, ax, ay) };
 }
 
+/** Chave da variação `v` da linha viva; a variação 0 usa a chave simples. */
+export function boilKey(key: string, v: number): string {
+  return v === 0 ? key : `${key}~${v}`;
+}
+
+/** As `BOIL` variações de um desenho, todas com o mesmo tamanho e apoio. */
+function boiled(key: string, make: (variant: number) => string, k: number, ax: number, ay: number): ArtSpec[] {
+  return Array.from({ length: BOIL }, (_, v) => spec(boilKey(key, v), make(v), k, ax, ay));
+}
+
 export function riscoteKey(slot: number, pose: Pose): string {
   return `riscote-${slot}-${pose}`;
 }
 
-/** Riscotes, inimigos e itens: iguais em todas as arenas. */
+export function tracaKey(frame: number): string {
+  return `traca-${frame % TRACA_FRAMES}`;
+}
+
+/** Riscotes, inimigos, itens e efeitos: iguais em todas as arenas. */
 export function commonSpecs(playerColors: readonly number[]): ArtSpec[] {
   const specs: ArtSpec[] = [];
   playerColors.forEach((color, slot) => {
-    for (const pose of POSES) specs.push(spec(riscoteKey(slot, pose), riscoteSvg(slot, hex(color), pose), 0.11, 100, 290));
+    for (const pose of POSES) specs.push(...boiled(riscoteKey(slot, pose), (v) => riscoteSvg(slot, hex(color), pose, v), 0.11, 100, 290));
   });
+  for (let f = 0; f < TRACA_FRAMES; f++) specs.push(...boiled(tracaKey(f), (v) => tracaSvg(f, v), 0.19, 106, 150));
   specs.push(
-    spec('traca', tracaSvg(), 0.19, 106, 150),
-    spec('traca-tinta', tracaSoakSvg(), 0.19, 106, 150),
-    spec('saltador', saltadorSvg(), 0.3, 103, 134),
-    spec('saltador-tinta', saltadorSoakSvg(), 0.3, 103, 134),
-    spec('bola', bolaSvg(), 10 / 22, 0, 0),
-    spec('borrao', borraoSvg(), 0.3, 100, 67),
+    ...boiled('traca-tinta', tracaSoakSvg, 0.19, 106, 150),
+    ...boiled('saltador', (v) => saltadorSvg(false, v), 0.3, 103, 134),
+    ...boiled('saltador-ar', (v) => saltadorSvg(true, v), 0.3, 103, 134),
+    ...boiled('saltador-tinta', saltadorSoakSvg, 0.3, 103, 134),
+    ...boiled('bola', bolaSvg, 10 / 22, 0, 0),
+    ...boiled('borrao', borraoSvg, 0.3, 100, 67),
+    ...boiled('gota', gotaSvg, 0.75, 0, 0),
     spec('tubo', tuboSvg(), 0.5, 0, 80),
+    spec('poeira', poeiraSvg(), 0.35, 0, 0),
   );
-  for (let kind = 0; kind < 5; kind++) specs.push(spec(`item-${kind}`, itemSvg(kind), 0.2, 100, 142));
+  for (let s = 0; s < 2; s++) {
+    specs.push(spec(`respingo-azul-${s}`, respingoSvg('#2f6fd6', s), 0.4, 0, 0));
+    specs.push(spec(`respingo-tinta-${s}`, respingoSvg(INK, s), 0.4, 0, 0));
+  }
+  for (let kind = 0; kind < 5; kind++) specs.push(...boiled(`item-${kind}`, (v) => itemSvg(kind, v), 0.2, 100, 142));
   return specs;
 }
 
-export function arenaSpec(a: Arena): ArtSpec {
-  return { key: `arena-${a.id}`, svg: arenaSvg(a), k: 0.5, ox: 0, oy: 0 };
+/** O fundo de caderno e a camada de plataformas (os efeitos ficam entre as duas). */
+export function arenaSpecs(a: Arena): { fundo: ArtSpec; plataformas: ArtSpec } {
+  return {
+    fundo: { key: `arena-${a.id}-fundo`, svg: arenaFundoSvg(a), k: 0.5, ox: 0, oy: 0 },
+    plataformas: { key: `arena-${a.id}`, svg: arenaSvg(a), k: 0.5, ox: 0, oy: 0 },
+  };
 }
 
 /** Rasteriza o SVG no tamanho exato em que vai aparecer na tela e registra como textura. */
