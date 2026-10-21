@@ -138,6 +138,41 @@ body.inicio #panel-online > p.keys a { color: var(--muted); text-decoration-styl
   border-color: transparent;
 }
 #difficulty-hint { min-height: 2.8em; margin: 6px 0 0; }
+#lobby .escolhas.duas { grid-template-columns: repeat(2, 1fr); }
+#visibility-hint { min-height: 1.4em; margin: 6px 0 0; }
+
+/* Nome do jogador: escrito na pauta do cartão, como o nome no topo de uma prova. */
+.seu-nome {
+  display: block; margin: 0 0 4px; font-size: 11px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted);
+}
+#lobby #player-name {
+  display: block; width: 100%; margin: 0 0 18px; padding: 4px 2px;
+  font: 600 18px/1.2 system-ui, sans-serif; text-transform: none; letter-spacing: 0;
+  background: transparent; color: var(--ink);
+  border: 0; border-bottom: 2px solid var(--ink); border-radius: 0;
+}
+#lobby #player-name::placeholder { color: #b3aa98; font-weight: 500; font-size: 15px; }
+
+/* Salas no servidor: uma linha por sala; a aberta tem o botão de entrar. */
+.salas { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 8px; }
+.salas li {
+  display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center;
+  padding: 7px 8px; background: rgba(255, 255, 255, .5);
+  border: 1.5px solid var(--ink); border-radius: var(--borda-mao);
+}
+.salas li.privada { border-style: dashed; background: transparent; color: var(--muted); }
+.salas li.vazia { display: block; border: 0; padding: 0; background: none; color: var(--muted); }
+.salas .sala-titulo { font-weight: 700; }
+.salas .sala-titulo code { font: 700 14px/1 ui-monospace, monospace; letter-spacing: .12em; margin-right: 6px; }
+.salas .sala-info, .salas .sala-nomes { grid-column: 1; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.salas .sala-nomes { color: var(--ink); }
+#lobby .salas button {
+  grid-column: 2; grid-row: 1 / span 3;
+  padding: 7px 12px 5px; font: 400 20px/1 var(--titulo); letter-spacing: .05em; color: var(--folha);
+  background: var(--pincel-tinta) no-repeat center / 100% 100%; border: 0; border-radius: 0;
+}
+#lobby .salas button:hover:not(:disabled) { background-image: var(--pincel-azul); }
 
 #lobby button.primary {
   display: flex; align-items: center; justify-content: center; gap: 10px;

@@ -29,6 +29,8 @@ export const PlayerSchema = schema(
     rate: t.uint8(),
     range: t.uint8(),
     star: t.float32(),
+    /** Nome para os outros verem (o escolhido na entrada ou "Jogador N"); fora da simulação. */
+    name: t.string(),
   },
   'Player',
 );
