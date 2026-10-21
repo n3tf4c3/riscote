@@ -236,11 +236,36 @@ Cada arquivo externo novo deve entrar nesta tabela com serviço, data, plano, pr
   - nenhum erro de áudio no console.
 - `pnpm typecheck`, `pnpm test` (208 + 55) e `pnpm client:build` passaram; o build leva os 106 arquivos de efeitos e os 14 das trilhas para `dist/`.
 
-**Auditiva:** o usuário ouviu e aprovou a identidade no primeiro lote. Os sons P1 e as trilhas novas ainda não foram ouvidos por ninguém; o agente não consegue ouvir.
+**Auditiva:** o usuário ouviu e aprovou a identidade no primeiro lote e, depois, os sons P1. O agente não consegue ouvir.
+
+## Impacto no servidor e no limite de salas
+
+Verificado em 2026-10-21, depois do merge do áudio (`d38eb59`): **o áudio não muda o limite de salas** (`RISCOTE_MAX_ROOMS`, 20 no Orange Pi). Não é preciso medir de novo a capacidade com os robôs.
+
+- **Servidor de partidas:** o commit do áudio não alterou `apps/server`, `packages/shared`, `Dockerfile` nem `compose.yaml`. Não há mensagem nova no protocolo: o som não envia nada ao servidor e só lê o estado que já chegava. O custo por sala (simulação e rede) é o mesmo da medição em `docs/docker.md` (Capacidade).
+- **Mixagem:** cada navegador mixa os próprios sons. Cinco jogadores atirando juntos pesam no computador de cada jogador, não no Pi.
+- **Arquivos estáticos:** o único acesso à rede é o download dos sons, servidos pelo container do cliente (`riscote.win`), não pelo `play.riscote.win`. Cada visitante baixa, uma vez por visita:
+
+  | O quê | OGG | MP3 |
+  | --- | --- | --- |
+  | Efeitos (no primeiro clique) | 567 KB | 612 KB |
+  | Trilha da capa | 505 KB | 782 KB |
+  | Trilha de um capítulo | ~1,1 MB | ~1,1 MB |
+  | Trilha do chefe | 939 KB | 1,0 MB |
+  | **Partida completa** | **~3,1 MB** | **~3,5 MB** |
+
+  Para comparar, o JS do jogo tem 1,6 MB.
+- **Cache da Cloudflare:** o JS que já estava no ar respondeu `cf-cache-status: HIT`, com cache de 4 h. OGG e MP3 entram no cache padrão da Cloudflare, então o Pi deve entregar cada arquivo poucas vezes, não uma vez por jogador. **Falta confirmar depois do deploy**, olhando o mesmo cabeçalho num `.ogg`:
+
+  ```bash
+  curl -sI https://riscote.win/audio/sfx/tiro-1.ogg
+  ```
+
+- **Pico no navegador:** no Chrome deste PC, 50 sons disparados de uma vez, dez vezes seguidas (bem acima de uma partida real), chegaram a 95 vozes simultâneas, todas liberadas no fim; a rajada levou ~6 ms na thread principal, já contando a espera do timer do teste. Celulares e notebooks fracos não foram medidos.
 
 ## Pendências
 
-1. **Escuta dos P1** pelo usuário, de preferência numa partida real com amigos.
+1. Depois do deploy, confirmar o cache da Cloudflare nos arquivos de som (seção acima).
 2. Produzir os P2 do inventário.
 3. ElevenLabs: só com autorização e `ELEVENLABS_API_KEY`.
 4. Suno: geração manual pelos prompts acima, exportação e preparo no Audacity.
