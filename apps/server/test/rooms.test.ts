@@ -342,7 +342,7 @@ describe('progressão entre arenas (etapa 4)', () => {
     const reports: any[] = [];
     a.onMessage(MSG_REPORT, (r: any) => reports.push(r));
     expect((a.state as any).arenaId).toBe('compacta');
-    expect((a.state as any).arenaCount).toBe(ARENAS.length);
+    expect((a.state as any).arenaCount).toBe(3); // só o capítulo da arena escolhida
     a.send(MSG_START);
     await until(() => (a.state as any).enemiesLeft > 0);
 

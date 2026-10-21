@@ -1,6 +1,6 @@
 import { parseArena, type Arena } from './arena.ts';
 
-// Três tamanhos greybox para comparar com 1, 3 e 5 jogadores (plano, seção 2.2).
+// Capítulo 1: três tamanhos greybox para comparar com 1, 3 e 5 jogadores (plano, seção 2.2).
 // Andares a cada 3 células; tubos de tinta nos cantos inferiores (C21).
 
 const COMPACTA = [
@@ -66,8 +66,93 @@ const AMPLA = [
   '####################################',
 ];
 
-export const ARENAS: readonly Arena[] = [
-  parseArena('compacta', 'Compacta 28×16', COMPACTA),
-  parseArena('padrao', 'Padrão 32×18', PADRAO),
-  parseArena('ampla', 'Ampla 36×20', AMPLA),
+// Capítulo 2: as mesmas regras em páginas com outro desenho de fundo.
+// Quadriculada: escadas em zigue-zague nas laterais e um pilar no meio.
+const QUADRICULADA = [
+  '#............................#',
+  '#..............E.............#',
+  '#..........========..........#',
+  '#............................#',
+  '#..E......................E..#',
+  '#.====........##........====.#',
+  '#.............##.............#',
+  '#.....====..E.##.E..====.....#',
+  '#..........===##===..........#',
+  '#.====........##........====.#',
+  '#.............##.............#',
+  '#.....====..........====.....#',
+  '#..............E.............#',
+  '#.====....==========....====.#',
+  '#............................#',
+  '#T...........PPPPP..........T#',
+  '##############################',
 ];
+
+// Partitura: pautas compridas com vãos alternados e notas (blocos) embaixo dos vãos de cima.
+const PARTITURA = [
+  '#..............................#',
+  '#...............E..............#',
+  '#.........============.........#',
+  '#..............................#',
+  '#...E..##..............##..E...#',
+  '#============......============#',
+  '#..............................#',
+  '#..E...........##...........E..#',
+  '#====....==============....====#',
+  '#..............................#',
+  '#....##..................##....#',
+  '#===========........===========#',
+  '#..............................#',
+  '#...............E..............#',
+  '#=====....============....=====#',
+  '#..............................#',
+  '#T............PPPPP...........T#',
+  '################################',
+];
+
+// Mapa do tesouro: ilhas espalhadas e duas pedras (blocos) no caminho até o X do topo.
+const MAPA = [
+  '#................................#',
+  '#................................#',
+  '#................E...............#',
+  '#.............=======............#',
+  '#................................#',
+  '#.....E....................E.....#',
+  '#...=====.......###......=====...#',
+  '#................................#',
+  '#..........E..........E..........#',
+  '#===.....=====......=====.....===#',
+  '#................................#',
+  '#................E...............#',
+  '#...====......######......====...#',
+  '#................................#',
+  '#................................#',
+  '#........====........====........#',
+  '#................................#',
+  '#T.............PPPPP............T#',
+  '##################################',
+];
+
+/** Capítulos: a sala joga as arenas de um deles, na ordem, dando a volta. */
+export const CHAPTERS: readonly (readonly Arena[])[] = [
+  [
+    parseArena('compacta', 'Compacta 28×16', COMPACTA),
+    parseArena('padrao', 'Padrão 32×18', PADRAO),
+    parseArena('ampla', 'Ampla 36×20', AMPLA),
+  ],
+  [
+    parseArena('quadriculada', 'Quadriculada 30×17', QUADRICULADA),
+    parseArena('partitura', 'Partitura 32×18', PARTITURA),
+    parseArena('mapa', 'Mapa 34×19', MAPA),
+  ],
+];
+
+export const ARENAS: readonly Arena[] = CHAPTERS.flat();
+
+/** Capítulo da arena escolhida, começando por ela. Arena desconhecida: a Padrão. */
+export function chapterFrom(arenaId: unknown): Arena[] {
+  const id = ARENAS.some((a) => a.id === arenaId) ? arenaId : 'padrao';
+  const chapter = CHAPTERS.find((c) => c.some((a) => a.id === id))!;
+  const first = chapter.findIndex((a) => a.id === id);
+  return [...chapter.slice(first), ...chapter.slice(0, first)];
+}

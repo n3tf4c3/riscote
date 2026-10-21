@@ -18,7 +18,7 @@ O planejamento completo fica em `PLANEJAMENTO.md` na raiz (local, fora do Git po
 | --- | --- |
 | Parâmetros de movimento e tick | `packages/shared/src/params.ts` |
 | Comandos do jogador (máscara de bits) | `packages/shared/src/input.ts` |
-| Arenas: formato e layouts ASCII | `packages/shared/src/arena.ts`, `packages/shared/src/arenas.ts` |
+| Arenas: formato, layouts ASCII e capítulos | `packages/shared/src/arena.ts`, `packages/shared/src/arenas.ts` |
 | Física de plataforma | `packages/shared/src/physics.ts` |
 | Protocolo: sala, código, validação de entrada, mensagens de erro | `packages/shared/src/protocol.ts` |
 | Previsão, reconciliação e interpolação | `packages/shared/src/prediction.ts` |
@@ -68,7 +68,7 @@ Ainda não há lint. O aviso de bundle acima de 500 kB vem do Phaser e é espera
 - **Aquecimento e anfitrião.** A sala abre em `PHASE_LOBBY`: todos andam, sem inimigos, sem tempo nem métricas.
   - O anfitrião é o primeiro a chegar; se ele sair, assume o seguinte. Só ele encerra o aquecimento (`MSG_START`, botão ou Enter).
   - `World.start` dimensiona a primeira arena com quem está na sala nesse momento.
-- **Capítulo.** A sala começa na arena escolhida e segue a ordem de `ARENAS`.
+- **Capítulo.** Há dois capítulos de 3 arenas em `CHAPTERS` (`ARENAS` é a lista de todas). A sala joga só o capítulo da arena escolhida (`chapterFrom`), começando por ela; o fundo de cada tema sai de `TEMAS` em `apps/client/src/art/arena.ts`.
   - Arena limpa → pausa → virada de página → próxima arena.
   - Depois da última: resumo, pontos e vidas zerados, volta à primeira.
   - Todos caídos sem vidas → a mesma arena recomeça.
