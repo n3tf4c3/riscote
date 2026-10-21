@@ -242,13 +242,43 @@ function drawBorrao(g: Phaser.GameObjects.Graphics, x: number, y: number, facing
   g.fillStyle(0xd7261e).fillCircle(cx - 5 + eye, cy - 3, 3).fillCircle(cx + 5 + eye, cy - 3, 3);
 }
 
-/** Virada de página: o papel novo avança da direita para a esquerda, com a borda em nanquim. */
+/** Mistura linear de duas cores 0xrrggbb. */
+function mix(c0: number, c1: number, t: number): number {
+  const ch = (shift: number) => Math.round(((c0 >> shift) & 255) * (1 - t) + ((c1 >> shift) & 255) * t) << shift;
+  return ch(16) | ch(8) | ch(0);
+}
+
+/**
+ * Virada de página: o papel novo avança da direita para a esquerda; a folha que vira mostra o verso
+ * curvado (mais largo embaixo) e projeta sombra na página velha.
+ */
 export function drawPageTurn(g: Phaser.GameObjects.Graphics, width: number, height: number, progress: number): void {
-  const w = width * Math.max(0, Math.min(1, progress));
+  const p = Math.max(0, Math.min(1, progress));
+  const w = width * p;
   if (w <= 0) return;
-  g.fillStyle(0xf1ead9).fillRect(width - w, 0, w, height);
-  g.fillStyle(INK, 0.15).fillRect(width - w - 8, 0, 8, height);
-  g.lineStyle(3, INK).lineBetween(width - w, 0, width - w, height);
+  const edge = width - w;
+  g.fillStyle(PAPER).fillRect(edge, 0, w, height);
+  g.lineStyle(1, GRID);
+  for (let y = TILE; y < height; y += TILE) g.lineBetween(edge, y, width, y);
+  // Verso da folha: faixa curvada, mais larga embaixo, clareando para a dobra.
+  const curl = p < 1 ? 14 + 26 * (1 - p) : 0;
+  const slices = 6;
+  for (let i = 0; i < slices; i++) {
+    const a = i / slices;
+    const b = (i + 1) / slices;
+    g.fillStyle(mix(0xd9ccb0, 0xfbf7ee, a))
+      .beginPath()
+      .moveTo(edge - curl * 0.55 * a, 0)
+      .lineTo(edge - curl * 0.55 * b, 0)
+      .lineTo(edge - curl * b, height)
+      .lineTo(edge - curl * a, height)
+      .closePath()
+      .fillPath();
+  }
+  // Sombra na página que fica.
+  for (let i = 0; i < 6; i++) g.fillStyle(INK, 0.1 * (1 - i / 6)).fillRect(edge - curl - (i + 1) * 3, 0, 3, height);
+  g.lineStyle(2, INK, 0.8).lineBetween(edge - curl * 0.55, 0, edge - curl, height);
+  g.lineStyle(3, INK).lineBetween(edge, 0, edge, height);
 }
 /** Item: potinho de tinta com o líquido na cor do poder e um símbolo; pisca nos últimos 3 s. */
 export function drawItem(g: Phaser.GameObjects.Graphics, x: number, y: number, kind: number, ttl: number, now: number): void {
