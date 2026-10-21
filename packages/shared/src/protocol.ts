@@ -183,6 +183,32 @@ export function describeJoinError(error: unknown): string {
   return 'Não foi possível entrar na sala. Tente de novo.';
 }
 
+/** Vaga guardada no navegador para voltar ao mesmo boneco depois de recarregar a página. */
+export interface SavedSeat {
+  /** Servidor que emitiu o token (normalizeServerUrl). */
+  server: string;
+  code: string;
+  token: string;
+}
+
+/** Endereço do servidor na forma guardada e comparada: sem espaços, sem barra no fim, em minúsculas. */
+export function normalizeServerUrl(raw: string): string {
+  return raw.trim().replace(/\/+$/, '').toLowerCase();
+}
+
+/**
+ * A vaga guardada, se ela foi emitida pelo servidor atual. O token dá acesso ao boneco: nunca vai
+ * para outro servidor (um link com `?servidor=` trocado o entregaria). Vaga de outro servidor, sem
+ * servidor (versão antiga) ou fora do formato: null, e o chamador apaga a vaga.
+ */
+export function seatForServer(raw: unknown, server: string): SavedSeat | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const seat = raw as Record<string, unknown>;
+  if (typeof seat.server !== 'string' || typeof seat.code !== 'string' || typeof seat.token !== 'string') return null;
+  if (seat.server !== normalizeServerUrl(server) || !seat.token) return null;
+  return { server: seat.server, code: seat.code, token: seat.token };
+}
+
 /** Normaliza o que a pessoa digitou ("ab-cd 23" → "ABCD23"); devolve null se não for um código válido. */
 export function normalizeRoomCode(raw: string): string | null {
   const code = raw.toUpperCase().replace(/[\s-]/g, '');

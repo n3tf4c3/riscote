@@ -36,6 +36,11 @@ export interface RecordsMessage {
   reason: RunEndReason;
   /** Jogadores (sessionId) que ainda podem escrever o nome. */
   waiting: string[];
+  /**
+   * O placar desta mensagem está gravado no servidor. Falso: ficou só na memória e pode se perder
+   * num reinício. Servidor antigo não manda o campo.
+   */
+  saved?: boolean;
 }
 
 /** Nome provisório de quem não escreveu o próprio. */
