@@ -8,7 +8,8 @@ Estado atual:
 - **Etapa 3** (inimigos, mecânica de encharcar e rolar, tinta com recarga nos tubos, derrubada com resgate, vidas da equipe e ondas) implementada.
 - **Etapa 4** (capítulo com as 3 arenas e virada de página, borrão aos 60 s, relatório de métricas por arena) implementada.
 - **Playtest remoto** por túnel temporário: `docs/playtest-remoto.md`.
-- **Etapa 5** (reconexão com vaga reservada, limite de tentativas de entrada, rede instável e carga medida) implementada. Falta o teste em redes reais, que depende da hospedagem.
+- **Etapa 5** (reconexão com vaga reservada, limite de tentativas de entrada, rede instável e carga medida) implementada. Falta o teste com jogadores em redes reais.
+- **No ar** desde 2026-10-20: `https://riscote.win` (servidor em `play.riscote.win`), pelo túnel `riscote` da Cloudflare, rodando no Orange Pi.
 
 O planejamento completo fica em `PLANEJAMENTO.md` na raiz (local, fora do Git por decisão do usuário).
 

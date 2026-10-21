@@ -40,9 +40,9 @@ Os endereços deixam de existir.
 
 Um túnel nomeado da Cloudflare (gratuito) publica a página em `https://riscote.win` e o servidor em `wss://play.riscote.win`. Nessa página o cliente já procura o servidor em `play.riscote.win`, sem `?servidor=` no link. O jogo continua rodando neste PC: com os containers parados, o endereço sai do ar.
 
-Uma vez só, no painel da Cloudflare (Zero Trust → Networks → Tunnels):
-1. Crie um túnel do tipo **Cloudflared** (ex.: `riscote`) e copie o token do comando de instalação (o texto longo depois de `--token`). Não instale nada pelo painel.
-2. Adicione duas rotas públicas (*Public hostnames*). O painel cria os registros DNS:
+Feito em 2026-10-20: túnel `riscote`, rodando no Orange Pi (`docs/docker.md`). Para refazer, no painel da Cloudflare (Networking → Tunnels, não o menu Zero Trust):
+1. Crie o túnel (ex.: `riscote`) e copie o token do comando de instalação (o texto longo depois de `--token`). Não instale nada pelo painel. O painel só libera as rotas depois que o conector liga: suba o perfil `dominio` antes do passo 2.
+2. Adicione duas rotas do tipo *Published application*. O painel cria os registros DNS:
    - `riscote.win` → HTTP → `client:8080`
    - `play.riscote.win` → HTTP → `server:2567`
 3. Na raiz do projeto, crie o arquivo `.env` (fora do Git):
