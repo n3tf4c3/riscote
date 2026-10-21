@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BTN_ALL, BTN_RIGHT, describeJoinError, normalizeRoomCode, parseDifficulty, parseInput } from '../src/index.ts';
+import { BTN_ALL, BTN_RIGHT, describeJoinError, normalizeRoomCode, parseDifficulty, parseInput, parseRoomList } from '../src/index.ts';
 
 describe('parseInput', () => {
   it('aceita seq inteiro e botões dentro da máscara, descartando outros campos', () => {
@@ -51,5 +51,29 @@ describe('parseDifficulty', () => {
     expect(parseDifficulty('facil')).toBe('facil');
     expect(parseDifficulty('dificil')).toBe('dificil');
     for (const raw of [undefined, null, 'DIFICIL', 'impossivel', 3, {}]) expect(parseDifficulty(raw)).toBe('medio');
+  });
+});
+describe('parseRoomList', () => {
+  const open = { code: 'ABCD23', players: 2, names: ['netface', 'Ana'], chapter: 0, difficulty: 'medio', playing: true, page: 1, pages: 5 };
+
+  it('aceita a sala aberta com código e nomes, e a privada sem eles', () => {
+    const closed = { ...open, code: null, names: ['escondido'] };
+    expect(parseRoomList([open, closed])).toEqual([open, { ...closed, names: [] }]);
+  });
+
+  it('descarta entradas fora do formato e nomes que não passariam no placar', () => {
+    const odd = [
+      null,
+      'ABCD23',
+      { ...open, code: 'abc' },
+      { ...open, code: undefined },
+      { ...open, players: 6 },
+      { ...open, players: -1 },
+      { ...open, difficulty: 'impossivel' },
+      { ...open, page: 1.5 },
+    ];
+    expect(parseRoomList(odd)).toEqual([]);
+    expect(parseRoomList({ rooms: [open] })).toEqual([]);
+    expect(parseRoomList([{ ...open, names: ['<b>x</b>', 'Bia', 3] }])[0]!.names).toEqual(['Bia']);
   });
 });
