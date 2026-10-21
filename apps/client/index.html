@@ -99,6 +99,43 @@
       .records-list li.mine { background: linear-gradient(transparent 30%, rgba(47, 111, 214, .22) 30%, rgba(47, 111, 214, .22) 88%, transparent 88%); }
       .records-list li.empty { display: block; color: var(--muted); border: 0; }
       .records-timer { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+      /* Carregando a arte: um pote de nanquim enchendo de tinta azul por cima do papel. */
+      .carregando {
+        position: absolute; inset: 0; z-index: 4;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+        background: var(--paper); color: var(--ink);
+      }
+      .carregando[hidden] { display: none; }
+      .carregando p { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+      .pote {
+        --nivel: 0%;
+        position: relative; width: 72px; height: 88px; overflow: hidden;
+        border: 3px solid var(--ink);
+        border-radius: 14px 12px 22px 20px / 10px 12px 26px 22px;
+        background: #fbf8f0;
+        transform: rotate(-2deg);
+      }
+      /* O gargalo do pote. */
+      .pote::before {
+        content: ''; position: absolute; top: 6px; left: 8px; right: 8px; height: 0; z-index: 1;
+        border-top: 2.5px solid var(--ink); border-radius: 50%;
+      }
+      .pote-tinta {
+        position: absolute; left: -10px; right: -10px; bottom: 0; height: var(--nivel);
+        background: var(--accent);
+        transition: height .25s ease-out;
+      }
+      /* Superfície mexendo: duas ondas que andam em sentidos opostos. */
+      .pote-tinta::before, .pote-tinta::after {
+        content: ''; position: absolute; left: 0; right: 0; top: -5px; height: 10px;
+        background: radial-gradient(circle at 50% 100%, var(--accent) 5px, transparent 5.5px) 0 0 / 14px 10px repeat-x;
+        animation: onda 1.1s linear infinite;
+      }
+      .pote-tinta::after { opacity: .55; top: -4px; animation-duration: 1.7s; animation-direction: reverse; }
+      @keyframes onda { to { background-position-x: 14px; } }
+      @media (prefers-reduced-motion: reduce) {
+        .pote-tinta::before, .pote-tinta::after { animation: none; }
+      }
       @media (max-width: 760px) {
         body { grid-template-columns: 1fr; }
         #game { height: 60vh; }
@@ -126,6 +163,10 @@
           <p class="dica">Encharque o inimigo de tinta até ele virar bola, depois chute. Encoste num amigo derrubado por 1 s para levantá-lo.</p>
           <p class="dica so-teclado">Para jogar é preciso teclado ou controle; pelo celular dá para criar a sala e mandar o convite.</p>
         </section>
+      </div>
+      <div id="carregando" class="carregando" hidden role="status" aria-live="polite">
+        <div class="pote" aria-hidden="true"><div class="pote-tinta"></div></div>
+        <p>Enchendo a tinta… <span id="carregando-pct">0%</span></p>
       </div>
       <div id="records" class="records" hidden role="dialog" aria-labelledby="records-title">
         <h2 id="records-title">Fim de jogo</h2>
@@ -173,6 +214,7 @@
           <div class="row">
             <button type="button" id="copy-invite">Copiar convite</button>
             <button type="button" id="leave">Sair da sala</button>
+            <button type="button" id="give-up" hidden>Desistir</button>
           </div>
           <div id="lobby-start" hidden>
             <button type="button" id="start" class="primary">Começar partida</button>

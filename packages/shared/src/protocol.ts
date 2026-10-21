@@ -17,6 +17,9 @@ export const MSG_REPORT = 'relatorio';
 /** Mensagem cliente → servidor: o anfitrião encerra o aquecimento. Ignorada se vier de outro jogador. */
 export const MSG_START = 'comecar';
 
+/** Mensagem cliente → servidor: o anfitrião desiste da partida (fim de jogo). Ignorada se vier de outro jogador. */
+export const MSG_GIVE_UP = 'desistir';
+
 export interface InputMessage {
   seq: number;
   buttons: number;

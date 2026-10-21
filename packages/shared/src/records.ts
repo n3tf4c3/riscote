@@ -12,8 +12,8 @@ export const MSG_NAME = 'nome';
 /** Mensagem servidor → sala: o placar da dificuldade da sala no fim de jogo (RecordsMessage). */
 export const MSG_RECORDS = 'recordes';
 
-/** Como a partida acabou: capítulo concluído ou equipe sem vidas. */
-export type RunEndReason = 'capitulo' | 'sem-vidas';
+/** Como a partida acabou: capítulo concluído, equipe sem vidas ou desistência (pedida pelo anfitrião). */
+export type RunEndReason = 'capitulo' | 'sem-vidas' | 'desistencia';
 
 export interface RecordEntry {
   id: string;

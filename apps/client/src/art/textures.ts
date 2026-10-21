@@ -138,24 +138,74 @@ export function arenaSpecs(a: Arena): { fundo: ArtSpec; plataformas: ArtSpec } {
   };
 }
 
-/** Rasteriza o SVG no tamanho exato em que vai aparecer na tela e registra como textura. */
-async function rasterize(textures: Phaser.Textures.TextureManager, s: ArtSpec): Promise<void> {
-  if (textures.exists(s.key)) return;
-  const size = artSize(s);
-  const w = Math.ceil(size.w * RES);
-  const h = Math.ceil(size.h * RES);
-  const svg = s.svg.replace('<svg ', `<svg width="${w}" height="${h}" preserveAspectRatio="none" `);
-  const img = new Image(w, h);
-  img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-  await img.decode();
-  const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
-  canvas.getContext('2d')?.drawImage(img, 0, 0, w, h);
-  if (!textures.exists(s.key)) textures.addCanvas(s.key, canvas);
+/**
+ * Quanto trabalho de rasterização cabe antes de devolver a vez ao navegador. Os filtros de tinta
+ * custam até ~10 ms por desenho; feitos de uma vez, as centenas de desenhos travavam a página
+ * (e o canvas recém-criado ficava preto) por segundos.
+ */
+const SLICE_MS = 8;
+let sliceStart = 0;
+/** Uma rasterização por vez, em fila: assim a fatia de tempo vale para todas juntas. */
+let queue: Promise<unknown> = Promise.resolve();
+/** Desenhos já rasterizados (ou a caminho), por chave: a capa adianta o trabalho e a cena só registra. */
+const rasters = new Map<string, Promise<HTMLCanvasElement>>();
+
+function inTurn<T>(job: () => Promise<T>): Promise<T> {
+  const run = queue.then(async () => {
+    if (performance.now() - sliceStart > SLICE_MS) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      sliceStart = performance.now();
+    }
+    return job();
+  });
+  queue = run.catch(() => undefined);
+  return run;
 }
 
-/** Carrega a arte que falta; enquanto isso a cena desenha o greybox. */
-export async function loadArt(textures: Phaser.Textures.TextureManager, specs: ArtSpec[]): Promise<void> {
-  await Promise.all(specs.map((s) => rasterize(textures, s)));
+/** Rasteriza o SVG no tamanho exato em que vai aparecer na tela. */
+function raster(s: ArtSpec): Promise<HTMLCanvasElement> {
+  let done = rasters.get(s.key);
+  if (done) return done;
+  done = inTurn(async () => {
+    const size = artSize(s);
+    const w = Math.ceil(size.w * RES);
+    const h = Math.ceil(size.h * RES);
+    const svg = s.svg.replace('<svg ', `<svg width="${w}" height="${h}" preserveAspectRatio="none" `);
+    const img = new Image(w, h);
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    await img.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    canvas.getContext('2d')?.drawImage(img, 0, 0, w, h);
+    return canvas;
+  });
+  rasters.set(s.key, done);
+  // Falhou: outra tentativa pode refazer.
+  done.catch(() => rasters.delete(s.key));
+  return done;
+}
+
+/** Adianta a rasterização (na capa, antes de existir o jogo), um desenho por vez. */
+export async function prepareArt(specs: ArtSpec[]): Promise<void> {
+  for (const s of specs) await raster(s);
+}
+
+/** Carrega a arte que falta e registra como textura; enquanto isso a cena desenha o greybox. */
+export async function loadArt(
+  textures: Phaser.Textures.TextureManager,
+  specs: ArtSpec[],
+  onProgress?: (done: number, total: number) => void,
+): Promise<void> {
+  let done = 0;
+  onProgress?.(done, specs.length);
+  await Promise.all(
+    specs.map(async (s) => {
+      if (!textures.exists(s.key)) {
+        const canvas = await raster(s);
+        if (!textures.exists(s.key)) textures.addCanvas(s.key, canvas);
+      }
+      onProgress?.(++done, specs.length);
+    }),
+  );
 }
