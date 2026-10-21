@@ -15,9 +15,9 @@ import { RecordBook } from './records.ts';
 //   (ex.: cf-connecting-ip). Sem proxy, vale o endereço do socket.
 // - RISCOTE_JOIN_LIMIT: tentativas de criar/entrar em sala por minuto por endereço (padrão 20;
 //   0 desliga, só para teste de carga local).
-// - RISCOTE_MAX_ROOMS: salas abertas ao mesmo tempo (padrão 40 = 200 jogadores; 0 desliga, só para
+// - RISCOTE_MAX_ROOMS: salas abertas ao mesmo tempo (padrão 20 = 100 jogadores; 0 desliga, só para
 //   teste de carga). Acima disso, criar sala responde 503; entrar pelo código continua valendo.
-//   O padrão vem da carga de 2026-10-21 (docs/docker.md, seção Capacidade).
+//   O padrão vem da carga medida no Orange Pi em 2026-10-21 (docs/docker.md, seção Capacidade).
 // - RISCOTE_METRICS=1: uma linha JSON de métricas do processo a cada 10 s.
 // - RISCOTE_HOST: interface de escuta (padrão: todas). Com túnel, use 127.0.0.1: só o túnel
 //   alcança o servidor e o cabeçalho de IP do proxy fica confiável.
@@ -32,7 +32,7 @@ const http = createServer();
 markPeerAddress(http, process.env.RISCOTE_IP_HEADER || undefined);
 const joinLimit = Number(process.env.RISCOTE_JOIN_LIMIT ?? 20);
 if (joinLimit > 0) limitJoins(new AttemptLimiter(joinLimit, 60_000));
-const maxRooms = Number(process.env.RISCOTE_MAX_ROOMS ?? 40);
+const maxRooms = Number(process.env.RISCOTE_MAX_ROOMS ?? 20);
 if (maxRooms > 0) limitRooms(maxRooms, () => processMetrics.rooms);
 if (process.env.RISCOTE_METRICS === '1') startMetricsLog();
 

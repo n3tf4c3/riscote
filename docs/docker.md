@@ -30,7 +30,7 @@ Os relatórios de cada arena e as métricas do processo saem no log do `server` 
 - `RISCOTE_CLIENT_PORT`: porta do cliente (padrão 4173).
 - `RISCOTE_IP_HEADER`: cabeçalho com o IP real do jogador, só atrás de um proxy confiável (`cf-connecting-ip` com o túnel). Sem ele, o limite de 20 entradas por minuto conta por endereço do socket. No Docker Desktop do Windows, todos os jogadores podem chegar com o mesmo endereço do Docker.
 - `RISCOTE_METRICS`: `1` (padrão) grava métricas do processo a cada 10 s.
-- `RISCOTE_MAX_ROOMS`: salas abertas ao mesmo tempo (padrão 40, ou seja, 200 jogadores). Acima disso, criar sala recebe "servidor cheio"; entrar pelo código numa sala que já existe continua valendo. `0` desliga (só para teste de carga).
+- `RISCOTE_MAX_ROOMS`: salas abertas ao mesmo tempo (padrão 20, ou seja, 100 jogadores). Acima disso, criar sala recebe "servidor cheio"; entrar pelo código numa sala que já existe continua valendo. `0` desliga (só para teste de carga).
 - `CLOUDFLARE_TUNNEL_TOKEN`: token do túnel nomeado em riscote.win (só no `.env`; ver `docs/playtest-remoto.md`).
 
 ## Capacidade (limite de salas)
@@ -46,11 +46,25 @@ Medição de 2026-10-21 com `apps/server/scripts/carga.ts` (5 robôs por sala, t
 
 Cada sala gasta cerca de 0,5% de um núcleo deste PC e 1,5 a 2 MB. A memória não volta toda quando as salas fecham.
 
-O padrão de 40 salas vale para o Orange Pi 5, onde o servidor roda de fato:
-- os núcleos Cortex-A76 do Pi rendem cerca de metade de um núcleo deste PC, então 40 salas ficariam perto de 60% de um núcleo, com folga para o chefe, a coleta de lixo e o túnel;
-- o container tem `mem_limit` de 384 MB, e 160 salas já passariam dos 300 MB.
+### No Orange Pi 5 (a máquina que vale)
 
-Para confirmar no Pi, rode o servidor de carga lá com `RISCOTE_MAX_ROOMS=0` e suba o limite só se a CPU ficar abaixo de ~60% de um núcleo e o tick máximo abaixo de 5 ms.
+Medição de 2026-10-21 no próprio Pi, sem mexer no jogo no ar:
+- um container separado (`riscote-carga`), com a mesma imagem e os mesmos limites, em `127.0.0.1:2610`;
+- robôs saindo do PC por um túnel SSH, 60 s por nível, e o servidor reiniciado entre os níveis;
+- CPU pela métrica do processo e pelo `docker stats` do container;
+- o jogo no ar (`riscote-server-1`) ficou em 0,4 a 1,4% de CPU o tempo todo.
+
+| Salas (jogadores) | CPU do processo (1 núcleo A76) | Memória | Tick máximo | Situação |
+| --- | --- | --- | --- | --- |
+| 20 (100) | 40–47% | ~115 MB | 1–6 ms | folga |
+| 30 (150) | 53–58% | ~115 MB | 1,4–3,2 ms | folga mínima |
+| 40 (200) | 69–85%, pico de 94% | ~118 MB | até 3 ms; atraso p99 do laço subindo para 23–25 ms | acima do critério |
+
+No Pi, cada sala custa cerca de 2% de um núcleo, umas três vezes o do PC. A memória não é o gargalo: são ~118 MB com 40 salas, para um limite de 384 MB.
+
+O padrão é **20 salas (100 jogadores)**, decisão do usuário em 2026-10-21. Pela medição, 30 salas ainda ficariam abaixo de ~60% de um núcleo, com tick máximo abaixo de 5 ms. O usuário preferiu ficar em 20, com mais folga para o chefe, a coleta de lixo e os containers do XBrainia.
+
+Para subir o limite, meça de novo no Pi do mesmo jeito: `RISCOTE_MAX_ROOMS=0` e `RISCOTE_JOIN_LIMIT=0` no container de carga, que deve ser removido no fim.
 
 ## Placar de recordes (volume `riscote_dados`)
 
