@@ -28,17 +28,17 @@ const ONE_WAY_FILL = 0x8a8478;
 /** Azul da tinta dos jogadores: tubos, gotas, medidores e inimigos encharcados. */
 export const INK_BLUE = 0x2f6fd6;
 const TUBE = INK_BLUE;
-const TRACA = 0x8b6f4e;
-const SALTADOR = 0x5d4f8f;
-const BORRACHA_FRENTE = 0xd98a8a;
+const TRACA = 0xe8247c;
+const SALTADOR = 0x6a2fc4;
+const BORRACHA_FRENTE = 0xff4f8b;
 /** Corpo de cada inimigo no greybox (o borrão tem desenho próprio). */
 const ENEMY_COLORS: Record<number, number> = {
   [ENEMY_TRACA]: TRACA,
   [ENEMY_SALTADOR]: SALTADOR,
-  [ENEMY_GRAMPO]: 0x5b6670,
-  [ENEMY_FIANDEIRA]: 0x2b2230,
-  [ENEMY_TINTEIRO]: 0x1f3446,
-  [ENEMY_BORRACHA]: 0x4f6fa8,
+  [ENEMY_GRAMPO]: 0x2fb64a,
+  [ENEMY_FIANDEIRA]: 0xc8282e,
+  [ENEMY_TINTEIRO]: 0xe08a2a,
+  [ENEMY_BORRACHA]: 0x8fd04a,
 };
 const ENEMY_MARK = 0xc8402a;
 const STAR_GOLD = 0xe8b400;
