@@ -255,19 +255,20 @@ Verificado em 2026-10-21, depois do merge do áudio (`d38eb59`): **o áudio não
   | **Partida completa** | **~3,1 MB** | **~3,5 MB** |
 
   Para comparar, o JS do jogo tem 1,6 MB.
-- **Cache da Cloudflare:** o JS que já estava no ar respondeu `cf-cache-status: HIT`, com cache de 4 h. OGG e MP3 entram no cache padrão da Cloudflare, então o Pi deve entregar cada arquivo poucas vezes, não uma vez por jogador. **Falta confirmar depois do deploy**, olhando o mesmo cabeçalho num `.ogg`:
+- **Cache da Cloudflare:** confirmado depois do deploy de 2026-10-21 (`main` em `0a747fd`). Os sons saem com `audio/ogg` e `audio/mpeg`; o primeiro pedido de cada arquivo vem `cf-cache-status: MISS`, e a partir do segundo ou terceiro vem `HIT` (o JS do jogo já vinha `HIT`, com cache de 4 h). Ou seja, o Pi entrega cada som poucas vezes, não uma vez por jogador. Conferido em `tiro-1.ogg`, `caderno-base.ogg` e `tiro-1.mp3`; para conferir de novo:
 
   ```bash
   curl -sI https://riscote.win/audio/sfx/tiro-1.ogg
   ```
 
+  No navegador, pelo site público, o primeiro clique baixou os 53 arquivos de efeito e a trilha da capa em OGG (1.090 KB), sem erros no console.
+
 - **Pico no navegador:** no Chrome deste PC, 50 sons disparados de uma vez, dez vezes seguidas (bem acima de uma partida real), chegaram a 95 vozes simultâneas, todas liberadas no fim; a rajada levou ~6 ms na thread principal, já contando a espera do timer do teste. Celulares e notebooks fracos não foram medidos.
 
 ## Pendências
 
-1. Depois do deploy, confirmar o cache da Cloudflare nos arquivos de som (seção acima).
-2. Produzir os P2 do inventário.
-3. ElevenLabs: só com autorização e `ELEVENLABS_API_KEY`.
-4. Suno: geração manual pelos prompts acima, exportação e preparo no Audacity.
-5. Teste com 5 jogadores reais e em celular (Safari usa o MP3; conferir a emenda dos loops lá).
-6. A sequência de partida completa até o chefe não rodou no navegador em tempo real (o painel estava escondido).
+1. Produzir os P2 do inventário.
+2. ElevenLabs: só com autorização e `ELEVENLABS_API_KEY`.
+3. Suno: geração manual pelos prompts acima, exportação e preparo no Audacity.
+4. Teste com 5 jogadores reais e em celular (Safari usa o MP3; conferir a emenda dos loops lá).
+5. A sequência de partida completa até o chefe não rodou no navegador em tempo real (o painel estava escondido), nem pelo site público.
