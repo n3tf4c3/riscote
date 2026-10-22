@@ -3,7 +3,7 @@ import '@fontsource/bebas-neue/latin.css';
 import { GROUND, LEDGES, STAGE_H, STAGE_W, logoSvg, palcoSvg, pincelSvg } from './art/capa';
 import { POSES, runPose, type Pose } from './art/riscote';
 import { INK, BOIL } from './art/svg';
-import { artSize, boilKey, commonSpecs, riscoteKey, tracaKey, type ArtSpec } from './art/textures';
+import { artSize, boilKey, commonSpecs, rasterSvg, riscoteKey, tracaKey, type ArtSpec } from './art/textures';
 import { el } from './dom';
 import { PLAYER_COLORS } from './draw';
 
@@ -170,14 +170,11 @@ function usedKeys(): string[] {
   return base;
 }
 
-interface Sprite {
-  img: HTMLImageElement;
-  src: string;
-}
-
 let running = false;
 let frame = 0;
 let render: ((t: number) => void) | null = null;
+/** Todos os bonecos do palco já rasterizados (ou desistidos). */
+let ready: Promise<unknown> = Promise.resolve();
 
 /** Monta a capa uma vez: logotipo, palco e bonecos; o pincel dos botões vai para o CSS. */
 function mount(): void {
@@ -194,65 +191,69 @@ function mount(): void {
   floor.src = svgUrl(palcoSvg());
   stage.append(floor);
 
+  // Os bonecos vão num canvas só, a partir de bitmaps feitos uma vez (na fila de rasterização do jogo).
+  // Trocar o src de imagens SVG com filtro a cada quadro refazia o desenho e deixava a capa a ~10 qps no celular.
+  const canvas = document.createElement('canvas');
+  canvas.className = 'palco-atores';
+  stage.append(canvas);
+  const ctx = canvas.getContext('2d');
+  // Pixels do aparelho por unidade do palco, medidos ao montar; acima de 2 a diferença não aparece.
+  const unit = Math.min(2, (stage.clientWidth * devicePixelRatio) / STAGE_W) || 1;
   const specs = new Map<string, ArtSpec>(commonSpecs(PLAYER_COLORS).map((s) => [s.key, s]));
-  const urls = new Map<string, string>();
-  const url = (key: string): { src: string; spec: ArtSpec } | null => {
-    const spec = specs.get(key);
-    if (!spec) return null;
-    let src = urls.get(key);
-    if (!src) {
-      src = svgUrl(spec.svg);
-      urls.set(key, src);
-    }
-    return { src, spec };
-  };
-  // Pré-carrega todas as variações para a troca de quadro não piscar.
-  for (const key of usedKeys()) for (let v = 0; v < BOIL; v++) {
-    const art = url(boilKey(key, v)) ?? url(key);
-    if (art) new Image().src = art.src;
+  const art = (key: string, v: number) => specs.get(boilKey(key, v)) ?? specs.get(key);
+  const bitmaps = new Map<string, HTMLCanvasElement>();
+  const jobs: Promise<unknown>[] = [];
+  // A variação 0 de todos primeiro: a cena aparece inteira antes de a linha viva completar.
+  for (let v = 0; v < BOIL; v++) for (const key of usedKeys()) {
+    const spec = art(key, v);
+    if (!spec || bitmaps.has(spec.key) || (v > 0 && spec.key === key)) continue;
+    const size = artSize(spec);
+    jobs.push(
+      rasterSvg(spec.svg, Math.ceil(size.w * SCALE * unit), Math.ceil(size.h * SCALE * unit))
+        .then((c) => bitmaps.set(spec.key, c))
+        .catch(() => undefined),
+    );
   }
-
-  const sprites: Sprite[] = ACTORS.map(() => {
-    const img = new Image();
-    img.alt = '';
-    img.className = 'ator';
-    img.decoding = 'async';
-    stage.append(img);
-    return { img, src: '' };
-  });
+  ready = Promise.all(jobs);
 
   render = (t) => {
+    if (!ctx) return;
+    const w = Math.round(canvas.clientWidth * devicePixelRatio);
+    const h = Math.round(canvas.clientHeight * devicePixelRatio);
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    ctx.clearRect(0, 0, w, h);
+    const px = w / STAGE_W;
+    // O canvas começa 40% acima do palco, onde os pulos e o borrão passam.
+    const above = 0.4 * STAGE_H;
     // Linha viva: a mesma troca de variação do jogo, ~9 por segundo.
     const v = Math.floor(t * 9) % BOIL;
-    ACTORS.forEach((actor, i) => {
-      const sprite = sprites[i]!;
+    for (const actor of ACTORS) {
       const look = actor(t);
-      const art = look && (url(boilKey(look.key, v)) ?? url(look.key));
-      if (!look || !art) {
-        sprite.img.hidden = true;
-        return;
-      }
-      sprite.img.hidden = false;
-      if (sprite.src !== art.src) {
-        sprite.img.src = art.src;
-        sprite.src = art.src;
-      }
-      const size = artSize(art.spec);
+      const spec = look && art(look.key, v);
+      // Variação ainda a caminho: vale a 0.
+      const bitmap = look && spec && (bitmaps.get(spec.key) ?? bitmaps.get(look.key));
+      if (!look || !spec || !bitmap) continue;
+      const size = artSize(spec);
       const s = look.scale ?? 1;
-      const w = size.w * SCALE * s;
-      const h = size.h * SCALE * s;
-      const ox = look.flip ? 1 - art.spec.ox : art.spec.ox;
-      const style = sprite.img.style;
-      style.width = `${(w / STAGE_W) * 100}%`;
-      style.left = `${((look.x - ox * w) / STAGE_W) * 100}%`;
-      style.top = `${((look.y - art.spec.oy * h) / STAGE_H) * 100}%`;
-      style.opacity = look.opacity === undefined ? '' : String(look.opacity);
-      style.transform = `${look.flip ? 'scaleX(-1) ' : ''}${look.rot ? `rotate(${look.rot}deg)` : ''}`;
-    });
+      const aw = size.w * SCALE * s;
+      const ah = size.h * SCALE * s;
+      const ox = look.flip ? 1 - spec.ox : spec.ox;
+      ctx.save();
+      ctx.globalAlpha = look.opacity ?? 1;
+      ctx.translate((look.x - ox * aw + aw / 2) * px, (look.y - spec.oy * ah + ah / 2 + above) * px);
+      // Mesma ordem do CSS de antes (scaleX e depois rotate, em torno do centro).
+      if (look.flip) ctx.scale(-1, 1);
+      if (look.rot) ctx.rotate((look.rot * Math.PI) / 180);
+      ctx.drawImage(bitmap, (-aw / 2) * px, (-ah / 2) * px, aw * px, ah * px);
+      ctx.restore();
+    }
   };
 }
 
-/** Endereço curto (blob) para o SVG; cada quadro ganha o seu uma vez e a troca reaproveita a imagem já decodificada. */
+/** Endereço curto (blob) para o SVG do fundo do palco. */
 function svgUrl(svg: string): string {
   return URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
 }
@@ -276,9 +277,9 @@ export function setCover(on: boolean): void {
     return;
   }
   if (reducedMotion()) {
-    // Sem animação: um quadro parado no meio da ação.
+    // Sem animação: um quadro parado no meio da ação, quando os bonecos estiverem prontos.
     running = false;
-    render?.(5.5);
+    void ready.then(() => render?.(5.5));
     return;
   }
   frame = requestAnimationFrame(loop);

@@ -173,17 +173,12 @@ function inTurn<T>(job: () => Promise<T>): Promise<T> {
   return run;
 }
 
-/** Rasteriza o SVG no tamanho exato em que vai aparecer na tela. */
-function raster(s: ArtSpec): Promise<HTMLCanvasElement> {
-  let done = rasters.get(s.key);
-  if (done) return done;
-  done = inTurn(async () => {
-    const size = artSize(s);
-    const w = Math.ceil(size.w * RES);
-    const h = Math.ceil(size.h * RES);
-    const svg = s.svg.replace('<svg ', `<svg width="${w}" height="${h}" preserveAspectRatio="none" `);
+/** Rasteriza um SVG em `w × h` pixels, na mesma fila em fatias (a capa usa para o palco). */
+export function rasterSvg(svg: string, w: number, h: number): Promise<HTMLCanvasElement> {
+  return inTurn(async () => {
+    const sized = svg.replace('<svg ', `<svg width="${w}" height="${h}" preserveAspectRatio="none" `);
     const img = new Image(w, h);
-    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(sized)}`;
     await img.decode();
     const canvas = document.createElement('canvas');
     canvas.width = w;
@@ -191,6 +186,14 @@ function raster(s: ArtSpec): Promise<HTMLCanvasElement> {
     canvas.getContext('2d')?.drawImage(img, 0, 0, w, h);
     return canvas;
   });
+}
+
+/** Rasteriza o SVG no tamanho exato em que vai aparecer na tela. */
+function raster(s: ArtSpec): Promise<HTMLCanvasElement> {
+  let done = rasters.get(s.key);
+  if (done) return done;
+  const size = artSize(s);
+  done = rasterSvg(s.svg, Math.ceil(size.w * RES), Math.ceil(size.h * RES));
   rasters.set(s.key, done);
   // Falhou: outra tentativa pode refazer.
   done.catch(() => rasters.delete(s.key));
