@@ -58,6 +58,18 @@
       .slider { display: grid; grid-template-columns: 1fr auto; gap: 0 6px; margin-bottom: 6px; font-size: 12px; }
       .slider input { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
       .slider output { font-variant-numeric: tabular-nums; }
+      /* Som e teclas ficam recolhidos atrás do botão Configurações. */
+      .config { margin: 10px 0 4px; }
+      .config > summary {
+        display: inline-flex; align-items: center; gap: 6px; list-style: none; cursor: pointer;
+        padding: 5px 10px; background: #fff; border: 1.5px solid var(--ink); border-radius: 4px; font-weight: 600;
+      }
+      .config > summary::-webkit-details-marker { display: none; }
+      .config > summary::after { content: '▾'; font-size: 11px; transition: transform .12s ease; }
+      .config[open] > summary { background: var(--ink); color: var(--panel); }
+      .config[open] > summary::after { transform: rotate(180deg); }
+      .config > summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+      .config > section h2 { margin-top: 10px; }
       /* Textos de controles: só os do modo de teclas escolhido; no toque, os do direcional na tela. */
       body:not([data-teclas="asd"]) .teclas-asd, body[data-teclas="asd"] .teclas-padrao, body:not(.toque) .so-toque { display: none; }
       body.toque #controles :is(.teclas-padrao, .teclas-asd), body.toque :is(#teclas, .dica-teclas) { display: none; }
@@ -197,7 +209,7 @@
             <li class="teclas-asd"><kbd>K</kbd> atirar tinta e chutar a bola</li>
             <li>Controle: direcional, <kbd>A</kbd> pula, <kbd>X</kbd> ataca</li>
           </ul>
-          <p class="dica dica-teclas">Prefere a mão esquerda no ASD e a direita no J e K? Troque em “Teclas”, no painel.</p>
+          <p class="dica dica-teclas">Prefere a mão esquerda no ASD e a direita no J e K? Troque em “Configurações”, no painel.</p>
           <p class="dica">Encharque o inimigo de tinta até ele virar bola, depois chute. Encoste num amigo derrubado por 1 s para levantá-lo.</p>
           <p class="dica so-toque">No celular, a partida mostra um direcional (andar e, para baixo, descer) e os botões Pular e Atirar; dá para usar dois dedos ao mesmo tempo e segurar Pular para ir mais alto, em pé ou deitado.</p>
         </section>
@@ -232,24 +244,27 @@
         gamepad: direcional + A pula, X ataca
       </p>
 
-      <section id="som" aria-labelledby="som-titulo">
-        <h2 id="som-titulo">Som</h2>
-        <label class="slider">Música <output id="som-musica-valor"></output><input id="som-musica" type="range" min="0" max="100" step="5" /></label>
-        <label class="slider">Efeitos <output id="som-efeitos-valor"></output><input id="som-efeitos" type="range" min="0" max="100" step="5" /></label>
-        <div class="row">
-          <button type="button" id="som-musica-liga" aria-pressed="true">Música ligada</button>
-          <button type="button" id="som-efeitos-liga" aria-pressed="true">Efeitos ligados</button>
-          <button type="button" id="som-mudo" aria-pressed="false">Sem som</button>
-        </div>
-      </section>
+      <details id="config" class="config">
+        <summary><span aria-hidden="true">⚙&#xFE0E;</span> Configurações</summary>
+        <section id="som" aria-labelledby="som-titulo">
+          <h2 id="som-titulo">Som</h2>
+          <label class="slider">Música <output id="som-musica-valor"></output><input id="som-musica" type="range" min="0" max="100" step="5" /></label>
+          <label class="slider">Efeitos <output id="som-efeitos-valor"></output><input id="som-efeitos" type="range" min="0" max="100" step="5" /></label>
+          <div class="row">
+            <button type="button" id="som-musica-liga" aria-pressed="true">Música ligada</button>
+            <button type="button" id="som-efeitos-liga" aria-pressed="true">Efeitos ligados</button>
+            <button type="button" id="som-mudo" aria-pressed="false">Sem som</button>
+          </div>
+        </section>
 
-      <section id="teclas" aria-labelledby="teclas-titulo">
-        <h2 id="teclas-titulo">Teclas</h2>
-        <div id="teclas-modos" class="row" role="group" aria-labelledby="teclas-titulo">
-          <button type="button" data-modo="padrao" aria-pressed="true">Padrão: setas ou WASD</button>
-          <button type="button" data-modo="asd" aria-pressed="false">ASD + J pula, K atira</button>
-        </div>
-      </section>
+        <section id="teclas" aria-labelledby="teclas-titulo">
+          <h2 id="teclas-titulo">Teclas</h2>
+          <div id="teclas-modos" class="row" role="group" aria-labelledby="teclas-titulo">
+            <button type="button" data-modo="padrao" aria-pressed="true">Padrão: setas ou WASD</button>
+            <button type="button" data-modo="asd" aria-pressed="false">ASD + J pula, K atira</button>
+          </div>
+        </section>
+      </details>
 
       <section id="panel-online" hidden>
         <div id="lobby">
