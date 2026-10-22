@@ -103,6 +103,17 @@ function choose(group: HTMLElement, chosen: HTMLButtonElement): void {
   });
 }
 
+/** Celular ou tablet: o ponteiro principal é o dedo e não há cursor para pairar. */
+const TOUCH_ONLY = '(pointer: coarse) and (hover: none)';
+
+/** No lugar do cartão de entrada, o aviso de que por enquanto o jogo é só no computador. */
+function showDesktopOnly(invited: string | null): void {
+  el('lobby').hidden = true;
+  el('so-computador').hidden = false;
+  el('link-local').hidden = true;
+  if (invited) el('so-computador-convite').textContent = `O convite para a sala ${invited} vale lá: abra o mesmo link no computador.`;
+}
+
 /** Espera o primeiro estado em que o próprio jogador já aparece. */
 function firstState(room: Room): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -162,6 +173,12 @@ export function bootOnline(input: InputSource): void {
   // A trilha da capa começa no primeiro gesto (regra de autoplay dos navegadores).
   som.music('capa');
   const query = new URLSearchParams(location.search);
+  // Decisão do usuário em 2026-10-22: no celular e no tablet o navegador só mostra a capa com um
+  // aviso, sem conectar. Os controles de toque ficam no código para os apps de Android e iOS.
+  if (window.matchMedia(TOUCH_ONLY).matches) {
+    showDesktopOnly(normalizeRoomCode(query.get('sala') ?? ''));
+    return;
+  }
   // Em riscote.win o servidor de partidas fica em play.riscote.win (túnel nomeado da Cloudflare).
   const defaultServer =
     location.hostname === 'riscote.win' ? 'wss://play.riscote.win' : `ws://${location.hostname}:2567`;
