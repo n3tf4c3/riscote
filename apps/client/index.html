@@ -211,7 +211,6 @@
           </ul>
           <p class="dica dica-teclas">Prefere a mão esquerda no ASD e a direita no J e K? Troque em “Configurações”, no painel.</p>
           <p class="dica">Encharque o inimigo de tinta até ele virar bola, depois chute. Encoste num amigo derrubado por 1 s para levantá-lo.</p>
-          <p class="dica so-toque">No celular, a partida mostra um direcional (andar e, para baixo, descer) e os botões Pular e Atirar; dá para usar dois dedos ao mesmo tempo e segurar Pular para ir mais alto, em pé ou deitado.</p>
         </section>
       </div>
       <div id="avisos" class="avisos" role="status" aria-live="polite"></div>
@@ -267,6 +266,12 @@
       </details>
 
       <section id="panel-online" hidden>
+        <div id="so-computador" hidden>
+          <h2>Por enquanto, só no computador</h2>
+          <p>O Riscote se joga com teclado ou controle, no navegador do computador. Os apps para Android e iOS estão a caminho.</p>
+          <p>Abra <strong>riscote.win</strong> no computador e chame os amigos.</p>
+          <p id="so-computador-convite"></p>
+        </div>
         <div id="lobby">
           <label class="seu-nome" for="player-name">Seu nome</label>
           <input id="player-name" type="text" maxlength="12" placeholder="Como os outros vão te ver" autocomplete="nickname" spellcheck="false" />
@@ -336,7 +341,7 @@
           </dl>
           <p class="keys">Correções: vezes em que a previsão local divergiu do servidor. Pendentes: comandos ainda não confirmados (≈ ida e volta).</p>
         </div>
-        <p class="keys"><a href="?local">Modo local: ajustar o movimento</a></p>
+        <p class="keys" id="link-local"><a href="?local">Modo local: ajustar o movimento</a></p>
       </section>
 
       <section id="panel-local" hidden>

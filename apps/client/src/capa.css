@@ -89,7 +89,7 @@ body.inicio #panel-online { margin-top: 22px; }
 body.inicio #panel-online > p.keys { margin-top: 18px; text-align: center; }
 body.inicio #panel-online > p.keys a { color: var(--muted); text-decoration-style: dotted; }
 
-#lobby {
+#lobby, #so-computador {
   position: relative;
   padding: 26px 22px 18px;
   background: var(--folha) repeating-linear-gradient(transparent 0 29px, rgba(150, 170, 200, .22) 29px 30px);
@@ -98,7 +98,7 @@ body.inicio #panel-online > p.keys a { color: var(--muted); text-decoration-styl
   box-shadow: 5px 6px 0 rgba(31, 29, 26, .9);
   transform: rotate(-.5deg);
 }
-#lobby::before {
+#lobby::before, #so-computador::before {
   content: '';
   position: absolute; top: -13px; left: 50%;
   width: 118px; height: 26px;
@@ -106,7 +106,7 @@ body.inicio #panel-online > p.keys a { color: var(--muted); text-decoration-styl
   background: rgba(222, 208, 168, .8);
   box-shadow: 0 1px 2px rgba(0, 0, 0, .18);
 }
-#lobby h2 {
+:is(#lobby, #so-computador) h2 {
   font: 400 30px/1 var(--titulo); letter-spacing: .03em; color: var(--ink);
   text-transform: none; margin: 0 0 4px;
 }
@@ -208,6 +208,8 @@ body.inicio #panel-online > p.keys a { color: var(--muted); text-decoration-styl
 }
 #lobby #join:hover:not(:disabled) { background-image: var(--pincel-azul); }
 #lobby-status { font-weight: 600; }
+#so-computador p { margin: 10px 0 0; font-size: 15px; }
+#so-computador-convite:empty { display: none; }
 
 #lobby :is(button, input):focus-visible,
 #capa a:focus-visible,
@@ -226,7 +228,7 @@ body.inicio #panel-online > p.keys a { color: var(--muted); text-decoration-styl
   body.inicio aside { order: 3; height: auto; border-top: 0; padding: 24px 16px 8px; }
   body.inicio .como-jogar { order: 4; width: auto; padding: 16px 16px 28px; }
   .atalho { display: none; }
-  #lobby { transform: none; }
+  #lobby, #so-computador { transform: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
