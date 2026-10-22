@@ -1,0 +1,26 @@
+{
+  "name": "@riscote/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "jogo": "pnpm --filter @riscote/client exec vite build --mode app --base ./ --outDir ../mobile/web/jogo --emptyOutDir",
+    "start": "expo start",
+    "android": "expo run:android",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"mobile: sem testes (o jogo é testado em @riscote/shared e no servidor)\""
+  },
+  "dependencies": {
+    "expo": "~58.0.17",
+    "expo-keep-awake": "~58.0.3",
+    "expo-navigation-bar": "~58.0.4",
+    "expo-status-bar": "~58.0.4",
+    "react": "19.3.0",
+    "react-native": "0.88.0",
+    "react-native-webview": "14.0.1"
+  },
+  "devDependencies": {
+    "@types/react": "~19.3.0",
+    "typescript": "~6.0.3"
+  }
+}

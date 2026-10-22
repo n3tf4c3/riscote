@@ -56,9 +56,15 @@ body.toque:not(.inicio) .toque-controles {
 
 /* Celular deitado: a arena ocupa a tela toda e os controles ficam nos cantos, por cima; o painel desce. */
 @media (orientation: landscape) and (max-height: 500px) {
-  body.toque:not(.inicio) { grid-template-columns: 1fr; }
+  /* A página cresce e rola até o painel; com a altura presa, ele ficava espremido numa faixa embaixo. */
+  body.toque:not(.inicio) { grid-template-columns: 1fr; height: auto; }
   body.toque:not(.inicio) #game { height: 100svh; }
-  body.toque:not(.inicio) aside { height: auto; border-left: 0; border-top: 2px solid var(--ink); }
+  /* A arena fica entre os controles (direcional 120 px, botões 70 + 14 + 70 px, mais as margens), sem ficar coberta. */
+  body.toque:not(.inicio) #tela {
+    left: calc(134px + env(safe-area-inset-left));
+    right: calc(168px + env(safe-area-inset-right));
+  }
+  body.toque:not(.inicio) aside { height: auto; overflow: visible; border-left: 0; border-top: 2px solid var(--ink); }
   .toque-direcional { width: 120px; height: 120px; }
   .toque-alavanca { width: 52px; height: 52px; margin: -26px 0 0 -26px; }
   .toque-botao { width: 70px; height: 70px; padding-bottom: 12px; font-size: 15px; }

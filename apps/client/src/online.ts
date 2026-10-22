@@ -40,6 +40,7 @@ import { PLAYER_COLORS } from './draw';
 import { setCover } from './capa';
 import { som } from './audio/som';
 import { watchNewVersion } from './versao';
+import { IN_APP } from './app';
 
 const INITIAL_STATE_TIMEOUT_MS = 5000;
 /** Tempo para o segundo clique em Desistir confirmar. */
@@ -176,14 +177,16 @@ export function bootOnline(input: InputSource): void {
   const query = new URLSearchParams(location.search);
   // Decisão do usuário em 2026-10-22: no celular e no tablet o navegador só mostra a capa com um
   // aviso, sem conectar. Os controles de toque ficam no código para os apps de Android e iOS.
-  if (window.matchMedia(TOUCH_ONLY).matches) {
+  if (!IN_APP && window.matchMedia(TOUCH_ONLY).matches) {
     showDesktopOnly(normalizeRoomCode(query.get('sala') ?? ''));
     watchNewVersion(() => true);
     return;
   }
-  // Em riscote.win o servidor de partidas fica em play.riscote.win (túnel nomeado da Cloudflare).
+  // Em riscote.win e no app o servidor de partidas fica em play.riscote.win (túnel nomeado da Cloudflare).
   const defaultServer =
-    location.hostname === 'riscote.win' ? 'wss://play.riscote.win' : `ws://${location.hostname}:2567`;
+    IN_APP || location.hostname === 'riscote.win' ? 'wss://play.riscote.win' : `ws://${location.hostname}:2567`;
+  // No app não há modo local nem barra de endereço para voltar dele.
+  if (IN_APP) el('link-local').hidden = true;
   const serverUrl = query.get('servidor') ?? defaultServer;
   const sdk = new ColyseusSDK(serverUrl);
   const roomListUrl = serverUrl.replace(/^ws/, 'http').replace(/\/+$/, '') + ROOM_LIST_PATH;
@@ -533,7 +536,8 @@ export function bootOnline(input: InputSource): void {
 
   el('copy-invite').addEventListener('click', () => {
     if (!session) return;
-    const url = new URL(location.href);
+    // No app a página é um arquivo local: o convite aponta para o site.
+    const url = new URL(IN_APP ? 'https://riscote.win/' : location.href);
     url.search = '';
     url.searchParams.set('sala', session.code);
     // Fora do padrão (ex.: túnel de playtest), o convite leva junto o endereço do servidor.
