@@ -11,6 +11,8 @@ Estado atual:
 - **Etapa 5** (reconexão com vaga reservada, limite de tentativas de entrada, rede instável e carga medida) implementada. Falta o teste com jogadores em redes reais.
 - **No ar** desde 2026-10-20: `https://riscote.win` (servidor em `play.riscote.win`), pelo túnel `riscote` da Cloudflare, rodando no Orange Pi.
 
+- **Apps de Android e iOS** (`PLANEJAMENTO.md`, seção 9). Decisões do usuário em 2026-10-22: Expo com WebView, com o cliente web embutido, e Android primeiro, numa prova de conceito sem loja. A prova de conceito do Android (`apps/mobile`) roda no emulador; falta o teste no aparelho do usuário.
+
 O planejamento completo fica em `PLANEJAMENTO.md` na raiz (local, fora do Git por decisão do usuário).
 
 ## Mapa
@@ -37,6 +39,7 @@ O planejamento completo fica em `PLANEJAMENTO.md` na raiz (local, fora do Git po
 | Áudio: síntese dos efeitos e da trilha, masters e codificação | `audio/` (`gerar.ts`, `codificar.sh`) |
 | Áudio no cliente: motor, eventos, volumes; catálogo gerado | `apps/client/src/audio/` (`som.ts`, `controles.ts`, `catalogo.ts`), `apps/client/public/audio/` |
 | Cliente local (`?local`): ajuste de movimento e medições | `apps/client/src/local.ts`, `ArenaScene.ts`, `tuning.ts`, `metrics.ts` |
+| App de Android e iOS: WebView com o jogo embutido, plugin que leva o jogo aos assets do Android; no cliente, `IN_APP` | `apps/mobile/` (`App.tsx`, `plugins/jogo.js`, `app.json`), `apps/client/src/app.ts` |
 | Testes | `packages/shared/test/`, `apps/server/test/` |
 
 ## Comandos (raiz)
@@ -54,6 +57,10 @@ O planejamento completo fica em `PLANEJAMENTO.md` na raiz (local, fora do Git po
 - `?debug` no link expõe `window.riscote` também na versão compilada, para inspeção pelo console.
 - `pnpm typecheck`
 - `pnpm test`
+- App Android (prova de conceito, APK local sem EAS):
+  - `pnpm --filter @riscote/mobile jogo`: compila o cliente com `--mode app` em `apps/mobile/web/jogo`;
+  - em `apps/mobile`, `pnpm expo prebuild --platform android` (só na primeira vez ou ao mudar `app.json`, plugins ou dependências nativas) e depois `cd android && ./gradlew assembleRelease`;
+  - o APK sai em `android/app/build/outputs/apk/release/app-release.apk`, assinado com a chave de depuração (só para instalar à mão).
 
 Ainda não há lint. O aviso de bundle acima de 500 kB vem do Phaser e é esperado.
 
@@ -106,6 +113,11 @@ Ainda não há lint. O aviso de bundle acima de 500 kB vem do Phaser e é espera
   - Criar sala escolhe Aberta (padrão do menu) ou Privada. O servidor só abre com `open: true`: cliente antigo, sem o campo, cria sala privada.
   - `GET /salas` (`serveRoomList`, cache de 1 s, CORS aberto) lista as salas do processo: a aberta com código e nomes; a privada só com contagem, capítulo, modo e página, nunca código nem nomes. A capa consulta a cada 5 s, só com a aba visível, e entra pelo `joinById` de sempre (o limite de entradas vale igual).
   - Na partida, o cliente compara os jogadores a cada estado e mostra bilhetes "X entrou/saiu da sala", "perdeu a conexão", "voltou", com a cor do boneco; o painel lista quem está na sala. Tudo com `textContent`.
+- **App (`apps/mobile`).** Prova de conceito de 2026-10-22, só Android por enquanto.
+  - A WebView abre `file:///android_asset/jogo/index.html`. O Chromium não faz `fetch` de `file://`, e o som é carregado assim; um adaptador injetado em `App.tsx` lê esses arquivos por `XMLHttpRequest`. O jogo em si não sabe disso.
+  - Com `IN_APP` (build `--mode app`), o cliente pula o aviso de só computador e a checagem de versão nova, usa `wss://play.riscote.win`, esconde o link do modo local e faz o convite apontar para `https://riscote.win/`.
+  - Tela deitada, barras do sistema escondidas e tela acesa vêm do `app.json` e do `App.tsx`; `android/`, `web/` e `dist/` são gerados e ficam fora do Git.
+  - O workspace usa `nodeLinker: hoisted` (convenção da casa para Expo): com a estrutura isolada do pnpm, o build C++ do React Native no Windows trava. O `Dockerfile` copia também `apps/mobile/package.json`, porque o lockfile só confere com todos os pacotes.
 - **Versão nova do cliente.** Pedido do usuário em 2026-10-22. Cada build grava uma versão no JS (`__RISCOTE_VERSAO__`) e em `versao.json` (plugin em `apps/client/vite.config.ts`). A aba consulta `versao.json` a cada 2 min e quando muda de visibilidade (`src/versao.ts`); se mudou, recarrega só na capa, fora de sala, sem conexão em andamento e sem campo em foco, e tira o `?sala=` da URL para não voltar à sala sozinha. Quem está jogando recarrega ao voltar para a capa. Uma tentativa por versão (`sessionStorage`), para um `index.html` velho em cache não causar recarga em série. Em desenvolvimento não faz nada.
 - **Partida autoritativa.** `World` (`world.ts`) é a partida inteira, pura e determinística: mesma semente e mesmos comandos dão o mesmo resultado. O servidor chama `applyInput` para cada comando, depois `step` uma vez por tick, e copia o resultado para o schema. Valores de jogo ficam em `RULES`.
 - **Servidor autoritativo.** O cliente envia só `{ seq, buttons }`, validado por `parseInput`. Posição, dano, pontuação e conclusão de fase nunca vêm do navegador.

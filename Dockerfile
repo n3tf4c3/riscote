@@ -11,6 +11,7 @@ RUN npm install -g pnpm@${PNPM_VERSION}
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY apps/client/package.json apps/client/
+COPY apps/mobile/package.json apps/mobile/
 COPY apps/server/package.json apps/server/
 COPY packages/shared/package.json packages/shared/
 

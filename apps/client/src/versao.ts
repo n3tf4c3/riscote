@@ -1,3 +1,5 @@
+import { IN_APP } from './app';
+
 /** Versão deste build, definida em vite.config.ts. */
 declare const __RISCOTE_VERSAO__: string;
 
@@ -9,7 +11,8 @@ const TRIED_KEY = 'riscote.versao.tentada';
 /**
  * Recarrega a aba quando sai uma versão nova do cliente, mas só quando `canReload` deixa (fora de
  * sala, sem ninguém digitando). Até lá a versão nova fica pendente; `retry` tenta de novo, por exemplo
- * ao voltar para a capa. Em desenvolvimento não faz nada: o Vite já recarrega sozinho.
+ * ao voltar para a capa. Em desenvolvimento não faz nada: o Vite já recarrega sozinho. No app também
+ * não: lá o jogo vem embutido e se atualiza com o app.
  */
 export function watchNewVersion(canReload: () => boolean): { retry(): void } {
   /** A versão nova encontrada no servidor; null enquanto esta for a mais recente. */
@@ -30,7 +33,7 @@ export function watchNewVersion(canReload: () => boolean): { retry(): void } {
     // reload revalida o index.html com o servidor; uma navegação comum poderia usar o do cache.
     location.reload();
   };
-  if (import.meta.env.DEV) return { retry };
+  if (import.meta.env.DEV || IN_APP) return { retry };
   let checking = false;
   const check = async () => {
     if (checking) return;

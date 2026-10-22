@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "Riscote",
+    "slug": "riscote",
+    "version": "0.1.0",
+    "orientation": "landscape",
+    "icon": "./assets/icon.png",
+    "backgroundColor": "#ebe3cf",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "win.riscote.app"
+    },
+    "android": {
+      "package": "win.riscote.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#ebe3cf",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      ["expo-navigation-bar", { "hidden": true }],
+      "./plugins/jogo.js"
+    ]
+  }
+}
