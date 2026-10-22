@@ -39,6 +39,7 @@ import { RES, commonSpecs, prepareArt } from './art/textures';
 import { PLAYER_COLORS } from './draw';
 import { setCover } from './capa';
 import { som } from './audio/som';
+import { watchNewVersion } from './versao';
 
 const INITIAL_STATE_TIMEOUT_MS = 5000;
 /** Tempo para o segundo clique em Desistir confirmar. */
@@ -177,6 +178,7 @@ export function bootOnline(input: InputSource): void {
   // aviso, sem conectar. Os controles de toque ficam no código para os apps de Android e iOS.
   if (window.matchMedia(TOUCH_ONLY).matches) {
     showDesktopOnly(normalizeRoomCode(query.get('sala') ?? ''));
+    watchNewVersion(() => true);
     return;
   }
   // Em riscote.win o servidor de partidas fica em play.riscote.win (túnel nomeado da Cloudflare).
@@ -396,6 +398,7 @@ export function bootOnline(input: InputSource): void {
     som.localSlot = -1;
     notices.replaceChildren();
     void refreshRooms();
+    version.retry();
   }
 
   function startGame(arena: Arena): void {
@@ -464,6 +467,12 @@ export function bootOnline(input: InputSource): void {
       setBusy(false);
     }
   }
+
+  // Versão nova do cliente: a aba recarrega só na capa, fora de sala, sem conexão em andamento e sem
+  // ninguém digitando. Quem está jogando pega a versão nova ao voltar para a capa.
+  const version = watchNewVersion(
+    () => !session && !lobby.hidden && !createButton.disabled && !(document.activeElement instanceof HTMLInputElement),
+  );
 
   createButton.addEventListener('click', () => {
     const join = joinOptions();
