@@ -170,6 +170,20 @@ export const TOO_MANY_JOINS = 'Muitas tentativas de entrar em sala. Espere um mi
 /** Recusa por limite de salas abertas no servidor (HTTP 503); entrar por código numa sala existente continua valendo. */
 export const SERVER_FULL = 'O servidor está cheio agora: tente criar a sala de novo em alguns minutos ou entre numa sala pelo código.';
 
+/** Salas criadas por um mesmo endereço que podem estar abertas ao mesmo tempo (sem isso, um só endereço lotava o servidor). */
+export const ROOMS_PER_ADDRESS = 3;
+
+/** Recusa a quem já tem `ROOMS_PER_ADDRESS` salas abertas criadas do mesmo endereço (HTTP 429). */
+export const TOO_MANY_ROOMS = `Já há ${ROOMS_PER_ADDRESS} salas abertas criadas da sua rede: saia de uma ou entre numa sala pelo código.`;
+
+/** Código de fechamento da sala que ficou parada no aquecimento, sem comando de ninguém. */
+export const CLOSE_LOBBY_IDLE = 4100;
+
+/** Minutos sem nenhum comando no aquecimento até a sala fechar. */
+export const LOBBY_IDLE_MINUTES = 10;
+
+export const LOBBY_IDLE_TEXT = `A sala fechou depois de ${LOBBY_IDLE_MINUTES} minutos parada no aquecimento.`;
+
 /**
  * Traduz a recusa do matchmaking em mensagem para o jogador. A sala só fica trancada
  * ao atingir MAX_PLAYERS (o servidor não tranca por outro motivo), então "locked" = cheia.
@@ -178,6 +192,7 @@ export function describeJoinError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   if (message.includes(TOO_MANY_JOINS)) return TOO_MANY_JOINS;
   if (message.includes(SERVER_FULL)) return SERVER_FULL;
+  if (message.includes(TOO_MANY_ROOMS)) return TOO_MANY_ROOMS;
   if (/is locked/.test(message)) return `Sala cheia: o limite é de ${MAX_PLAYERS} jogadores.`;
   if (/not found/.test(message)) return 'Nenhuma sala com esse código.';
   return 'Não foi possível entrar na sala. Tente de novo.';

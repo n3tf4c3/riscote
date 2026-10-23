@@ -84,6 +84,7 @@ Ainda não há lint. O aviso de bundle acima de 500 kB vem do Phaser e é espera
 - **Aquecimento e anfitrião.** A sala abre em `PHASE_LOBBY`: todos andam, sem inimigos, sem tempo nem métricas.
   - O anfitrião é o primeiro a chegar; se ele sair, assume o seguinte. Só ele encerra o aquecimento (`MSG_START`, botão ou Enter).
   - `World.start` dimensiona a primeira arena com quem está na sala nesse momento.
+  - Sem comando de ninguém por `LOBBY_IDLE_MINUTES` (10) no aquecimento, a sala fecha com `CLOSE_LOBBY_IDLE` e a capa explica o motivo. Uma aba visível manda comando a cada quadro; a escondida não, então quem deixa a aba de lado no aquecimento perde a sala.
 - **Capítulo.** Decisões do usuário em 2026-10-21: há dois capítulos de 4 fases em `CHAPTERS` (`ARENAS` é a lista de todas), e o chefe fecha cada um na 5ª página. O menu escolhe o capítulo; a sala sempre começa pela 1ª fase (`chapterFrom`), e id desconhecido ou antigo cai no capítulo 1. Compacta, Padrão e Ampla ficaram só no `?local` (`GREYBOX`). O fundo de cada tema sai de `TEMAS` em `apps/client/src/art/arena.ts` (sem tema, o caderno).
   - Arena limpa → pausa → virada de página → próxima arena.
   - Depois da última: resumo, pontos e vidas zerados, volta à primeira.
@@ -142,6 +143,7 @@ Ainda não há lint. O aviso de bundle acima de 500 kB vem do Phaser e é espera
   - Atrás de um proxy confiável, configure `RISCOTE_IP_HEADER` (ex.: `cf-connecting-ip`).
 - **Limite de salas.** Decisão do usuário em 2026-10-21: no máximo `RISCOTE_MAX_ROOMS` salas abertas (padrão 20, ou seja, 100 jogadores, escolhido pelo usuário com folga sobre a medição no Orange Pi), contadas por `processMetrics.rooms` mais as que estão sendo criadas (`limitRooms` em `joinLimit.ts`).
   - Acima disso, criar sala responde HTTP 503 com `SERVER_FULL`; entrar pelo código numa sala existente continua valendo.
+  - Cada endereço mantém no máximo `ROOMS_PER_ADDRESS` (3) salas abertas criadas por ele; a seguinte responde HTTP 429 com `TOO_MANY_ROOMS` (auditoria de 2026-10-23, achado 3: um só endereço lotava as 20). Depende do endereço real: atrás do túnel, `RISCOTE_IP_HEADER=cf-connecting-ip`, senão todos dividem as mesmas 3.
   - O número vem da medição com robôs no próprio Pi (`docs/docker.md`, seção Capacidade). Para subir o padrão, meça de novo lá.
 - **Mensagens desconhecidas.** Fora do modo de desenvolvimento, o Colyseus derruba o cliente que manda um tipo de mensagem não registrado.
 - **Testes de rede.** Usam `QuietRoom`, uma subclasse sem ondas definida só no servidor de teste. Opções do cliente nunca desligam inimigos.
