@@ -1,6 +1,6 @@
 import type { IncomingMessage, Server as HttpServer } from 'node:http';
 import { matchMaker, ServerError } from '@colyseus/core';
-import { SERVER_FULL, TOO_MANY_JOINS } from '@riscote/shared';
+import { SERVER_FULL, TOO_MANY_JOINS, TOO_MANY_ROOMS } from '@riscote/shared';
 
 /**
  * Cabeçalho interno com o endereço de quem fez a requisição. É sempre sobrescrito pelo
@@ -82,20 +82,45 @@ const CREATING_METHODS = new Set(['create', 'joinOrCreate']);
 /**
  * Limita as salas abertas ao mesmo tempo no processo (capacidade medida com os robôs de carga).
  * Com `max` salas (contando as que estão sendo criadas), criar responde HTTP 503 antes de a sala
- * existir; entrar numa sala que já existe continua valendo. Devolve a função que desfaz a instalação.
+ * existir; entrar numa sala que já existe continua valendo.
+ *
+ * Com `perAddress`, cada endereço só mantém esse número de salas abertas criadas por ele (HTTP 429):
+ * sem isso, um só endereço ocupava todas as salas. `alive` diz se uma sala criada ainda existe.
+ * Devolve a função que desfaz a instalação.
  */
-export function limitRooms(max: number, openRooms: () => number): () => void {
+export function limitRooms(
+  max: number,
+  openRooms: () => number,
+  perAddress = 0,
+  alive: (roomId: string) => boolean = () => true,
+): () => void {
   const controller = matchMaker.controller;
   const original = controller.invokeMethod;
   let creating = 0;
+  /** Salas criadas por endereço, mais as que ainda estão sendo criadas (`pending`). */
+  const byAddress = new Map<string, { rooms: Set<string>; pending: number }>();
   controller.invokeMethod = async function (method, roomName, clientOptions, auth) {
     if (!CREATING_METHODS.has(method)) return original.call(this, method, roomName, clientOptions, auth);
     if (openRooms() + creating >= max) throw new ServerError(503, SERVER_FULL);
+    const key = auth?.headers.get(PEER_HEADER) ?? 'desconhecido';
+    // Salas fechadas saem da conta; o mapa fica só com endereços que têm sala aberta.
+    for (const [k, mine] of byAddress) {
+      for (const id of mine.rooms) if (!alive(id)) mine.rooms.delete(id);
+      if (mine.rooms.size === 0 && mine.pending === 0) byAddress.delete(k);
+    }
+    let mine = byAddress.get(key);
+    if (perAddress > 0 && mine && mine.rooms.size + mine.pending >= perAddress) throw new ServerError(429, TOO_MANY_ROOMS);
+    if (!mine) byAddress.set(key, (mine = { rooms: new Set(), pending: 0 }));
     creating++;
+    mine.pending++;
     try {
-      return await original.call(this, method, roomName, clientOptions, auth);
+      const seat = await original.call(this, method, roomName, clientOptions, auth);
+      const roomId = (seat as { roomId?: unknown } | undefined)?.roomId;
+      if (typeof roomId === 'string') mine.rooms.add(roomId);
+      return seat;
     } finally {
       creating--;
+      mine.pending--;
     }
   };
   return () => {

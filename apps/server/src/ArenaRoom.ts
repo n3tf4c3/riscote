@@ -1,6 +1,8 @@
 import { randomInt } from 'node:crypto';
 import { Room, matchMaker, type Client } from '@colyseus/core';
 import {
+  CLOSE_LOBBY_IDLE,
+  LOBBY_IDLE_MINUTES,
   MAX_PLAYERS,
   MSG_GIVE_UP,
   MSG_INPUT,
@@ -73,6 +75,10 @@ export class ArenaRoom extends Room<{ state: GameState }> {
   protected readonly waves: boolean = true;
   /** Segundos de vaga reservada depois de uma queda de conexão (plano, seção 4.4). */
   protected readonly reconnectSeconds: number = 30;
+  /** Segundos no aquecimento sem comando de ninguém até a sala fechar: uma sala esquecida (ou de robô) não ocupa vaga para sempre. */
+  protected readonly lobbyIdleSeconds: number = LOBBY_IDLE_MINUTES * 60;
+  /** Ticks seguidos no aquecimento sem nenhum comando aplicado. */
+  private idleTicks = 0;
   private world!: World;
   private seats = new Map<string, Seat>();
   /** Ordem de chegada: o primeiro é o anfitrião; se ele sair, o seguinte assume. */
@@ -263,6 +269,7 @@ export class ArenaRoom extends Room<{ state: GameState }> {
 
   private step(): void {
     this.state.tick++;
+    let active = false;
     for (const [sessionId, seat] of this.seats) {
       const net = this.state.players.get(sessionId);
       if (!net) continue;
@@ -271,6 +278,7 @@ export class ArenaRoom extends Room<{ state: GameState }> {
       for (let i = 0; i < steps; i++) {
         const input = seat.queue.shift();
         if (input) {
+          active = true;
           seat.starved = 0;
           this.world.applyInput(sessionId, input.buttons);
           net.ack = input.seq;
@@ -278,6 +286,13 @@ export class ArenaRoom extends Room<{ state: GameState }> {
           this.world.applyInput(sessionId, 0);
         }
       }
+    }
+    // Uma aba aberta manda comando a cada quadro, mesmo sem tecla; só a sala parada no aquecimento fecha.
+    if (active || this.world.phase !== PHASE_LOBBY) this.idleTicks = 0;
+    else if (++this.idleTicks >= this.lobbyIdleSeconds * TICK_RATE) {
+      this.idleTicks = 0;
+      void this.disconnect(CLOSE_LOBBY_IDLE);
+      return;
     }
     this.world.step();
     this.sync();

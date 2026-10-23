@@ -30,7 +30,7 @@ Os relatórios de cada arena e as métricas do processo saem no log do `server` 
 - `RISCOTE_CLIENT_PORT`: porta do cliente (padrão 4173).
 - `RISCOTE_IP_HEADER`: cabeçalho com o IP real do jogador, só atrás de um proxy confiável (`cf-connecting-ip` com o túnel). Sem ele, o limite de 20 entradas por minuto conta por endereço do socket. No Docker Desktop do Windows, todos os jogadores podem chegar com o mesmo endereço do Docker.
 - `RISCOTE_METRICS`: `1` (padrão) grava métricas do processo a cada 10 s.
-- `RISCOTE_MAX_ROOMS`: salas abertas ao mesmo tempo (padrão 20, ou seja, 100 jogadores). Acima disso, criar sala recebe "servidor cheio"; entrar pelo código numa sala que já existe continua valendo. `0` desliga (só para teste de carga).
+- `RISCOTE_MAX_ROOMS`: salas abertas ao mesmo tempo (padrão 20, ou seja, 100 jogadores). Acima disso, criar sala recebe "servidor cheio"; entrar pelo código numa sala que já existe continua valendo. Cada endereço mantém no máximo 3 salas abertas criadas por ele, por isso o `RISCOTE_IP_HEADER` é obrigatório atrás do túnel. `0` desliga os dois limites (só para teste de carga).
 - `CLOUDFLARE_TUNNEL_TOKEN`: token do túnel nomeado em riscote.win (só no `.env`; ver `docs/playtest-remoto.md`).
 
 ## Capacidade (limite de salas)

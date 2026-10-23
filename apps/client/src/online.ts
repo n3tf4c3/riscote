@@ -3,6 +3,8 @@ import { CloseCode, ColyseusSDK, type Room } from '@colyseus/sdk';
 import {
   CHAPTERS,
   CHAPTER_NAMES,
+  CLOSE_LOBBY_IDLE,
+  LOBBY_IDLE_TEXT,
   DIFFICULTIES,
   DIFFICULTY_NAMES,
   MAX_PLAYERS,
@@ -455,7 +457,7 @@ export function bootOnline(input: InputSource): void {
         session = null;
         if (unloading) return;
         clearSeat();
-        showLobby(code === CloseCode.CONSENTED ? '' : 'A conexão com a sala caiu.');
+        showLobby(code === CloseCode.CONSENTED ? '' : code === CLOSE_LOBBY_IDLE ? LOBBY_IDLE_TEXT : 'A conexão com a sala caiu.');
       });
       startGame(current.arena);
       lobby.hidden = true;

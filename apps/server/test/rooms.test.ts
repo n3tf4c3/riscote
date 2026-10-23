@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { Server } from '@colyseus/core';
+import { Server, matchMaker } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
 import { boot, type ColyseusTestServer } from '@colyseus/testing';
 import {
@@ -25,7 +25,9 @@ import {
   ROOM_NAME,
   ITEM_AGILIDADE,
   TOO_MANY_JOINS,
+  TOO_MANY_ROOMS,
   SERVER_FULL,
+  CLOSE_LOBBY_IDLE,
   movementParams,
   parseDifficulty,
   seededRandom,
@@ -38,7 +40,7 @@ import {
   type RoomSummary,
 } from '@riscote/shared';
 import { ArenaRoom } from '../src/ArenaRoom.ts';
-import { AttemptLimiter, limitJoins, limitRooms, markPeerAddress } from '../src/joinLimit.ts';
+import { AttemptLimiter, PEER_HEADER, limitJoins, limitRooms, markPeerAddress } from '../src/joinLimit.ts';
 import { serveRoomList } from '../src/roomList.ts';
 
 const ROOM_WITH_ENEMIES = 'arena-com-inimigos';
@@ -56,6 +58,12 @@ class FastReconnectRoom extends QuietRoom {
 }
 const ROOM_FAST_RECONNECT = 'arena-reconexao-rapida';
 
+/** Aquecimento ocioso curto para testar o fechamento da sala parada (com ondas: a sala sem ondas não tem aquecimento). */
+class IdleLobbyRoom extends ArenaRoom {
+  protected override readonly lobbyIdleSeconds = 0.4;
+}
+const ROOM_IDLE_LOBBY = 'arena-aquecimento-curto';
+
 let t: ColyseusTestServer;
 
 beforeAll(async () => {
@@ -66,6 +74,7 @@ beforeAll(async () => {
   server.define(ROOM_NAME, QuietRoom);
   server.define(ROOM_WITH_ENEMIES, ArenaRoom);
   server.define(ROOM_FAST_RECONNECT, FastReconnectRoom);
+  server.define(ROOM_IDLE_LOBBY, IdleLobbyRoom);
   t = await boot(server);
 });
 afterEach(async () => {
@@ -548,6 +557,62 @@ describe('limite de salas abertas', () => {
     } finally {
       undo();
     }
+  });
+
+  it('um endereço mantém no máximo N salas criadas por ele; outro endereço continua criando; fechando uma, volta a criar', async () => {
+    const alive = (id: string) => [...ArenaRoom.rooms].some((r) => r.roomId === id);
+    const undo = limitRooms(10, () => ArenaRoom.rooms.size, 2, alive);
+    try {
+      const first = await t.sdk.create(ROOM_NAME, {});
+      await t.sdk.create(ROOM_NAME, {});
+      let refusal = '';
+      try {
+        await t.sdk.create(ROOM_NAME, { open: true });
+      } catch (e) {
+        refusal = describeJoinError(e);
+      }
+      expect(refusal).toBe(TOO_MANY_ROOMS);
+      const port = (t.server as any).port;
+      const res = await fetch(`http://127.0.0.1:${port}/matchmake/create/${ROOM_NAME}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+      expect(res.status).toBe(429);
+
+      // Outro endereço, como markPeerAddress o grava, não é afetado.
+      const other = await matchMaker.controller.invokeMethod('create', ROOM_NAME, {}, { headers: new Headers({ [PEER_HEADER]: '203.0.113.9' }) } as any);
+      expect(other.roomId).toBeTruthy();
+
+      await first.leave();
+      await until(() => !alive(first.roomId));
+      expect((await t.sdk.create(ROOM_NAME, {})).roomId).toBeTruthy();
+    } finally {
+      undo();
+    }
+  });
+});
+describe('sala parada no aquecimento', () => {
+  it('com comandos chegando a sala segue aberta; sem comando de ninguém, fecha com o código próprio', async () => {
+    const room = await t.createRoom(ROOM_IDLE_LOBBY, {});
+    const c = await t.connectTo(room);
+    let closed: number | null = null;
+    c.onLeave((code: number) => (closed = code));
+    let seq = 0;
+    // Como a aba aberta: um comando por quadro, mesmo sem tecla.
+    const timer = setInterval(() => c.send(MSG_INPUT, { seq: ++seq, buttons: 0 }), 16);
+    await sleep(900);
+    clearInterval(timer);
+    expect(closed).toBeNull();
+    await until(() => closed !== null);
+    expect(closed).toBe(CLOSE_LOBBY_IDLE);
+  });
+
+  it('a partida começada não fecha por falta de comando', async () => {
+    const room = (await t.createRoom(ROOM_IDLE_LOBBY, {})) as unknown as ArenaRoom;
+    const c = await t.connectTo(room);
+    let closed: number | null = null;
+    c.onLeave((code: number) => (closed = code));
+    c.send(MSG_START);
+    await until(() => room.state.phase !== PHASE_LOBBY);
+    await sleep(900);
+    expect(closed).toBeNull();
   });
 });
 describe('modo fácil na rede', () => {
