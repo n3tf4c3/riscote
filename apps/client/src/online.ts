@@ -10,6 +10,7 @@ import {
   MAX_PLAYERS,
   PHASE_LOBBY,
   PHASE_PLAYING,
+  RECORDS_PATH,
   RECORD_NAME_MAX,
   ROOM_LIST_PATH,
   ROOM_NAME,
@@ -36,7 +37,7 @@ import { el } from './dom';
 import type { InputSource } from './input';
 import { OnlineSession, type NetState, type Presence } from './net';
 import { OnlineScene } from './OnlineScene';
-import { bindRecords } from './records';
+import { bindRecords, bindRecordsBoard } from './records';
 import { RES, commonSpecs, prepareArt } from './art/textures';
 import { PLAYER_COLORS } from './draw';
 import { setCover } from './capa';
@@ -191,7 +192,8 @@ export function bootOnline(input: InputSource): void {
   if (IN_APP) el('link-local').hidden = true;
   const serverUrl = query.get('servidor') ?? defaultServer;
   const sdk = new ColyseusSDK(serverUrl);
-  const roomListUrl = serverUrl.replace(/^ws/, 'http').replace(/\/+$/, '') + ROOM_LIST_PATH;
+  const httpBase = serverUrl.replace(/^ws/, 'http').replace(/\/+$/, '');
+  const roomListUrl = httpBase + ROOM_LIST_PATH;
 
   let session: OnlineSession | null = null;
   let game: Phaser.Game | null = null;
@@ -384,6 +386,7 @@ export function bootOnline(input: InputSource): void {
   setInterval(() => void refreshRooms(), ROOM_LIST_MS);
   document.addEventListener('visibilitychange', () => void refreshRooms());
   void refreshRooms();
+  bindRecordsBoard(httpBase + RECORDS_PATH, () => difficulty);
 
   // Quem entra, sai, cai ou volta: bilhete no canto da arena.
   const notices = el('avisos');

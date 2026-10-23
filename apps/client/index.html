@@ -200,7 +200,7 @@
           <h2 id="como-jogar-titulo">Como jogar</h2>
           <ul>
             <li class="teclas-padrao"><kbd>←</kbd><kbd>→</kbd> ou <kbd>A</kbd><kbd>D</kbd> andar</li>
-            <li class="teclas-padrao"><kbd>Espaço</kbd> ou <kbd>Z</kbd> pular (segure para ir mais alto)</li>
+            <li class="teclas-padrao"><kbd>↑</kbd>, <kbd>Espaço</kbd> ou <kbd>Z</kbd> pular (segure para ir mais alto)</li>
             <li class="teclas-padrao"><kbd>↓</kbd> + pular: descer da plataforma</li>
             <li class="teclas-padrao"><kbd>X</kbd> ou <kbd>J</kbd> atirar tinta e chutar a bola</li>
             <li class="teclas-asd"><kbd>A</kbd><kbd>D</kbd> andar</li>
@@ -231,11 +231,18 @@
         <ol id="records-list" class="records-list"></ol>
         <p id="records-timer" class="records-timer"></p>
       </div>
+      <dialog id="placar" class="placar" aria-labelledby="placar-titulo">
+        <form method="dialog" class="placar-fechar"><button type="submit" aria-label="Fechar recordes">✕</button></form>
+        <h2 id="placar-titulo">Recordes</h2>
+        <div id="placar-modos" class="placar-modos" role="group" aria-label="Dificuldade"></div>
+        <ol id="placar-lista" class="records-list"></ol>
+        <p id="placar-status" class="records-status" role="status" aria-live="polite"></p>
+      </dialog>
     </div>
     <aside>
       <h1>Riscote · protótipo</h1>
       <p class="keys" id="controles">
-        <span class="teclas-padrao">← → / A D andar · Espaço / Z / K pular (segure para ir mais alto) · ↓ + pular descer da plataforma ·
+        <span class="teclas-padrao">← → / A D andar · ↑ / Espaço / Z / K pular (segure para ir mais alto) · ↓ + pular descer da plataforma ·
         X / J atirar tinta e chutar a bola ·</span>
         <span class="teclas-asd">A D andar · J / Espaço pular (segure para ir mais alto) · S + pular descer da plataforma ·
         K atirar tinta e chutar a bola ·</span>
@@ -301,6 +308,9 @@
           <h2>Salas agora</h2>
           <ul id="room-list" class="salas"></ul>
           <p id="room-list-status" class="keys"></p>
+
+          <hr />
+          <button type="button" id="ver-recordes">Ver recordes</button>
         </div>
 
         <div id="in-room" hidden>
