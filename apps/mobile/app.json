@@ -12,6 +12,7 @@
     },
     "android": {
       "package": "win.riscote.app",
+      "allowBackup": false,
       "adaptiveIcon": {
         "backgroundColor": "#ebe3cf",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -22,7 +23,8 @@
     },
     "plugins": [
       ["expo-navigation-bar", { "hidden": true }],
-      "./plugins/jogo.js"
+      "./plugins/jogo.js",
+      "./plugins/tela-acesa.js"
     ]
   }
 }
