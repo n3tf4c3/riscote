@@ -271,6 +271,8 @@ export function bootOnline(input: InputSource): void {
   }
 
   let open = true;
+  /** Algo digitado ou escolhido na capa ainda não usado para entrar numa sala (segura a recarga por versão nova). */
+  let lobbyTouched = false;
   const visibilityButtons = el('online-visibility');
   visibilityButtons.querySelectorAll<HTMLButtonElement>('button').forEach((button) => {
     const pick = () => {
@@ -442,6 +444,8 @@ export function bootOnline(input: InputSource): void {
       current.onArenaChange = (arena) => startGame(arena);
       current.onPresence = notify;
       session = current;
+      // O que estava preenchido na capa foi usado: ao voltar para ela, a recarga por versão nova vale de novo.
+      lobbyTouched = false;
       saveSeat(room, serverUrl);
       // Queda de rede: o SDK tenta reconectar sozinho; a vaga fica reservada no servidor.
       room.onDrop(() => {
@@ -475,8 +479,18 @@ export function bootOnline(input: InputSource): void {
 
   // Versão nova do cliente: a aba recarrega só na capa, fora de sala, sem conexão em andamento e sem
   // ninguém digitando. Quem está jogando pega a versão nova ao voltar para a capa.
+  // Também espera quem digitou ou escolheu algo na capa e ainda não usou: a recarga apagaria tudo.
+  lobby.addEventListener('input', () => (lobbyTouched = true));
+  lobby.addEventListener('click', (e) => {
+    if (e.target instanceof Element && e.target.closest('#online-arenas, #online-difficulty, #online-visibility')) lobbyTouched = true;
+  });
   const version = watchNewVersion(
-    () => !session && !lobby.hidden && !createButton.disabled && !(document.activeElement instanceof HTMLInputElement),
+    () =>
+      !session &&
+      !lobby.hidden &&
+      !createButton.disabled &&
+      !lobbyTouched &&
+      !(document.activeElement instanceof HTMLInputElement),
   );
 
   createButton.addEventListener('click', () => {

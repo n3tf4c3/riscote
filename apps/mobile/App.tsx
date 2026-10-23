@@ -1,4 +1,3 @@
-import { useKeepAwake } from 'expo-keep-awake';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet } from 'react-native';
 import { WebView } from 'react-native-webview';
@@ -27,25 +26,26 @@ const FETCH_LOCAL = `(function () {
 })();
 true;`;
 
+// A tela não apaga no meio da partida: a flag fica na Activity (plugins/tela-acesa.js), sem depender do JS.
 export default function App() {
-  // A tela não apaga no meio da partida.
-  useKeepAwake();
   return (
     <>
       <StatusBar hidden />
       <WebView
         style={styles.jogo}
         source={{ uri: JOGO }}
-        originWhitelist={['*']}
+        // Só o jogo embutido abre aqui; outro endereço vai para o navegador do sistema.
+        originWhitelist={['file://*']}
+        // Os sons são lidos de file:// pela própria página; servidor e lista de salas não precisam de
+        // acesso universal (WebSocket e CORS aberto em /salas).
         allowFileAccess
         allowFileAccessFromFileURLs
-        allowUniversalAccessFromFileURLs
         injectedJavaScriptBeforeContentLoaded={FETCH_LOCAL}
         mediaPlaybackRequiresUserAction={false}
         overScrollMode="never"
         setSupportMultipleWindows={false}
-        // Prova de conceito: inspecionável pelo chrome://inspect também no APK de teste.
-        webviewDebuggingEnabled
+        // Inspeção pelo chrome://inspect só no build de desenvolvimento.
+        webviewDebuggingEnabled={__DEV__}
       />
     </>
   );

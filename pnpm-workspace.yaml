@@ -11,3 +11,18 @@ allowBuilds:
   # Acelerador nativo opcional do msgpackr (dependência do @colyseus/core);
   # sem ele o msgpackr usa a implementação em JS puro.
   msgpackr-extract: false
+
+# Auditoria de 2026-10-23, achado 5: o xcode (plugins de configuração do Expo) pede uuid 7, com
+# o GHSA-w5hq-g745-h8pq. Ele só usa uuid.v4(), que a 11 mantém em CommonJS.
+overrides:
+  xcode>uuid: 11.1.1
+
+auditConfig:
+  # Sem versão corrigida publicada (as últimas são as vulneráveis). Os dois chegam só pelas ferramentas
+  # de build do app (CLI do Expo e Metro) e não vão para o jogo nem para as imagens. Tirar daqui
+  # quando sair a correção.
+  ignoreGhsas:
+    # node-forge <=1.4.0 (verificação de assinatura RSA PKCS#1 v1.5), via @expo/cli.
+    - GHSA-86w9-cpqp-85rv
+    # braces <=3.0.3 (estouro de pilha com padrões aninhados), via metro > micromatch.
+    - GHSA-vfj7-8cjw-p6xm
