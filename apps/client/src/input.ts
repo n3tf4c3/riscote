@@ -12,7 +12,8 @@ const KEYMAPS: Record<KeyMode, Record<string, number>> = {
     KeyA: BTN_LEFT,
     ArrowRight: BTN_RIGHT,
     KeyD: BTN_RIGHT,
-    ArrowUp: BTN_UP,
+    // Pedido do usuário em 2026-10-23: a seta para cima também pula (o jogo não usa o BTN_UP).
+    ArrowUp: BTN_JUMP,
     KeyW: BTN_UP,
     ArrowDown: BTN_DOWN,
     KeyS: BTN_DOWN,

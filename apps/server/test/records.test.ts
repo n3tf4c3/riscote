@@ -14,15 +14,18 @@ import {
   PHASE_LOBBY,
   PHASE_RESTART,
   RECORDS_MAX,
+  RECORDS_PATH,
   RECORD_NAME_TRIES,
   ROOM_NAME,
   RULES,
   parseRecordName,
+  parseRecordsBoard,
   type RecordsMessage,
   type World,
 } from '@riscote/shared';
 import { ArenaRoom } from '../src/ArenaRoom.ts';
 import { RECORDS_FILE, RecordBook } from '../src/records.ts';
+import { serveJson } from '../src/roomList.ts';
 
 const dirs: string[] = [];
 function tempDir(): string {
@@ -164,6 +167,34 @@ describe('placar', () => {
     expect(book.list('medio')).toEqual([]);
     const kept = readdirSync(dir).find((f) => f.startsWith(`${RECORDS_FILE}.ilegivel-`));
     expect(kept && readFileSync(join(dir, kept), 'utf8')).toBe('{"ranking": [');
+  });
+
+  it('a capa lê todas as dificuldades por GET /recordes, liberado para outra origem', async () => {
+    const book = new RecordBook(null);
+    book.add('medio', run(300));
+    book.add('medio', run(500));
+    book.add('dificil', { ...run(200), names: ['Ana', 'Bia'] });
+    const http = createServer((_req, res) => res.end('colyseus'));
+    serveJson(http, RECORDS_PATH, () => book.board());
+    await new Promise<void>((r) => http.listen(0, '127.0.0.1', r));
+    try {
+      const res = await fetch(`http://127.0.0.1:${(http.address() as { port: number }).port}${RECORDS_PATH}`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get('access-control-allow-origin')).toBe('*');
+      const board = parseRecordsBoard(await res.json());
+      expect(board.facil).toEqual([]);
+      expect(board.medio.map((e) => e.score)).toEqual([500, 300]);
+      expect(board.dificil[0]).toMatchObject({ score: 200, names: ['Ana', 'Bia'] });
+    } finally {
+      await new Promise((r) => http.close(r));
+    }
+  });
+
+  it('o navegador descarta linhas do placar fora do formato', () => {
+    const good = { id: 'abc123', score: 400, names: ['Ana'], reason: 'capitulo', arena: 'padrao', date: '2026-10-20' };
+    const board = parseRecordsBoard({ medio: [good, { ...good, names: ['<b>x</b>'] }, 'lixo'], dificil: 'nada' });
+    expect(board).toEqual({ facil: [], medio: [good], dificil: [] });
+    expect(parseRecordsBoard(null)).toEqual({ facil: [], medio: [], dificil: [] });
   });
 });
 

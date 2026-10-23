@@ -5,17 +5,16 @@ import {
   DIFFICULTIES,
   MAX_PLAYERS,
   RECORDS_MAX,
-  parseRecordName,
+  parseRecordEntry,
   type Difficulty,
   type RecordEntry,
+  type RecordsBoard,
   type RunEndReason,
 } from '@riscote/shared';
 
 export const RECORDS_FILE = 'recordes.json';
 
-type Ranking = Record<Difficulty, RecordEntry[]>;
-
-const REASONS: readonly unknown[] = ['capitulo', 'sem-vidas', 'desistencia'] satisfies RunEndReason[];
+type Ranking = RecordsBoard;
 
 function emptyRanking(): Ranking {
   return { facil: [], medio: [], dificil: [] };
@@ -24,21 +23,6 @@ function emptyRanking(): Ranking {
 /** Maior pontuação primeiro; no empate, quem chegou antes fica na frente (sort estável). */
 function rank(entries: RecordEntry[]): RecordEntry[] {
   return entries.sort((a, b) => b.score - a.score).slice(0, RECORDS_MAX);
-}
-
-/** Confere uma linha lida do disco: o arquivo pode ter sido editado à mão ou estar truncado. */
-function parseEntry(raw: unknown): RecordEntry | null {
-  if (typeof raw !== 'object' || raw === null) return null;
-  const { id, score, names, reason, arena, date } = raw as Record<string, unknown>;
-  if (typeof id !== 'string' || !/^[0-9a-f]{1,32}$/.test(id)) return null;
-  if (typeof score !== 'number' || !Number.isSafeInteger(score) || score <= 0) return null;
-  if (!Array.isArray(names) || names.length === 0 || names.length > MAX_PLAYERS) return null;
-  const parsed = names.map(parseRecordName);
-  if (parsed.some((n) => n === null)) return null;
-  if (!REASONS.includes(reason)) return null;
-  if (typeof arena !== 'string' || !/^[a-z0-9-]{1,32}$/.test(arena)) return null;
-  if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
-  return { id, score, names: parsed as string[], reason: reason as RunEndReason, arena, date };
 }
 
 /**
@@ -71,7 +55,8 @@ export class RecordBook {
       for (const d of DIFFICULTIES) {
         const list = data.ranking?.[d];
         if (!Array.isArray(list)) continue;
-        this.ranking[d] = rank(list.map(parseEntry).filter((e): e is RecordEntry => e !== null));
+        // O arquivo pode ter sido editado à mão ou estar truncado.
+        this.ranking[d] = rank(list.map(parseRecordEntry).filter((e): e is RecordEntry => e !== null));
       }
     } catch {
       // Arquivo ilegível: guarda a cópia para inspeção e recomeça vazio, sem apagar nada.
@@ -83,6 +68,11 @@ export class RecordBook {
 
   list(difficulty: Difficulty): RecordEntry[] {
     return this.ranking[difficulty].map((e) => ({ ...e, names: [...e.names] }));
+  }
+
+  /** Todas as dificuldades, para a capa (`GET /recordes`). */
+  board(): RecordsBoard {
+    return { facil: this.list('facil'), medio: this.list('medio'), dificil: this.list('dificil') };
   }
 
   /** Põe a partida no placar; devolve o id da linha, ou null se não ficou entre os melhores. */
