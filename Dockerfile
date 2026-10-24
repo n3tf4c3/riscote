@@ -1,7 +1,8 @@
 # Imagens do Riscote: `server` (partidas) e `client` (página estática).
 # Multi-arquitetura (linux/amd64 e linux/arm64, para o Orange Pi); ver docs/docker.md.
 
-ARG NODE_IMAGE=node:24.11-alpine
+# Patch exato: 24.22.1 corrige a CVE-2026-111497 (Brotli do node:zlib); não descer abaixo dele.
+ARG NODE_IMAGE=node:24.22.1-alpine
 ARG PNPM_VERSION=12.4.2
 
 # Manifestos do workspace: o lockfile só confere com todos os pacotes presentes.
