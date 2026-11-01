@@ -194,7 +194,12 @@ export function bindKeyControls(input: InputSource): void {
   }
 }
 
-/** Botões de um controle: direcional ou analógico esquerdo, A pula, X atira. */
+/**
+ * Botões de um controle: direcional ou analógico esquerdo; A e Y pulam, B, X e os de ombro e gatilho
+ * atiram. Só o X atirava, e no controle de PlayStation o ✕ é o A (pula): quem procurava o "X" pulava,
+ * e o B/○ não fazia nada. Com todo botão da frente fazendo alguma coisa, controle genérico (sem o
+ * mapeamento padrão, botões em outra ordem) também pula e atira.
+ */
 function padBits(pad: Gamepad): number {
   const b = (i: number) => pad.buttons[i]?.pressed ?? false;
   const ax = pad.axes[0] ?? 0;
@@ -204,7 +209,7 @@ function padBits(pad: Gamepad): number {
   if (ax > 0.4 || b(15)) bits |= BTN_RIGHT;
   if (ay < -0.6 || b(12)) bits |= BTN_UP;
   if (ay > 0.5 || b(13)) bits |= BTN_DOWN;
-  if (b(0)) bits |= BTN_JUMP;
-  if (b(2)) bits |= BTN_ATTACK;
+  if (b(0) || b(3)) bits |= BTN_JUMP;
+  if (b(1) || b(2) || b(4) || b(5) || b(6) || b(7)) bits |= BTN_ATTACK;
   return bits;
 }
