@@ -336,10 +336,11 @@ export class ArenaRoom extends Room<{ state: GameState }> {
       if (!h) {
         h = new HazardSchema();
         h.kind = z.kind;
-        h.w = z.w;
-        h.h = z.h;
         hazards.set(key, h);
       }
+      // O tamanho também muda: a água da enxurrada sobe e escoa.
+      h.w = z.w;
+      h.h = z.h;
       h.x = z.x;
       h.y = z.y;
       h.wait = Math.max(0, z.wait);

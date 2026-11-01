@@ -12,7 +12,7 @@ Cada arquivo é um cartão. A primeira linha (`<!-- @dsCard group="…" -->`) de
 | Marca | `marca/riscote.html`: premissa, linguagem e o que não copiar |
 | Cores | `cores/papel-e-tinta.html`, `cores/jogadores.html` |
 | Fundamentos | `fundamentos/camadas.html`, `fundamentos/escala.html`, `fundamentos/tipografia.html` |
-| Personagens | `personagens/jogadores.html` (os cinco riscotes de cartum: poses, expressões, auras e tamanho do jogo), `personagens/inimigos.html` (inimigos, estados, encharcado e o Mata-Borrão), `personagens/floresta.html` (os inimigos e o chefe da Floresta), `personagens/biblioteca.html` (os inimigos e o chefe da Biblioteca) |
+| Personagens | `personagens/jogadores.html` (os cinco riscotes de cartum: poses, expressões, auras e tamanho do jogo), `personagens/inimigos.html` (inimigos, estados, encharcado e o Mata-Borrão), `personagens/floresta.html` (os inimigos e o chefe da Floresta), `personagens/biblioteca.html` (os inimigos e o chefe da Biblioteca), `personagens/jardim.html`, `personagens/oficina.html` e `personagens/castelo.html` (os inimigos e o chefe de cada um) |
 | Cenário | `cenario/arena-tinta.html` (as páginas dos capítulos e a mesa do chefe, em duas camadas), `cenario/arena.html` (geometria greybox), `cenario/itens.html`, `cenario/efeitos.html`, `cenario/floresta.html`, `cenario/biblioteca.html`, `cenario/jardim.html`, `cenario/oficina.html` e `cenario/castelo.html` (fases novas em protótipo, com camadas de parallax) |
 | Interface | `interface/painel.html` |
 

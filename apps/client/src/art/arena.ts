@@ -158,8 +158,8 @@ const CALENDARIO: Tema = {
 };
 
 /**
- * Temas pelo nome. Os capítulos com tema (`visualDe`) pedem o seu (`floresta`, `biblioteca`); `jardim`,
- * `oficina` e `castelo` ainda não têm capítulo e só aparecem pedidos (`?tema=jardim`). Os de Partituras e
+ * Temas pelo nome. Cada capítulo com tema (`visualDe`) pede o seu (`floresta`, `biblioteca`, `jardim`,
+ * `oficina`, `castelo`); `?tema=` veste qualquer página com outro. Os de Partituras e
  * mapas (`quadriculada`, `partitura`, `mapa`, `calendario`) também só aparecem pedidos: as páginas
  * foram para a Biblioteca em 2026-11-01, com ids novos.
  */

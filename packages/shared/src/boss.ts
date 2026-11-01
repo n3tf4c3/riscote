@@ -55,6 +55,32 @@ export const BOSS_RULES = {
   pageWidth: 0.7,
   pageGapAbove: 2.2, // células acima do centro do alvo
   pageGapBelow: 1.2, // células abaixo
+  /**
+   * Enxurrada (o Regador): o jardim enche de água até logo abaixo do topo da plataforma mais baixa;
+   * quem ficou no chão é derrubado. Sobe, fica um tempo e escoa.
+   */
+  floodWindup: 1.3,
+  floodRise: 0.5,
+  floodHold: 1.6,
+  floodDrain: 0.5,
+  /** Quanto a água fica abaixo do topo da plataforma mais baixa (quem está de pé nela fica seco). */
+  floodMargin: 0.25, // células
+  /**
+   * Traçado (a Lapiseira): risca retas que atravessam a arena inteira, uma delas passando por quem está
+   * mais perto; tracejadas no aviso, depois de tinta.
+   */
+  lineWindup: 1.1,
+  lineTime: 0.7, // s machucando
+  lineWidth: 0.45, // células
+  lineCount: [2, 3, 3],
+  /**
+   * Redemoinho (o Dragão-Pipa): um anel de vento cresce a partir dele até as bordas, com uma brecha
+   * apontada para quem estava mais perto dele; só a brecha é segura.
+   */
+  ringWindup: 1.2,
+  ringSpeed: 8, // células/s
+  ringWidth: 0.8, // células
+  ringGap: 0.6, // radianos para cada lado do meio da brecha
   minionEvery: [6, 6, 4.5], // s entre fiapos (traças)
   minionsAtStart: 2,
   phase2At: 0.6, // fração da vida
@@ -84,17 +110,32 @@ export const ATTACK_RAIN = 3;
 export const ATTACK_SHAVING = 4;
 /** Virada de página (o Calhamaço): marca a fresta e uma página gigante varre a arena. */
 export const ATTACK_PAGE = 5;
+/** Enxurrada (o Regador): marca a altura da água e o jardim enche até ali. */
+export const ATTACK_FLOOD = 6;
+/** Traçado (a Lapiseira): retas riscadas na arena. */
+export const ATTACK_LINES = 7;
+/** Redemoinho (o Dragão-Pipa): um anel de vento com uma brecha. */
+export const ATTACK_RING = 8;
 
 export const HAZARD_WAVE = 0;
 export const HAZARD_BLOT = 1;
 export const HAZARD_SHAVING = 2;
 /** Um pedaço da página da virada (acima ou abaixo da fresta); os dois correm juntos. */
 export const HAZARD_PAGE = 3;
+/** A água da enxurrada: um retângulo do chão até o nível dela, subindo e escoando. */
+export const HAZARD_FLOOD = 4;
+/** Uma reta do traçado: de (x, y) a (x + w, y + h); `wait` acima de 0 é o aviso. */
+export const HAZARD_LINE = 5;
+/** O anel do redemoinho: centro (x, y), raio `w`, direção do meio da brecha `h` (radianos). */
+export const HAZARD_RING = 6;
 
 /** Os chefes: o Mata-Borrão fecha o capítulo 1; cada capítulo novo traz o seu. */
 export const BOSS_MATA_BORRAO = 0;
 export const BOSS_APONTADOR = 1;
 export const BOSS_CALHAMACO = 2;
+export const BOSS_REGADOR = 3;
+export const BOSS_LAPISEIRA = 4;
+export const BOSS_DRAGAO = 5;
 
 /** Golpes que cada chefe sorteia em cada fase (1, 2 e 3). */
 const BOSS_ATTACKS: Record<number, readonly (readonly number[])[]> = {
@@ -113,6 +154,21 @@ const BOSS_ATTACKS: Record<number, readonly (readonly number[])[]> = {
     [ATTACK_STAMP, ATTACK_WAVE, ATTACK_PAGE, ATTACK_RAIN],
     [ATTACK_STAMP, ATTACK_WAVE, ATTACK_PAGE, ATTACK_RAIN],
   ],
+  [BOSS_REGADOR]: [
+    [ATTACK_STAMP, ATTACK_FLOOD],
+    [ATTACK_STAMP, ATTACK_WAVE, ATTACK_FLOOD, ATTACK_RAIN],
+    [ATTACK_STAMP, ATTACK_WAVE, ATTACK_FLOOD, ATTACK_RAIN],
+  ],
+  [BOSS_LAPISEIRA]: [
+    [ATTACK_STAMP, ATTACK_LINES],
+    [ATTACK_STAMP, ATTACK_WAVE, ATTACK_LINES, ATTACK_RAIN],
+    [ATTACK_STAMP, ATTACK_WAVE, ATTACK_LINES, ATTACK_RAIN],
+  ],
+  [BOSS_DRAGAO]: [
+    [ATTACK_STAMP, ATTACK_RING],
+    [ATTACK_STAMP, ATTACK_WAVE, ATTACK_RING, ATTACK_RAIN],
+    [ATTACK_STAMP, ATTACK_WAVE, ATTACK_RING, ATTACK_RAIN],
+  ],
 };
 
 export interface Rect {
@@ -124,6 +180,32 @@ export interface Rect {
 
 function hit(a: Rect, b: Rect): boolean {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+/** A reta do traçado (com `half` de folga para cada lado) encosta na caixa. */
+function lineHits(a: Rect, z: Hazard, half: number): boolean {
+  const len = Math.hypot(z.w, z.h);
+  const n = Math.max(1, Math.ceil(len / 2));
+  for (let i = 0; i <= n; i++) {
+    const x = z.x + (z.w * i) / n;
+    const y = z.y + (z.h * i) / n;
+    if (x >= a.x - half && x <= a.x + a.w + half && y >= a.y - half && y <= a.y + a.h + half) return true;
+  }
+  return false;
+}
+
+/** O anel do redemoinho encosta na caixa, fora da brecha (o meio da caixa dentro da brecha está a salvo). */
+export function ringHits(a: Rect, z: { x: number; y: number; w: number; h: number }): boolean {
+  const angle = Math.atan2(a.y + a.h / 2 - z.y, a.x + a.w / 2 - z.x);
+  let diff = Math.abs(angle - z.h) % (2 * Math.PI);
+  if (diff > Math.PI) diff = 2 * Math.PI - diff;
+  if (diff <= BOSS_RULES.ringGap) return false;
+  const dx = Math.max(a.x - z.x, 0, z.x - (a.x + a.w));
+  const dy = Math.max(a.y - z.y, 0, z.y - (a.y + a.h));
+  const near = Math.hypot(dx, dy);
+  const far = Math.hypot(Math.max(Math.abs(a.x - z.x), Math.abs(a.x + a.w - z.x)), Math.max(Math.abs(a.y - z.y), Math.abs(a.y + a.h - z.y)));
+  const half = (BOSS_RULES.ringWidth * TILE) / 2;
+  return near <= z.w + half && far >= z.w - half;
 }
 
 export interface Hazard {
@@ -139,6 +221,8 @@ export interface Hazard {
   /** Apara: a altura (y do topo) da faixa marcada e se já está voltando. */
   laneY?: number;
   back?: boolean;
+  /** Enxurrada: segundos desde que a água começou a subir. */
+  age?: number;
 }
 
 /** O que o chefe precisa do mundo: tudo determinístico, sem relógio nem Math.random. */
@@ -327,7 +411,14 @@ export class Boss {
   hurts(body: Rect): boolean {
     const harm = this.harmBox;
     if (harm && hit(body, harm)) return true;
-    for (const z of this.hazards.values()) if (z.wait <= 0 && hit(body, z)) return true;
+    for (const z of this.hazards.values()) {
+      if (z.wait > 0) continue;
+      if (z.kind === HAZARD_LINE) {
+        if (lineHits(body, z, (BOSS_RULES.lineWidth * TILE) / 2)) return true;
+      } else if (z.kind === HAZARD_RING) {
+        if (ringHits(body, z)) return true;
+      } else if (hit(body, z)) return true;
+    }
     return false;
   }
 
@@ -367,9 +458,13 @@ export class Boss {
   }
 
   private windup(): void {
-    // Com uma página ainda varrendo a arena, não vem outra (seriam duas frestas ao mesmo tempo).
+    // Com uma página ainda varrendo a arena (ou a água ainda alta), não vem outra.
     const paging = [...this.hazards.values()].some((z) => z.kind === HAZARD_PAGE);
-    const options = BOSS_ATTACKS[this.kind]![this.phase - 1]!.filter((a) => !paging || a !== ATTACK_PAGE);
+    const flooding = [...this.hazards.values()].some((z) => z.kind === HAZARD_FLOOD);
+    const ringing = [...this.hazards.values()].some((z) => z.kind === HAZARD_RING);
+    const options = BOSS_ATTACKS[this.kind]![this.phase - 1]!.filter(
+      (a) => !(paging && a === ATTACK_PAGE) && !(flooding && a === ATTACK_FLOOD) && !(ringing && a === ATTACK_RING),
+    );
     this.attack = options[Math.floor(this.host.rng() * options.length)]!;
     this.state = BOSS_WINDUP;
     if (this.attack === ATTACK_STAMP) {
@@ -388,6 +483,22 @@ export class Boss {
       const y = target ? target.y : this.y + this.h / 2;
       this.targetY = Math.min(this.floorY + this.h - half, Math.max(TILE + half, y));
       if (target) this.dir = target.x >= this.x + this.w / 2 ? 1 : -1;
+    } else if (this.attack === ATTACK_LINES) {
+      this.timer = BOSS_RULES.lineWindup;
+      this.lines();
+    } else if (this.attack === ATTACK_RING) {
+      // O anel sai do meio dele; a brecha aponta para quem está mais perto.
+      this.timer = BOSS_RULES.ringWindup;
+      const cx = this.x + this.w / 2;
+      const cy = this.y + this.h / 2;
+      const target = this.host.nearestTarget(cx, cy);
+      const gap = target ? Math.atan2(target.y - cy, target.x - cx) : -Math.PI / 2;
+      const id = this.host.nextId();
+      this.hazards.set(id, { id, kind: HAZARD_RING, x: cx, y: cy, w: TILE / 2, h: gap, vx: 0, wait: BOSS_RULES.ringWindup });
+    } else if (this.attack === ATTACK_FLOOD) {
+      // A altura da água: logo abaixo do topo da plataforma mais baixa.
+      this.timer = BOSS_RULES.floodWindup;
+      this.targetY = floodLevel(this.arena);
     } else if (this.attack === ATTACK_PAGE) {
       // A página sai da parede do outro lado de quem está mais perto dele e varre na direção desse
       // alguém; a fresta fica na altura de quem está mais perto daquela parede (o que tem menos tempo).
@@ -420,7 +531,41 @@ export class Boss {
     }
     if (this.attack === ATTACK_SHAVING) this.shaving();
     if (this.attack === ATTACK_PAGE) this.turnPage();
+    if (this.attack === ATTACK_FLOOD) {
+      const id = this.host.nextId();
+      const bottom = (this.arena.rows - 1) * TILE;
+      this.hazards.set(id, { id, kind: HAZARD_FLOOD, x: TILE, y: bottom, w: (this.arena.cols - 2) * TILE, h: 0, vx: 0, wait: 0, laneY: this.targetY, age: 0 });
+    }
     this.recover();
+  }
+
+  /**
+   * As retas do traçado: a primeira passa por quem está mais perto, as outras por pontos sorteados; cada uma
+   * com um ângulo sorteado, de borda a borda da arena.
+   */
+  private lines(): void {
+    const left = TILE;
+    const right = (this.arena.cols - 1) * TILE;
+    const top = TILE;
+    const bottom = (this.arena.rows - 1) * TILE;
+    const count = BOSS_RULES.lineCount[this.phase - 1]!;
+    const target = this.host.nearestTarget(this.x + this.w / 2, this.y + this.h / 2);
+    for (let i = 0; i < count; i++) {
+      const px = i === 0 && target ? target.x : left + this.host.rng() * (right - left);
+      const py = i === 0 && target ? target.y : top + this.host.rng() * (bottom - top);
+      const angle = this.host.rng() * Math.PI;
+      const c = Math.cos(angle);
+      const sn = Math.sin(angle);
+      const span = (lo: number, hi: number, p: number, d: number): [number, number] =>
+        Math.abs(d) < 1e-6 ? [-Infinity, Infinity] : [Math.min((lo - p) / d, (hi - p) / d), Math.max((lo - p) / d, (hi - p) / d)];
+      const [ax, bx] = span(left, right, px, c);
+      const [ay, by] = span(top, bottom, py, sn);
+      const t0 = Math.max(ax, ay);
+      const t1 = Math.min(bx, by);
+      if (!(t1 > t0)) continue;
+      const id = this.host.nextId();
+      this.hazards.set(id, { id, kind: HAZARD_LINE, x: px + c * t0, y: py + sn * t0, w: c * (t1 - t0), h: sn * (t1 - t0), vx: 0, wait: BOSS_RULES.lineWindup, age: 0 });
+    }
   }
 
   /** A página: um pedaço acima da fresta e outro abaixo (se houver espaço), correndo juntos. */
@@ -484,6 +629,38 @@ export class Boss {
       if (z.kind === HAZARD_WAVE) {
         z.x += z.vx * dt;
         if (z.x < left || z.x + z.w > right) this.hazards.delete(z.id);
+        continue;
+      }
+      if (z.kind === HAZARD_LINE) {
+        // Tracejada no aviso; depois, de tinta por um instante.
+        if (z.wait > 0) z.wait -= dt;
+        else if ((z.age = (z.age ?? 0) + dt) >= BOSS_RULES.lineTime) this.hazards.delete(z.id);
+        continue;
+      }
+      if (z.kind === HAZARD_RING) {
+        // Depois do aviso, cresce até passar dos cantos da arena.
+        if (z.wait > 0) {
+          z.wait -= dt;
+          continue;
+        }
+        z.w += BOSS_RULES.ringSpeed * TILE * dt;
+        const corner = Math.max(Math.hypot(z.x, z.y), Math.hypot(this.arena.cols * TILE - z.x, z.y), Math.hypot(z.x, this.arena.rows * TILE - z.y), Math.hypot(this.arena.cols * TILE - z.x, this.arena.rows * TILE - z.y));
+        if (z.w > corner) this.hazards.delete(z.id);
+        continue;
+      }
+      if (z.kind === HAZARD_FLOOD) {
+        // Sobe até o nível marcado, fica e escoa.
+        const age = (z.age = (z.age ?? 0) + dt);
+        const bottom = (this.arena.rows - 1) * TILE;
+        const full = bottom - (z.laneY ?? bottom);
+        const { floodRise: rise, floodHold: hold, floodDrain: drain } = BOSS_RULES;
+        const k = age < rise ? age / rise : age < rise + hold ? 1 : 1 - (age - rise - hold) / drain;
+        if (k <= 0 && age > rise) {
+          this.hazards.delete(z.id);
+          continue;
+        }
+        z.h = full * Math.max(0, Math.min(1, k));
+        z.y = bottom - z.h;
         continue;
       }
       if (z.kind === HAZARD_PAGE) {
@@ -602,14 +779,100 @@ const ATRIL = [
 
 export const ATRIL_ARENA: Arena = parseArena('atril', 'Sala de leitura do Calhamaço 32×18', ATRIL);
 
+// O coreto do Regador: plataformas baixas dos dois lados e no meio, para subir antes da enxurrada, e
+// andares mais altos em degraus até a pérgola.
+const CORETO = [
+  '#..............................#',
+  '#..............................#',
+  '#..............................#',
+  '#..............................#',
+  '#..........==========..........#',
+  '#..............................#',
+  '#..............................#',
+  '#...=======..........=======...#',
+  '#..............................#',
+  '#..............................#',
+  '#=====......==========....=====#',
+  '#..............................#',
+  '#..............................#',
+  '#.PPP...=====......=====..PP...#',
+  '#=====....................=====#',
+  '#..............................#',
+  '#T............................T#',
+  '################################',
+];
+
+export const CORETO_ARENA: Arena = parseArena('coreto', 'Coreto do Regador 32×18', CORETO);
+
+/** Altura da água da enxurrada: um pouco abaixo do topo da plataforma mais baixa da página. */
+export function floodLevel(arena: Arena): number {
+  for (let row = arena.rows - 2; row > 0; row--) {
+    for (let col = 1; col < arena.cols - 1; col++) {
+      if (cellAt(arena, col, row) !== EMPTY) return row * TILE + BOSS_RULES.floodMargin * TILE;
+    }
+  }
+  return (arena.rows - 1) * TILE;
+}
+
+// A bancada da Lapiseira: tábuas compridas em andares regulares, com vãos para fugir das retas.
+const BANCADA = [
+  '#..............................#',
+  '#..............................#',
+  '#..............................#',
+  '#..............................#',
+  '#..............................#',
+  '#....==========....==========..#',
+  '#..............................#',
+  '#..............................#',
+  '#=======........==........=====#',
+  '#..............................#',
+  '#..............................#',
+  '#.....=========....=========...#',
+  '#..............................#',
+  '#.PPP.....................PP...#',
+  '#=====....................=====#',
+  '#..............................#',
+  '#T............................T#',
+  '################################',
+];
+
+export const BANCADA_ARENA: Arena = parseArena('bancada', 'Bancada da Lapiseira 32×18', BANCADA);
+
+// O alto da torre do Dragão-Pipa: nuvens em vários andares e lados, para chegar à brecha do redemoinho.
+const TORRE = [
+  '#..............................#',
+  '#..............................#',
+  '#..............................#',
+  '#............========..........#',
+  '#..............................#',
+  '#..............................#',
+  '#...======..............======.#',
+  '#..............................#',
+  '#..............................#',
+  '#.........=====....=====.......#',
+  '#..............................#',
+  '#..............................#',
+  '#.......=====........=====.....#',
+  '#.PPP.....................PP...#',
+  '#=====....................=====#',
+  '#..............................#',
+  '#T............................T#',
+  '################################',
+];
+
+export const TORRE_ARENA: Arena = parseArena('torre', 'Torre do Dragão-Pipa 32×18', TORRE);
+
 /** As páginas de chefe e quem luta em cada uma. */
 const BOSS_PAGES: Record<string, number> = {
   [BOSS_ARENA.id]: BOSS_MATA_BORRAO,
   [BOSQUE_ARENA.id]: BOSS_APONTADOR,
   [ATRIL_ARENA.id]: BOSS_CALHAMACO,
+  [CORETO_ARENA.id]: BOSS_REGADOR,
+  [BANCADA_ARENA.id]: BOSS_LAPISEIRA,
+  [TORRE_ARENA.id]: BOSS_DRAGAO,
 };
 
-export const BOSS_ARENAS: readonly Arena[] = [BOSS_ARENA, BOSQUE_ARENA, ATRIL_ARENA];
+export const BOSS_ARENAS: readonly Arena[] = [BOSS_ARENA, BOSQUE_ARENA, ATRIL_ARENA, CORETO_ARENA, BANCADA_ARENA, TORRE_ARENA];
 
 export function isBossArena(arena: Arena): boolean {
   return BOSS_PAGES[arena.id] !== undefined;

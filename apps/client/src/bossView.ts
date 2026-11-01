@@ -1,5 +1,8 @@
 import * as Phaser from 'phaser';
 import {
+  ATTACK_FLOOD,
+  ATTACK_LINES,
+  ATTACK_RING,
   ATTACK_PAGE,
   ATTACK_RAIN,
   ATTACK_SHAVING,
@@ -14,6 +17,9 @@ import {
   BOSS_WINDUP,
   EMPTY,
   HAZARD_BLOT,
+  HAZARD_FLOOD,
+  HAZARD_LINE,
+  HAZARD_RING,
   HAZARD_PAGE,
   HAZARD_SHAVING,
   HAZARD_WAVE,
@@ -26,6 +32,9 @@ import type { PeleChefe } from './art/pele';
 import type { ArtLayer } from './art/layer';
 import { RES } from './art/textures';
 import { ROUNDED } from './art/capa';
+import { AGUA as AGUA_CSS, AGUA_SOMBRA as AGUA_SOMBRA_CSS, ESPUMA as ESPUMA_CSS } from './art/jardim-poderes';
+import { GRAFITE as GRAFITE_CSS } from './art/oficina-poderes';
+import { VENTO as VENTO_CSS, VENTO_SOMBRA as VENTO_SOMBRA_CSS } from './art/castelo-poderes';
 import { som } from './audio/som';
 import { INK, INK_BLUE } from './draw';
 import type { Effects } from './fx';
@@ -41,6 +50,14 @@ const FOLHA = 0xfffaf0;
 const PAUTA_AZUL = 0xa9c6e8;
 const MARGEM = 0xe2665a;
 const FOLHA_DOBRA = 0xe8dcc2;
+/** A água da enxurrada do Regador, nas cores de `jardim-poderes.ts`. */
+const AGUA = parseInt(AGUA_CSS.slice(1), 16);
+const AGUA_SOMBRA = parseInt(AGUA_SOMBRA_CSS.slice(1), 16);
+const ESPUMA = parseInt(ESPUMA_CSS.slice(1), 16);
+/** O risco da Lapiseira e o vento do Dragão-Pipa, nas cores de `oficina-poderes.ts` e `castelo-poderes.ts`. */
+const GRAFITE = parseInt(GRAFITE_CSS.slice(1), 16);
+const VENTO = parseInt(VENTO_CSS.slice(1), 16);
+const VENTO_SOMBRA = parseInt(VENTO_SOMBRA_CSS.slice(1), 16);
 
 /** O que o servidor manda do chefe (espelha `BossSchema`). */
 export interface BossSnapshot {
@@ -215,6 +232,20 @@ export class BossView {
       if (z.kind === HAZARD_SHAVING && !old) som.play('chefe-aviso', { x: z.x + z.w / 2 });
       // A página da virada: o som de folha virando ao sair (uma vez, pelo pedaço de cima) e papel picado na borda.
       if (z.kind === HAZARD_PAGE && !old && z.y <= TILE + 1) som.play('pagina', { x: z.x + z.w / 2 });
+      // A enxurrada: um chuá quando começa a subir e respingos na superfície enquanto ela dura.
+      // O traçado vira tinta e o anel começa a crescer: o som e um tranco leve.
+      if ((z.kind === HAZARD_LINE || z.kind === HAZARD_RING) && old && old.wait > 0 && z.wait <= 0) {
+        som.play('chefe-golpe', { x: z.x });
+        this.fx.shake(140, 0.004);
+      }
+      if (z.kind === HAZARD_FLOOD && !old) {
+        som.play('chefe-golpe', { x: z.x + z.w / 2 });
+        this.fx.shake(220, 0.005);
+      }
+      if (z.kind === HAZARD_FLOOD && z.h > 2 && now - this.lastChip > 70) {
+        this.lastChip = now;
+        this.fx.droplets(z.x + z.w * ((now / 211) % 1), z.y, ESPUMA, 2, 50, -Math.PI / 2, 1.2);
+      }
       if (z.kind === HAZARD_PAGE && now - this.lastChip > 45) {
         this.lastChip = now;
         this.fx.droplets(z.x + z.w / 2, z.y + z.h * ((now / 173) % 1), PAPER, 1, 40, Math.PI / 2, 2.4);
@@ -277,6 +308,22 @@ export class BossView {
       for (let x = start + dir * 10, i = 0; dir > 0 ? x < right : x > left; x += dir * TILE * 2, i++) {
         if (i > 1 + p * 16) break;
         back.lineStyle(2.5, WARN, alpha).beginPath().moveTo(x - dir * 4, y - 4).lineTo(x + dir * 2, y).lineTo(x - dir * 4, y + 4).strokePath();
+      }
+    }
+    if (b.state === BOSS_WINDUP && b.attack === ATTACK_FLOOD) {
+      // O nível que a água vai alcançar, tracejado de parede a parede, a área que vai alagar enchendo de
+      // leve e setas para cima: suba numa plataforma.
+      const p = 1 - b.timer / BOSS_RULES.floodWindup;
+      const left = TILE;
+      const right = (this.arena.cols - 1) * TILE;
+      const bottom = (this.arena.rows - 1) * TILE;
+      const y = b.targetY;
+      const alpha = blink ? 0.95 : 0.5;
+      back.fillStyle(AGUA, 0.1 + 0.2 * p).fillRect(left, y, right - left, bottom - y);
+      for (let x = left; x < right; x += 10) back.lineStyle(1.8, WARN, alpha).lineBetween(x, y, Math.min(x + 5, right), y);
+      for (let x = left + TILE; x < right - TILE / 2; x += TILE * 3) {
+        const ay = bottom - 6 - ((p * 30 + x / 7) % Math.max(8, bottom - y - 10));
+        back.lineStyle(2.5, WARN, alpha).beginPath().moveTo(x - 4, ay + 4).lineTo(x, ay).lineTo(x + 4, ay + 4).strokePath();
       }
     }
     if (b.state === BOSS_WINDUP && b.attack === ATTACK_PAGE) {
@@ -345,6 +392,18 @@ export class BossView {
         else g.fillStyle(0xd8c39c).fillTriangle(z.x, z.y + z.h, z.x + z.w, z.y + z.h, z.x + z.w / 2, z.y);
         continue;
       }
+      if (z.kind === HAZARD_FLOOD) {
+        this.drawFlood(g, z, now);
+        continue;
+      }
+      if (z.kind === HAZARD_LINE) {
+        this.drawLine(g, z, now);
+        continue;
+      }
+      if (z.kind === HAZARD_RING) {
+        this.drawRing(g, z, now);
+        continue;
+      }
       if (z.kind === HAZARD_PAGE) {
         this.drawPage(g, z);
         continue;
@@ -392,6 +451,77 @@ export class BossView {
     }
   }
 
+  /**
+   * Uma reta do traçado: no aviso, tracejada em vermelho, com o "!" no meio; depois, um risco grosso de
+   * grafite com contorno marinho.
+   */
+  private drawLine(g: Phaser.GameObjects.Graphics, z: HazardSnapshot, now: number): void {
+    const len = Math.hypot(z.w, z.h) || 1;
+    if (z.wait > 0) {
+      const blink = Math.floor(now / 110) % 2 === 0;
+      const p = 1 - z.wait / BOSS_RULES.lineWindup;
+      for (let d = 0; d < len; d += 10) {
+        const a = d / len;
+        const b = Math.min(1, (d + 5) / len);
+        g.lineStyle(1.4 + 1.2 * p, WARN, blink ? 0.9 : 0.5).lineBetween(z.x + z.w * a, z.y + z.h * a, z.x + z.w * b, z.y + z.h * b);
+      }
+      this.mark(g, z.x + z.w / 2, z.y + z.h / 2 - 8, blink);
+      return;
+    }
+    const w = BOSS_RULES.lineWidth * TILE;
+    const wob = Math.sin(now / 35) * 0.6;
+    g.lineStyle(w + 2.6, INK, 1).lineBetween(z.x, z.y + wob, z.x + z.w, z.y + z.h + wob);
+    g.lineStyle(w, GRAFITE, 1).lineBetween(z.x, z.y + wob, z.x + z.w, z.y + z.h + wob);
+  }
+
+  /**
+   * O redemoinho: no aviso, a brecha (segura) clara e as bordas dela tracejadas, com um círculo tracejado em
+   * volta do chefe; depois, o anel de vento crescendo, com a brecha aberta.
+   */
+  private drawRing(g: Phaser.GameObjects.Graphics, z: HazardSnapshot, now: number): void {
+    const gap = BOSS_RULES.ringGap;
+    const far = this.arena.cols * TILE * 1.5;
+    if (z.wait > 0) {
+      const blink = Math.floor(now / 110) % 2 === 0;
+      const p = 1 - z.wait / BOSS_RULES.ringWindup;
+      g.fillStyle(VENTO, 0.12 + 0.1 * p).slice(z.x, z.y, far, z.h - gap, z.h + gap, false).fillPath();
+      for (const a of [z.h - gap, z.h + gap]) {
+        for (let d = 2 * TILE; d < far; d += 10) g.lineStyle(1.6, WARN, blink ? 0.9 : 0.45).lineBetween(z.x + Math.cos(a) * d, z.y + Math.sin(a) * d, z.x + Math.cos(a) * (d + 5), z.y + Math.sin(a) * (d + 5));
+      }
+      const r = (1.5 + 1.5 * p) * TILE;
+      for (let a = z.h + gap; a < z.h + 2 * Math.PI - gap; a += Math.PI / 14) g.lineStyle(2, WARN, blink ? 0.9 : 0.5).beginPath().arc(z.x, z.y, r, a, Math.min(a + Math.PI / 28, z.h + 2 * Math.PI - gap)).strokePath();
+      return;
+    }
+    const w = BOSS_RULES.ringWidth * TILE;
+    const start = z.h + gap;
+    const end = z.h + 2 * Math.PI - gap;
+    g.lineStyle(w + 2.6, INK, 1).beginPath().arc(z.x, z.y, z.w, start, end).strokePath();
+    g.lineStyle(w, VENTO, 1).beginPath().arc(z.x, z.y, z.w, start, end).strokePath();
+    g.lineStyle(w * 0.3, VENTO_SOMBRA, 1).beginPath().arc(z.x, z.y, z.w + w * 0.25, start, end).strokePath();
+    // Fiapos de vento girando pelo anel.
+    for (let i = 0; i < 10; i++) {
+      const a = start + ((i / 10 + now / 3000) % 1) * (end - start);
+      g.fillStyle(0xffffff, 0.9).fillCircle(z.x + Math.cos(a) * z.w, z.y + Math.sin(a) * z.w, 1.4);
+    }
+  }
+
+  /** A água da enxurrada: verde-água com uma faixa mais escura embaixo e a superfície ondulada, com espuma e contorno marinho. */
+  private drawFlood(g: Phaser.GameObjects.Graphics, z: HazardSnapshot, now: number): void {
+    if (z.h < 0.5) return;
+    g.fillStyle(AGUA, 0.78).fillRect(z.x, z.y + 2, z.w, z.h - 2);
+    g.fillStyle(AGUA_SOMBRA, 0.6).fillRect(z.x, z.y + z.h * 0.55, z.w, z.h * 0.45);
+    const wave = (x: number) => z.y + 1.6 * Math.sin(x / 9 + now / 160);
+    g.fillStyle(ESPUMA, 0.95).beginPath();
+    g.moveTo(z.x, wave(z.x) + 3);
+    for (let x = z.x; x <= z.x + z.w; x += 4) g.lineTo(x, wave(x));
+    g.lineTo(z.x + z.w, wave(z.x + z.w) + 3);
+    g.closePath().fillPath();
+    g.lineStyle(1.4, INK, 1).beginPath();
+    g.moveTo(z.x, wave(z.x));
+    for (let x = z.x; x <= z.x + z.w; x += 4) g.lineTo(x, wave(x));
+    g.strokePath();
+  }
+
   private waveDir(z: HazardSnapshot): number {
     const old = this.hazards.get(z.id);
     return old && old.x !== z.x ? Math.sign(z.x - old.x) : z.x < this.arena.cols * TILE / 2 ? -1 : 1;
@@ -430,7 +560,13 @@ export class BossView {
                 ? BOSS_RULES.shavingWindup
                 : b.attack === ATTACK_PAGE
                   ? BOSS_RULES.pageWindup
-                  : BOSS_RULES.rainWindup;
+                  : b.attack === ATTACK_FLOOD
+                    ? BOSS_RULES.floodWindup
+                    : b.attack === ATTACK_LINES
+                      ? BOSS_RULES.lineWindup
+                      : b.attack === ATTACK_RING
+                        ? BOSS_RULES.ringWindup
+                        : BOSS_RULES.rainWindup;
         const p = 1 - b.timer / windup;
         if (b.attack === ATTACK_STAMP) {
           sx = 1 + 0.14 * p;

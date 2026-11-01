@@ -27,6 +27,12 @@ import {
 import { borboletaSvg, brotoSvg, casuloSvg, gravetoSvg, ouricoBolaSvg, ouricoTontoSvg, seivaArcoSvg } from './floresta-poderes';
 import { letraSvg, paginaSoltaSvg, pergaminhoRoloSvg } from './biblioteca-poderes';
 import { enciclopediaAbertaSvg, morcegoMergulhoSvg } from './pele-biblioteca';
+import { bolhaSvg, gotinhaSvg, orvalhoSvg } from './jardim-poderes';
+import { sombrinhaFechadaSvg } from './pele-jardim';
+import { brocaSvg, parafusoSvg } from './oficina-poderes';
+import { marteloErguidoSvg } from './pele-oficina';
+import { estilhacoSvg, estrelaSvg, flechaSvg, notaSvg } from './castelo-poderes';
+import { aviaoVooSvg, torreaoAbertoSvg } from './pele-castelo';
 import { itemSvg } from './items';
 import { auraEstrelaSvg, auraProtecaoSvg } from './auras';
 import { PLAYER_GLOWS, POSES, riscoteSvg, type Pose } from './riscote';
@@ -168,6 +174,45 @@ export function poderesBibliotecaSpecs(): ArtSpec[] {
       spec('pergaminho-rolo', pergaminhoRoloSvg(), 0.3, 0, 0),
     ],
     'biblioteca',
+  );
+}
+
+/** Os poderes das criaturas do Jardim: a sombrinha fechada (no quadro da borracha), a bolha, o orvalho e a gotinha. */
+export function poderesJardimSpecs(): ArtSpec[] {
+  return vestir(
+    [
+      spec('sombrinha-fechada', sombrinhaFechadaSvg(), 0.23, 55, 89),
+      spec('bolha', bolhaSvg(), 0.36, 0, 0),
+      spec('orvalho', orvalhoSvg(), 0.3, 0, 0),
+      spec('gotinha', gotinhaSvg(), 0.3, 0, 0),
+    ],
+    'jardim',
+  );
+}
+
+/** Os poderes das criaturas da Oficina: o martelo erguido (no quadro da borracha), o parafuso e a broca. */
+export function poderesOficinaSpecs(): ArtSpec[] {
+  return vestir(
+    [spec('martelo-erguido', marteloErguidoSvg(), 0.23, 55, 89), spec('parafuso', parafusoSvg(), 0.3, 0, 0), spec('broca', brocaSvg(), 0.3, 0, 0)],
+    'oficina',
+  );
+}
+
+/**
+ * Os poderes das criaturas do Castelo: o avião voando (no quadro do grampo), o torreão aberto (no da borracha),
+ * a nota, a lasca, a estrela e a flecha.
+ */
+export function poderesCasteloSpecs(): ArtSpec[] {
+  return vestir(
+    [
+      spec('aviao-voo', aviaoVooSvg(), 0.24, 50, 89),
+      spec('torreao-aberto', torreaoAbertoSvg(), 0.23, 55, 89),
+      spec('nota', notaSvg(), 0.36, 0, 0),
+      spec('estilhaco', estilhacoSvg(), 0.3, 0, 0),
+      spec('estrela', estrelaSvg(), 0.3, 0, 0),
+      spec('flecha', flechaSvg(), 0.36, 0, 0),
+    ],
+    'castelo',
   );
 }
 

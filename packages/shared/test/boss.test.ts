@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   ATRIL_ARENA,
+  ATTACK_FLOOD,
+  ATTACK_LINES,
+  ATTACK_RING,
+  BANCADA_ARENA,
   ATTACK_PAGE,
   ATTACK_RAIN,
   ATTACK_SHAVING,
@@ -11,6 +15,11 @@ import {
   BOSS_ARENA,
   BOSS_ARENAS,
   BOSS_CALHAMACO,
+  BOSS_REGADOR,
+  BOSS_LAPISEIRA,
+  BOSS_DRAGAO,
+  TORRE_ARENA,
+  CORETO_ARENA,
   BOSS_MATA_BORRAO,
   BOSS_DEFEATED,
   BOSS_HEAVY,
@@ -21,7 +30,12 @@ import {
   BOSS_WINDUP,
   Boss,
   HAZARD_BLOT,
+  HAZARD_FLOOD,
+  HAZARD_LINE,
+  HAZARD_RING,
   HAZARD_PAGE,
+  floodLevel,
+  ringHits,
   HAZARD_SHAVING,
   HAZARD_WAVE,
   bossKind,
@@ -303,6 +317,237 @@ describe('o Calhamaço, chefe da Biblioteca', () => {
     expect(boss.hazards.size).toBe(0);
   });
 });
+
+describe('o Regador, chefe do Jardim', () => {
+  /** O Regador no coreto, já no chão, com o alvo parado num ponto. */
+  function regador(seed = 3) {
+    const host = fakeHost(seed, { x: 26 * TILE, y: 16 * TILE });
+    const boss = new Boss(CORETO_ARENA, 1, host);
+    run(boss, BOSS_RULES.introTime + TICK_DT);
+    return boss;
+  }
+
+  /** Avança até o aviso da enxurrada começar. */
+  function untilFlood(boss: Boss): void {
+    run(boss, 120, () => boss.state === BOSS_WINDUP && boss.attack === ATTACK_FLOOD);
+    expect(boss.attack).toBe(ATTACK_FLOOD);
+  }
+
+  const floods = (boss: Boss) => [...boss.hazards.values()].filter((z) => z.kind === HAZARD_FLOOD);
+  const bottom = (CORETO_ARENA.rows - 1) * TILE;
+
+  it('a água sobe só até logo abaixo do topo da plataforma mais baixa do coreto', () => {
+    expect(CHAPTER_BOSSES[3]).toBe(CORETO_ARENA);
+    expect(bossKind(CORETO_ARENA)).toBe(BOSS_REGADOR);
+    // As saliências baixas do coreto estão na linha 14.
+    expect(floodLevel(CORETO_ARENA)).toBeCloseTo(14 * TILE + BOSS_RULES.floodMargin * TILE);
+  });
+
+  it('os outros chefes nunca alagam', () => {
+    for (const arena of [BOSS_ARENA, BOSQUE_ARENA, ATRIL_ARENA]) {
+      const boss = new Boss(arena, 1, fakeHost());
+      let seen = false;
+      run(boss, 120, () => {
+        if (boss.attack === ATTACK_FLOOD || floods(boss).length > 0) seen = true;
+        return false;
+      });
+      expect(seen, arena.id).toBe(false);
+    }
+  });
+
+  it('avisa por pelo menos 0,7 s com o nível marcado; depois a água sobe, fica e escoa', () => {
+    const boss = regador();
+    untilFlood(boss);
+    expect(boss.targetY).toBeCloseTo(floodLevel(CORETO_ARENA));
+    let warned = 0;
+    while (boss.state === BOSS_WINDUP) {
+      expect(floods(boss), 'água antes do fim do aviso').toHaveLength(0);
+      boss.step(TICK_DT);
+      warned += TICK_DT;
+    }
+    expect(warned).toBeGreaterThanOrEqual(0.7 - 1e-9);
+    const [z] = floods(boss);
+    expect(z).toBeDefined();
+    let top = Infinity;
+    let fullFor = 0;
+    for (let i = 0; i < ticks(5) && boss.hazards.has(z!.id); i++) {
+      boss.step(TICK_DT);
+      top = Math.min(top, z!.y);
+      if (Math.abs(z!.y - boss.targetY) < 0.01) fullFor += TICK_DT;
+      expect(z!.y + z!.h).toBeCloseTo(bottom, 5);
+    }
+    expect(top).toBeCloseTo(boss.targetY, 5);
+    expect(fullFor).toBeGreaterThanOrEqual(BOSS_RULES.floodHold - 0.1);
+    expect(boss.hazards.has(z!.id)).toBe(false);
+  });
+
+  it('cheia, derruba quem ficou no chão; quem está de pé na plataforma mais baixa fica seco', () => {
+    const boss = regador();
+    untilFlood(boss);
+    run(boss, 3, () => floods(boss).some((z) => Math.abs(z.y - boss.targetY) < 0.01));
+    const body = (feet: number) => ({ x: 3 * TILE, y: feet - 1.3 * TILE, w: 0.8 * TILE, h: 1.3 * TILE });
+    expect(boss.hurts(body(bottom))).toBe(true);
+    expect(boss.hurts(body(14 * TILE))).toBe(false);
+  });
+
+  it('não vem outra enxurrada enquanto a água está alta', () => {
+    const boss = regador(7);
+    let overlap = false;
+    let seen = 0;
+    run(boss, 120, () => {
+      if (boss.state === BOSS_WINDUP && boss.attack === ATTACK_FLOOD && floods(boss).length > 0) overlap = true;
+      if (floods(boss).length > 0) seen++;
+      return false;
+    });
+    expect(seen).toBeGreaterThan(0);
+    expect(overlap).toBe(false);
+  });
+
+  it('a água some quando ele é derrotado', () => {
+    const boss = regador();
+    untilFlood(boss);
+    run(boss, 2, () => boss.state !== BOSS_WINDUP);
+    expect(floods(boss).length).toBeGreaterThan(0);
+    while (boss.alive) boss.ballHit(boss.box, 10);
+    expect(boss.hazards.size).toBe(0);
+  });
+});
+
+describe('a Lapiseira, chefe da Oficina', () => {
+  const target = { x: 20 * TILE, y: 12.5 * TILE };
+  function lapiseira(seed = 3) {
+    const boss = new Boss(BANCADA_ARENA, 1, fakeHost(seed, target));
+    run(boss, BOSS_RULES.introTime + TICK_DT);
+    run(boss, 120, () => boss.state === BOSS_WINDUP && boss.attack === ATTACK_LINES);
+    expect(boss.attack).toBe(ATTACK_LINES);
+    return boss;
+  }
+  const lines = (boss: Boss) => [...boss.hazards.values()].filter((z) => z.kind === HAZARD_LINE);
+
+  it('fecha a Oficina; os outros chefes nunca riscam', () => {
+    expect(CHAPTER_BOSSES[4]).toBe(BANCADA_ARENA);
+    expect(bossKind(BANCADA_ARENA)).toBe(BOSS_LAPISEIRA);
+    for (const arena of [BOSS_ARENA, BOSQUE_ARENA, ATRIL_ARENA, CORETO_ARENA]) {
+      const boss = new Boss(arena, 1, fakeHost());
+      let seen = false;
+      run(boss, 120, () => {
+        if (boss.attack === ATTACK_LINES || [...boss.hazards.values()].some((z) => z.kind === HAZARD_LINE)) seen = true;
+        return false;
+      });
+      expect(seen, arena.id).toBe(false);
+    }
+  });
+
+  it('as retas aparecem no aviso sem machucar, uma delas passando pelo alvo, de borda a borda', () => {
+    const boss = lapiseira();
+    const ls = lines(boss);
+    expect(ls.length).toBe(BOSS_RULES.lineCount[boss.phase - 1]);
+    const body = { x: target.x - 8, y: target.y - 13, w: 16, h: 26 };
+    let warned = 0;
+    while (lines(boss).some((z) => z.wait > 0)) {
+      expect(boss.hurts(body), 'reta antes do fim do aviso').toBe(false);
+      boss.step(TICK_DT);
+      warned += TICK_DT;
+    }
+    expect(warned).toBeGreaterThanOrEqual(0.7 - 1e-9);
+    // A primeira passa pelo alvo: agora derruba.
+    expect(boss.hurts(body)).toBe(true);
+    for (const z of ls) {
+      const ends = [
+        [z.x, z.y],
+        [z.x + z.w, z.y + z.h],
+      ];
+      for (const [x, y] of ends) {
+        const onEdge = Math.abs(x! - TILE) < 0.5 || Math.abs(x! - (BANCADA_ARENA.cols - 1) * TILE) < 0.5 || Math.abs(y! - TILE) < 0.5 || Math.abs(y! - (BANCADA_ARENA.rows - 1) * TILE) < 0.5;
+        expect(onEdge).toBe(true);
+      }
+    }
+    run(boss, BOSS_RULES.lineTime + 0.1);
+    for (const z of ls) expect(boss.hazards.has(z.id)).toBe(false);
+  });
+
+  it('as retas somem quando ela é derrotada', () => {
+    const boss = lapiseira();
+    expect(lines(boss).length).toBeGreaterThan(0);
+    while (boss.alive) boss.ballHit(boss.box, 10);
+    expect(boss.hazards.size).toBe(0);
+  });
+});
+
+describe('o Dragão-Pipa, chefe do Castelo', () => {
+  const target = { x: 26 * TILE, y: 12.5 * TILE };
+  function dragao(seed = 3) {
+    const boss = new Boss(TORRE_ARENA, 1, fakeHost(seed, target));
+    run(boss, BOSS_RULES.introTime + TICK_DT);
+    run(boss, 120, () => boss.state === BOSS_WINDUP && boss.attack === ATTACK_RING);
+    expect(boss.attack).toBe(ATTACK_RING);
+    return boss;
+  }
+  const rings = (boss: Boss) => [...boss.hazards.values()].filter((z) => z.kind === HAZARD_RING);
+
+  it('fecha o Castelo; os outros chefes nunca sopram o anel', () => {
+    expect(CHAPTER_BOSSES[5]).toBe(TORRE_ARENA);
+    expect(bossKind(TORRE_ARENA)).toBe(BOSS_DRAGAO);
+    for (const arena of [BOSS_ARENA, BOSQUE_ARENA, ATRIL_ARENA, CORETO_ARENA, BANCADA_ARENA]) {
+      const boss = new Boss(arena, 1, fakeHost());
+      let seen = false;
+      run(boss, 120, () => {
+        if (boss.attack === ATTACK_RING || rings(boss).length > 0) seen = true;
+        return false;
+      });
+      expect(seen, arena.id).toBe(false);
+    }
+  });
+
+  it('avisa por pelo menos 0,7 s; o anel cresce com a brecha para o alvo, que fica a salvo, e derruba fora dela', () => {
+    const boss = dragao();
+    const [z] = rings(boss);
+    expect(z).toBeDefined();
+    const gap = Math.atan2(target.y - z!.y, target.x - z!.x);
+    expect(z!.h).toBeCloseTo(gap, 5);
+    let warned = 0;
+    while (z!.wait > 0) {
+      boss.step(TICK_DT);
+      warned += TICK_DT;
+    }
+    expect(warned).toBeGreaterThanOrEqual(0.7 - 1e-9);
+    // Um corpo na brecha e outro do lado oposto, à mesma distância do centro do anel.
+    const dist = Math.hypot(target.x - z!.x, target.y - z!.y);
+    const at = (angle: number) => ({ x: z!.x + Math.cos(angle) * dist - 8, y: z!.y + Math.sin(angle) * dist - 13, w: 16, h: 26 });
+    const safe = at(gap);
+    const exposed = at(gap + Math.PI);
+    let hitSafe = false;
+    let hitExposed = false;
+    for (let i = 0; i < ticks(5) && boss.hazards.has(z!.id); i++) {
+      boss.step(TICK_DT);
+      if (!boss.hazards.has(z!.id)) break;
+      if (ringHitsOnly(boss, safe)) hitSafe = true;
+      if (ringHitsOnly(boss, exposed)) hitExposed = true;
+    }
+    expect(hitSafe).toBe(false);
+    expect(hitExposed).toBe(true);
+    expect(boss.hazards.has(z!.id)).toBe(false);
+  });
+
+  it('não sopra outro anel enquanto um cresce', () => {
+    const boss = new Boss(TORRE_ARENA, 1, fakeHost(7, target));
+    run(boss, BOSS_RULES.introTime + TICK_DT);
+    let overlap = false;
+    let seen = 0;
+    run(boss, 120, () => {
+      if (boss.state === BOSS_WINDUP && boss.attack === ATTACK_RING && rings(boss).length > 1) overlap = true;
+      if (rings(boss).length > 0) seen++;
+      return false;
+    });
+    expect(seen).toBeGreaterThan(0);
+    expect(overlap).toBe(false);
+  });
+});
+
+/** Só o anel conta (o corpo do chefe e os outros perigos ficam de fora). */
+function ringHitsOnly(boss: Boss, body: { x: number; y: number; w: number; h: number }): boolean {
+  return [...boss.hazards.values()].some((z) => z.kind === HAZARD_RING && z.wait <= 0 && ringHits(body, z));
+}
 
 const ballAt = (boss: Boss) => ({ x: boss.x + boss.w / 2 - 9, y: boss.y + boss.h - 18, w: 18, h: 18 });
 

@@ -4,7 +4,7 @@ import { DEFAULT_PARAMS, TICK_DT, TILE, type MovementParams } from './params.ts'
 import { createPlayer, stepPlayer, touchesTube, type PlayerState } from './physics.ts';
 import { DIFFICULTY_RULES, POWER_MAX_LEVEL, movementParams, type Difficulty } from './protocol.ts';
 import type { RunEndReason } from './records.ts';
-import { BOSS_APONTADOR, BOSS_CALHAMACO, BOSS_RULES, Boss, bossKind, isBossArena } from './boss.ts';
+import { BOSS_APONTADOR, BOSS_CALHAMACO, BOSS_DRAGAO, BOSS_LAPISEIRA, BOSS_REGADOR, BOSS_RULES, Boss, bossKind, isBossArena } from './boss.ts';
 
 /** Regras da etapa 3 (plano, seções 2.3 a 2.7). Valores iniciais, a ajustar em playtest. */
 export const RULES = {
@@ -159,6 +159,118 @@ export const RULES = {
   lettersRange: 9, // células até a letra sumir
   lettersRest: 0.9, // s ainda aberta depois de atirar
   lettersCooldown: 4.5,
+  // Capítulo do Jardim (2026-11-01): os poderes das criaturas de lá, todos com aviso antes.
+  flashWarn: 0.9, // s com o vaga-lume acendendo, o círculo marcado
+  flashSight: 3, // células até alguém para ele acender
+  flashRadius: 2.6, // células do clarão
+  flashTime: 0.3, // s de clarão (machucando)
+  flashRest: 0.5,
+  flashCooldown: 5,
+  bubbleWarn: 0.8, // s com as bochechas do sapo inchando
+  bubbleSpeed: 2.4, // células/s: a bolha persegue devagar
+  bubbleLife: 5,
+  dewWarn: 0.7, // s com o besouro parado, preparando o chute
+  dewSight: 7, // células à frente, no mesmo andar
+  dewSpeed: 7, // células/s rolando
+  dewLife: 4,
+  dewRest: 0.4,
+  dewCooldown: 4,
+  swingWarn: 0.8, // s com o sino tremendo no fio
+  swingReach: 4, // células para cada lado de alguém embaixo
+  swingAngle: 1, // radianos de cada lado
+  swingPeriod: 1.2, // s de uma ida e volta
+  swingCount: 2, // idas e voltas
+  swingRest: 0.5,
+  swingCooldown: 4,
+  swingDrop: 6, // células/s descendo até o fim do fio, no aviso
+  // Capítulo da Oficina Mágica (2026-11-01).
+  compassWarn: 0.9, // s com a ponta cravada, o círculo marcado
+  compassSight: 3, // células até alguém
+  compassReach: 2.5, // células de braço
+  compassTime: 0.9, // s de uma volta
+  compassWidth: 0.5, // células de grossura do braço
+  compassRest: 0.4,
+  compassCooldown: 5,
+  springWarn: 0.8, // s com a molinha encolhida
+  springSpeed: 9, // células/s no ricochete
+  springTime: 1.6, // s ricocheteando
+  magnetWarn: 0.9, // s com os parafusos marcados no chão
+  magnetSight: 6, // células, no mesmo andar
+  magnetReach: 5, // células de onde saem os parafusos, para cada lado
+  magnetSpeed: 8, // células/s
+  magnetCooldown: 4.5,
+  plumbWarn: 0.8, // s tremendo no fio, com a marca no chão embaixo
+  plumbSight: 8, // células abaixo
+  plumbAlign: 1.5, // células para o lado
+  plumbSpeed: 16, // células/s caindo
+  plumbRise: 6, // células/s voltando
+  plumbRadius: 3, // células da onda ao bater
+  plumbRest: 0.6,
+  plumbCooldown: 4,
+  drillWarn: 0.8, // s com a broca girando, apontada para cima
+  drillSight: 8, // células acima
+  drillAlign: 0.6, // células para o lado
+  drillChase: 6, // células: com alguém acima e longe disso para o lado, anda até ficar embaixo
+  drillSpeed: 11, // células/s
+  drillRange: 10, // células
+  drillRest: 0.5,
+  drillCooldown: 3.5,
+  hammerWarn: 0.9, // s com o martelo erguido (aberto à tinta de frente)
+  hammerSight: 7, // células, no mesmo andar
+  hammerReach: 8, // células do tremor para cada lado, no mesmo chão
+  hammerTime: 0.15, // s de tremor (derruba quem está de pé ali)
+  hammerRest: 0.6,
+  hammerCooldown: 4.5,
+  // Capítulo do Castelo das Nuvens (2026-11-01).
+  foxWarn: 0.8, // s farejando o rastro
+  foxSight: 7, // células até alguém
+  foxDelay: 0.8, // s de atraso no rastro
+  foxSpeed: 12, // células/s no máximo, seguindo o rastro
+  foxTime: 3, // s seguindo
+  foxCooldown: 6,
+  balloonWarn: 0.8, // s inchando
+  shardCount: 8,
+  shardSpeed: 6, // células/s
+  shardRange: 5, // células
+  planeWarn: 0.8, // s de nariz para cima, mirando
+  planeSight: 9, // células até alguém, sem bloco no meio
+  planeSpeed: 12, // células/s
+  planeTime: 2, // s no máximo em voo
+  planeCooldown: 5,
+  mobileWarn: 0.8, // s girando no fio
+  mobileSight: 8, // células para os lados
+  mobileHeight: 0.9, // células acima ou abaixo da altura do móbile (a estrela passa nessa faixa)
+  starSpeed: 7, // células/s
+  starRange: 9, // células
+  mobileRest: 0.5,
+  mobileCooldown: 3.5,
+  hornWarn: 0.8, // s de bochechas cheias
+  hornSight: 9, // células, no mesmo andar
+  noteSpeed: 5, // células/s
+  noteRange: 10, // células
+  noteWave: 1.2, // células de onda para cima e para baixo
+  noteFreq: 5, // radianos por segundo da onda
+  hornRest: 0.5,
+  hornCooldown: 4,
+  towerWarn: 1, // s com o portão aberto e as três marcas no chão (aberto, a tinta pega de frente)
+  towerSight: 8, // células, no mesmo andar
+  arrowDrop: 4, // células acima da marca de onde a flecha cai
+  towerRest: 0.8,
+  towerCooldown: 4.5,
+  geyserWarn: 0.9, // s borbulhando no ponto marcado
+  geyserSight: 8, // células na horizontal
+  geyserRise: 6, // células para cima ou para baixo
+  geyserHeight: 3, // células de jato
+  geyserWidth: 1, // células
+  geyserTime: 0.6, // s de jato (machucando)
+  geyserRest: 0.6,
+  geyserCooldown: 4,
+  parasolWarn: 0.8, // s com a sombrinha fechando (fechada, a tinta pega de frente)
+  parasolSight: 6, // células, no mesmo andar
+  parasolDrops: 5,
+  parasolSpeed: 7, // células/s das gotinhas
+  parasolRest: 0.8,
+  parasolCooldown: 4.5,
 } as const;
 
 export const ITEM_FORCA = 0;
@@ -212,6 +324,48 @@ export const ENEMY_CORUJA = 17;
 /** Enciclopédia (papel da borracha): fechada, a capa barra a tinta; abre para atirar letras e aí a tinta pega. */
 export const ENEMY_ENCICLOPEDIA = 18;
 
+// Criaturas do Jardim das Lanternas (2026-11-01), no mesmo esquema.
+/** Vaga-lume (papel da traça): com alguém perto, acende e solta um clarão em círculo. */
+export const ENEMY_VAGALUME = 19;
+/** Sapo-bolha (papel do saltador): sopra uma bolha que persegue devagar quem está mais perto. */
+export const ENEMY_SAPO = 20;
+/** Besouro-do-orvalho (papel do grampo): chuta uma gota que rola pelo chão e cai pelos vãos. */
+export const ENEMY_BESOURO = 21;
+/** Sino-dos-ventos (papel da fiandeira): no fio, balança como um pêndulo largo. */
+export const ENEMY_SINO = 22;
+/** Chafariz (papel do tinteiro): marca o chão onde alguém está e um jato d'água sobe dali. */
+export const ENEMY_CHAFARIZ = 23;
+/** Sombrinha (papel da borracha): aberta, barra a tinta de frente; fecha (aí a tinta pega) e abre espirrando gotinhas. */
+export const ENEMY_SOMBRINHA = 24;
+
+// Criaturas da Oficina Mágica (2026-11-01), no mesmo esquema.
+/** Compasso (papel da traça): crava a ponta e gira a perna num círculo em volta. */
+export const ENEMY_COMPASSO = 25;
+/** Molinha (papel do saltador): encolhe e dispara em linha reta, ricocheteando nas paredes. */
+export const ENEMY_MOLA = 26;
+/** Ímã-ferradura (papel do grampo): para e puxa dois parafusos que deslizam pelo chão até ele. */
+export const ENEMY_IMA = 27;
+/** Prumo (papel da fiandeira): do fio, despenca no chão de baixo, solta uma onda e volta. */
+export const ENEMY_PRUMO = 28;
+/** Furadeira (papel do tinteiro): fica embaixo de quem está acima e dispara a broca para cima. */
+export const ENEMY_FURADEIRA = 29;
+/** Martelo (papel da borracha): a cabeça barra a tinta; erguido (aí a tinta pega), bate e o chão treme. */
+export const ENEMY_MARTELO = 30;
+
+// Criaturas do Castelo das Nuvens (2026-11-01), no mesmo esquema.
+/** Raposa de origami (papel da traça): segue o rastro de alguém, um pouco atrasada, atravessando tudo. */
+export const ENEMY_RAPOSA = 31;
+/** Balãozinho de origami (papel do saltador): incha e estoura em lascas para todos os lados. */
+export const ENEMY_BALAO = 32;
+/** Aviãozinho de papel (papel do grampo): mira e voa em linha reta até bater. */
+export const ENEMY_AVIAO = 33;
+/** Móbile de estrelas (papel da fiandeira): gira no fio e atira estrelas para os dois lados. */
+export const ENEMY_MOBILE = 34;
+/** Cornetinha de papel (papel do tinteiro): sopra notas que avançam em onda. */
+export const ENEMY_CORNETA = 35;
+/** Torreão (papel da borracha): o portão barra a tinta; aberto (aí a tinta pega), faz cair flechas em três marcas. */
+export const ENEMY_TORREAO = 36;
+
 /** Papel de cada criatura nova: o inimigo do caderno de quem ela herda o andar. */
 export const ENEMY_ROLE: Readonly<Record<number, number>> = {
   [ENEMY_LAGARTA]: ENEMY_TRACA,
@@ -226,12 +380,33 @@ export const ENEMY_ROLE: Readonly<Record<number, number>> = {
   [ENEMY_MORCEGO]: ENEMY_FIANDEIRA,
   [ENEMY_CORUJA]: ENEMY_TINTEIRO,
   [ENEMY_ENCICLOPEDIA]: ENEMY_BORRACHA,
+  [ENEMY_VAGALUME]: ENEMY_TRACA,
+  [ENEMY_SAPO]: ENEMY_SALTADOR,
+  [ENEMY_BESOURO]: ENEMY_GRAMPO,
+  [ENEMY_SINO]: ENEMY_FIANDEIRA,
+  [ENEMY_CHAFARIZ]: ENEMY_TINTEIRO,
+  [ENEMY_SOMBRINHA]: ENEMY_BORRACHA,
+  [ENEMY_COMPASSO]: ENEMY_TRACA,
+  [ENEMY_MOLA]: ENEMY_SALTADOR,
+  [ENEMY_IMA]: ENEMY_GRAMPO,
+  [ENEMY_PRUMO]: ENEMY_FIANDEIRA,
+  [ENEMY_FURADEIRA]: ENEMY_TINTEIRO,
+  [ENEMY_MARTELO]: ENEMY_BORRACHA,
+  [ENEMY_RAPOSA]: ENEMY_TRACA,
+  [ENEMY_BALAO]: ENEMY_SALTADOR,
+  [ENEMY_AVIAO]: ENEMY_GRAMPO,
+  [ENEMY_MOBILE]: ENEMY_FIANDEIRA,
+  [ENEMY_CORNETA]: ENEMY_TINTEIRO,
+  [ENEMY_TORREAO]: ENEMY_BORRACHA,
 };
 
 /** Os fiapos de cada chefe novo: quem anda (papel da traça) e quem corre (papel do grampo). */
 const BOSS_MINIONS: Readonly<Record<number, readonly [number, number]>> = {
   [BOSS_APONTADOR]: [ENEMY_LAGARTA, ENEMY_PINHA],
   [BOSS_CALHAMACO]: [ENEMY_MARCADOR, ENEMY_PERGAMINHO],
+  [BOSS_REGADOR]: [ENEMY_VAGALUME, ENEMY_BESOURO],
+  [BOSS_LAPISEIRA]: [ENEMY_COMPASSO, ENEMY_IMA],
+  [BOSS_DRAGAO]: [ENEMY_RAPOSA, ENEMY_AVIAO],
 };
 
 /** O inimigo do caderno que faz o papel deste (ele mesmo, nos do caderno). */
@@ -247,6 +422,24 @@ export const SPIT_SEIVA = 2;
 export const SPIT_PAGINA = 3;
 /** Letra da enciclopédia: voa reta, sem gravidade. */
 export const SPIT_LETRA = 4;
+/** Bolha do sapo: persegue devagar quem está mais perto, atravessando as plataformas. */
+export const SPIT_BOLHA = 5;
+/** Gota de orvalho do besouro: rola pelo chão, cai pelos vãos e estoura na parede. */
+export const SPIT_ORVALHO = 6;
+/** Gotinha da sombrinha: sai em leque para cima e cai com gravidade. */
+export const SPIT_GOTINHA = 7;
+/** Parafuso do ímã: desliza pelo chão até ele. */
+export const SPIT_PARAFUSO = 8;
+/** Broca da furadeira: sobe reta, atravessando as plataformas. */
+export const SPIT_BROCA = 9;
+/** Lasca do balãozinho: voa reta, para qualquer lado. */
+export const SPIT_ESTILHACO = 10;
+/** Estrela do móbile: voa reta para o lado. */
+export const SPIT_ESTRELA = 11;
+/** Nota da cornetinha: avança em onda (`baseY`, `phase`). */
+export const SPIT_NOTA = 12;
+/** Flecha do torreão: cai até a marca no chão (`landY`). */
+export const SPIT_FLECHA = 13;
 export const MODE_WALK = 0;
 export const MODE_BALL = 1;
 export const MODE_ROLL = 2;
@@ -418,6 +611,27 @@ export interface WarnTimes {
   dive: number;
   beam: number;
   letters: number;
+  /** Jardim: clarão, bolha, gota rolante, balanço, jato e sombrinha. */
+  flash: number;
+  bubble: number;
+  dew: number;
+  swing: number;
+  geyser: number;
+  parasol: number;
+  /** Oficina: compasso, mola, ímã, prumo, furadeira e martelo. */
+  compass: number;
+  spring: number;
+  magnet: number;
+  plumb: number;
+  drill: number;
+  hammer: number;
+  /** Castelo: raposa, balãozinho, avião, móbile, cornetinha e torreão. */
+  fox: number;
+  balloon: number;
+  plane: number;
+  mobile: number;
+  horn: number;
+  tower: number;
 }
 
 export function warnTimes(difficulty: Difficulty): WarnTimes {
@@ -439,6 +653,24 @@ export function warnTimes(difficulty: Difficulty): WarnTimes {
     dive: RULES.diveWarn * k,
     beam: RULES.beamWarn * k,
     letters: RULES.lettersWarn * k,
+    flash: RULES.flashWarn * k,
+    bubble: RULES.bubbleWarn * k,
+    dew: RULES.dewWarn * k,
+    swing: RULES.swingWarn * k,
+    geyser: RULES.geyserWarn * k,
+    parasol: RULES.parasolWarn * k,
+    compass: RULES.compassWarn * k,
+    spring: RULES.springWarn * k,
+    magnet: RULES.magnetWarn * k,
+    plumb: RULES.plumbWarn * k,
+    drill: RULES.drillWarn * k,
+    hammer: RULES.hammerWarn * k,
+    fox: RULES.foxWarn * k,
+    balloon: RULES.balloonWarn * k,
+    plane: RULES.planeWarn * k,
+    mobile: RULES.mobileWarn * k,
+    horn: RULES.hornWarn * k,
+    tower: RULES.towerWarn * k,
   };
 }
 
@@ -501,6 +733,34 @@ export function beamLine(arena: Arena, e: { x: number; y: number; aimX: number; 
   let d = 0;
   while (d < RULES.beamReach * TILE && cellAt(arena, Math.floor((x0 + ux * (d + step)) / TILE), Math.floor((y0 + uy * (d + step)) / TILE)) !== SOLID) d += step;
   return { x0, y0, x1: x0 + ux * d, y1: y0 + uy * d };
+}
+
+/** O círculo encosta na caixa (distância do centro ao ponto mais perto dela). */
+export function circleHits(box: Box, cx: number, cy: number, r: number): boolean {
+  const dx = Math.max(box.x - cx, 0, cx - (box.x + box.w));
+  const dy = Math.max(box.y - cy, 0, cy - (box.y + box.h));
+  return dx * dx + dy * dy < r * r;
+}
+
+/** Jato do chafariz: sobe do chão marcado (`aimX`, `aimY` = altura dos pés) até `geyserHeight` células ou um bloco. */
+export function geyserBox(arena: Arena, aimX: number, aimY: number): Box {
+  const w = RULES.geyserWidth * TILE;
+  const col = Math.floor(aimX / TILE);
+  let top = aimY;
+  while (top > aimY - RULES.geyserHeight * TILE && cellAt(arena, col, Math.floor((top - 1) / TILE)) !== SOLID) top -= TILE / 4;
+  return { x: aimX - w / 2, y: top, w, h: aimY - top };
+}
+
+/**
+ * Onde caem as três flechas do torreão: a 2, 3,5 e 5 células da frente dele, no chão dele, sem passar do
+ * fim do chão. Devolve os x (meio de cada marca); a altura é a dos pés dele.
+ */
+export function towerSpots(arena: Arena, e: { x: number; y: number; dir: number }): number[] {
+  const size = ENEMY_SIZE * TILE;
+  const cx = e.x + size / 2;
+  const feet = Math.round((e.y + size) / TILE) * TILE;
+  const [left, right] = floorSpan(arena, cx, feet, 6);
+  return [2, 3.5, 5].map((d) => Math.min(right - TILE / 2, Math.max(left + TILE / 2, cx + e.dir * d * TILE)));
 }
 
 /** O segmento, com `half` de folga para cada lado, encosta na caixa. */
@@ -635,8 +895,11 @@ export interface Spit {
   vx: number;
   vy: number;
   life: number;
-  /** Seiva: altura dos pés no ponto marcado; antes dela, atravessa as plataformas. */
+  /** Seiva e flecha: altura dos pés no ponto marcado; antes dela, atravessa as plataformas. */
   landY?: number;
+  /** Nota: altura do meio da onda e a fase dela. */
+  baseY?: number;
+  phase?: number;
 }
 
 /** Broto de espinho da pinha: brota (aviso) e depois machuca ao toque; um tiro de tinta o arranca. */
@@ -867,6 +1130,7 @@ export class World {
   /** Avança o mundo um tick (depois dos comandos do tick). */
   step(): void {
     const dt = TICK_DT;
+    this.recordTrails();
     for (const p of this.players.values()) {
       p.cooldown = Math.max(0, p.cooldown - dt);
       p.invuln = Math.max(0, p.invuln - dt);
@@ -1122,6 +1386,10 @@ export class World {
         }
         // A enciclopédia: fechada, a capa barra a tinta de frente; aberta (para atirar), encharca de qualquer lado.
         if (e.kind === ENEMY_ENCICLOPEDIA && e.mode === MODE_WALK && e.skill === SKILL_NONE && Math.sign(d.vx) === -e.dir) break;
+        // A sombrinha: aberta (andando, abrindo ou depois), a frente barra a tinta; fechada no aviso, encharca de qualquer lado.
+        if (e.kind === ENEMY_SOMBRINHA && e.mode === MODE_WALK && e.skill !== SKILL_WARN && Math.sign(d.vx) === -e.dir) break;
+        // O martelo (cabeça à frente) e o torreão (portão): fechados, barram de frente; erguido ou aberto (aviso), encharcam.
+        if ((e.kind === ENEMY_MARTELO || e.kind === ENEMY_TORREAO) && e.mode === MODE_WALK && e.skill !== SKILL_WARN && Math.sign(d.vx) === -e.dir) break;
         this.soak(e, d.power);
         break;
       }
@@ -1157,6 +1425,19 @@ export class World {
         }
         if (e.skill === SKILL_ACT && e.kind === ENEMY_GRILO) {
           this.leapStep(e, dt);
+          continue;
+        }
+        // Ricochete da molinha, rastro da raposa e voo do avião.
+        if (e.skill === SKILL_ACT && e.kind === ENEMY_MOLA) {
+          this.ricochet(e, dt);
+          continue;
+        }
+        if (e.skill === SKILL_ACT && e.kind === ENEMY_RAPOSA) {
+          this.followTrail(e, dt);
+          continue;
+        }
+        if (e.skill === SKILL_ACT && e.kind === ENEMY_AVIAO) {
+          this.flyStraight(e, dt);
           continue;
         }
         if (e.anchorY >= 0) {
@@ -1209,6 +1490,9 @@ export class World {
     b.onGround = false;
     if (e.kind === ENEMY_CESTO && this.twigs(e, dt)) return;
     if (e.kind === ENEMY_MORCEGO && this.dive(e, dt)) return;
+    if (e.kind === ENEMY_SINO && this.swing(e, dt)) return;
+    if (e.kind === ENEMY_PRUMO && this.plumb(e, dt)) return;
+    if (e.kind === ENEMY_MOBILE && this.mobileThrow(e, dt)) return;
     if (e.aiTimer > 0) {
       e.aiTimer -= dt;
       return;
@@ -1244,7 +1528,17 @@ export class World {
     this.shocks = this.shocks.filter((w) => w.age < RULES.slamWaveTime);
     const half = (RULES.spitSize * TILE) / 2;
     for (const s of this.spits.values()) {
-      if (s.kind === SPIT_GRAVETO || s.kind === SPIT_SEIVA) s.vy += RULES.hazardGravity * TILE * dt;
+      if (s.kind === SPIT_ORVALHO) {
+        this.roll(s, dt);
+        continue;
+      }
+      if (s.kind === SPIT_BOLHA) this.steerBubble(s);
+      if (s.kind === SPIT_GRAVETO || s.kind === SPIT_SEIVA || s.kind === SPIT_GOTINHA || s.kind === SPIT_FLECHA) s.vy += RULES.hazardGravity * TILE * dt;
+      if (s.kind === SPIT_NOTA) {
+        s.phase = (s.phase ?? 0) + RULES.noteFreq * dt;
+        s.vy = 0;
+        s.y = (s.baseY ?? s.y) + Math.sin(s.phase) * RULES.noteWave * TILE;
+      }
       // A página cai devagar e balança de um lado para o outro.
       if (s.kind === SPIT_PAGINA) s.vy = Math.min(RULES.pagesFall * TILE, s.vy + RULES.hazardGravity * TILE * dt);
       const sway = s.kind === SPIT_PAGINA ? Math.cos(s.life * 4) * RULES.pagesSway * TILE : 0;
@@ -1252,10 +1546,63 @@ export class World {
       s.y += s.vy * dt;
       s.life -= dt;
       const cell = cellAt(this.arena, Math.floor((s.x + half) / TILE), Math.floor((s.y + half) / TILE));
-      const falls = s.kind === SPIT_GRAVETO || s.kind === SPIT_SEIVA || s.kind === SPIT_PAGINA;
+      const falls = s.kind === SPIT_GRAVETO || s.kind === SPIT_SEIVA || s.kind === SPIT_PAGINA || s.kind === SPIT_GOTINHA || s.kind === SPIT_FLECHA;
       const lands = falls && s.vy > 0 && cell !== EMPTY && (s.landY === undefined || s.y + 2 * half >= s.landY - TILE / 2);
       if (s.life <= 0 || cell === SOLID || lands) this.spits.delete(s.id);
     }
+  }
+
+  /** Bolha do sapo: vira na direção do meio de quem está mais perto, sempre na mesma velocidade. */
+  private steerBubble(s: Spit): void {
+    const half = (RULES.spitSize * TILE) / 2;
+    let best: { x: number; y: number } | null = null;
+    let bestDist = Infinity;
+    for (const p of this.players.values()) {
+      if (p.down || p.away) continue;
+      const px = p.body.x + (this.params.playerWidth * TILE) / 2;
+      const py = p.body.y + (this.params.playerHeight * TILE) / 2;
+      const d = Math.hypot(px - (s.x + half), py - (s.y + half));
+      if (d < bestDist) {
+        bestDist = d;
+        best = { x: px, y: py };
+      }
+    }
+    if (!best || bestDist < 1) return;
+    const speed = RULES.bubbleSpeed * TILE;
+    s.vx = ((best.x - (s.x + half)) / bestDist) * speed;
+    s.vy = ((best.y - (s.y + half)) / bestDist) * speed;
+  }
+
+  /**
+   * Gota de orvalho: rola pelo chão na direção em que saiu; sem chão embaixo, cai até o próximo; estoura
+   * numa parede ou quando seca.
+   */
+  private roll(s: Spit, dt: number): void {
+    const size = RULES.spitSize * TILE;
+    s.life -= dt;
+    const nx = s.x + s.vx * dt;
+    const front = s.vx > 0 ? nx + size : nx;
+    if (s.life <= 0 || cellAt(this.arena, Math.floor(front / TILE), Math.floor((s.y + size / 2) / TILE)) === SOLID) {
+      this.spits.delete(s.id);
+      return;
+    }
+    s.x = nx;
+    const col = Math.floor((s.x + size / 2) / TILE);
+    const bottom = s.y + size;
+    if (bottom % TILE === 0 && cellAt(this.arena, col, bottom / TILE) !== EMPTY) {
+      s.vy = 0;
+      return;
+    }
+    // Sem chão: cai; pousa no topo da primeira célula cheia que a borda de baixo cruzar.
+    s.vy = Math.min(s.vy + RULES.hazardGravity * TILE * dt, 15 * TILE);
+    const next = bottom + s.vy * dt;
+    for (let row = Math.floor(bottom / TILE) + 1; row * TILE <= next; row++) {
+      if (cellAt(this.arena, col, row) === EMPTY) continue;
+      s.y = row * TILE - size;
+      s.vy = 0;
+      return;
+    }
+    s.y = next - size;
   }
 
   /**
@@ -1305,17 +1652,46 @@ export class World {
     const role = enemyRole(e.kind);
     if (e.kind === ENEMY_PINHA) return this.pinha(e);
     if (e.kind === ENEMY_PERGAMINHO) return this.pergaminho(e, dt);
+    if (e.kind === ENEMY_BESOURO) return this.besouro(e, dt);
+    if (e.kind === ENEMY_IMA) return this.ima(e, dt);
+    if (e.kind === ENEMY_AVIAO) return this.aviao(e, dt);
     if (role === ENEMY_GRAMPO) return this.grampo(e);
     if (e.kind === ENEMY_CARACOL) return this.caracol(e, dt);
     if (e.kind === ENEMY_CORUJA) return this.coruja(e, dt);
+    if (e.kind === ENEMY_CHAFARIZ) return this.chafariz(e, dt);
+    if (e.kind === ENEMY_FURADEIRA) return this.furadeira(e, dt);
+    if (e.kind === ENEMY_CORNETA) return this.corneta(e, dt);
     if (role === ENEMY_TINTEIRO) return this.tinteiro(e, dt);
     if (e.kind === ENEMY_OURICO) return this.ourico(e, dt);
     if (e.kind === ENEMY_ENCICLOPEDIA) return this.enciclopedia(e, dt);
+    if (e.kind === ENEMY_SOMBRINHA) return this.sombrinha(e, dt);
+    if (e.kind === ENEMY_MARTELO) return this.martelo(e, dt);
+    if (e.kind === ENEMY_TORREAO) return this.torreao(e, dt);
     if (role === ENEMY_BORRACHA) return this.borracha(e, dt);
     if (role === ENEMY_TRACA || role === ENEMY_FIANDEIRA) {
       if (e.kind === ENEMY_LAGARTA && e.skill !== SKILL_NONE) return this.metamorfose(e, dt);
       if (e.kind === ENEMY_MARCADOR && e.skill !== SKILL_NONE) return this.warp(e, dt);
+      if (e.kind === ENEMY_VAGALUME && e.skill !== SKILL_NONE) return this.flash(e, dt);
+      if (e.kind === ENEMY_COMPASSO && e.skill !== SKILL_NONE) return this.compass(e, dt);
+      if (e.kind === ENEMY_RAPOSA && e.skill !== SKILL_NONE) return this.fox(e, dt);
+      // O compasso crava a ponta com alguém perto; a raposa fareja quem está ao alcance.
+      if (e.skilled && e.kind === ENEMY_COMPASSO && b.onGround && e.skillCd === 0 && this.preyNear(e, RULES.compassSight)) {
+        e.skill = SKILL_WARN;
+        e.skillTimer = this.warn.compass;
+        return 0;
+      }
+      if (e.skilled && e.kind === ENEMY_RAPOSA && b.onGround && e.skillCd === 0 && this.aimFox(e)) {
+        e.skill = SKILL_WARN;
+        e.skillTimer = this.warn.fox;
+        return 0;
+      }
       if (e.skill !== SKILL_NONE) return this.dash(e, dt);
+      // O vaga-lume acende quando alguém chega perto, em qualquer direção.
+      if (e.skilled && e.kind === ENEMY_VAGALUME && b.onGround && e.skillCd === 0 && this.preyNear(e, RULES.flashSight)) {
+        e.skill = SKILL_WARN;
+        e.skillTimer = this.warn.flash;
+        return 0;
+      }
       // O marca-página, com alguém longe (até em outro andar), some e aparece ao lado dele.
       if (e.skilled && e.kind === ENEMY_MARCADOR && b.onGround && e.skillCd === 0 && this.aimWarp(e)) {
         e.skill = SKILL_WARN;
@@ -1347,7 +1723,7 @@ export class World {
       return buttons | (e.dir > 0 ? BTN_RIGHT : BTN_LEFT);
     }
 
-    if (e.skill !== SKILL_NONE) return e.kind === ENEMY_GRILO ? this.leap(e, dt) : e.kind === ENEMY_DICIONARIO ? this.pagesJump(e, dt) : this.slam(e, dt);
+    if (e.skill !== SKILL_NONE) return e.kind === ENEMY_GRILO ? this.leap(e, dt) : e.kind === ENEMY_DICIONARIO ? this.pagesJump(e, dt) : e.kind === ENEMY_SAPO ? this.blowBubble(e, dt) : e.kind === ENEMY_MOLA ? this.spring(e, dt) : e.kind === ENEMY_BALAO ? this.balloon(e, dt) : this.slam(e, dt);
     if (!b.onGround) return dirButton;
     if ((e.aiTimer -= dt) > 0) return 0;
     e.aiTimer = 0.9 + this.rng() * 0.6;
@@ -1361,7 +1737,7 @@ export class World {
       // O grilo marca onde alguém está e salta até lá; perto demais (ou com o alvo no ar), pula normal.
       if (e.kind !== ENEMY_GRILO || this.aimLeap(e)) {
         e.skill = SKILL_WARN;
-        e.skillTimer = e.kind === ENEMY_GRILO ? this.warn.leap : e.kind === ENEMY_DICIONARIO ? this.warn.pages : this.warn.slam;
+        e.skillTimer = e.kind === ENEMY_GRILO ? this.warn.leap : e.kind === ENEMY_DICIONARIO ? this.warn.pages : e.kind === ENEMY_SAPO ? this.warn.bubble : e.kind === ENEMY_MOLA ? this.warn.spring : e.kind === ENEMY_BALAO ? this.warn.balloon : this.warn.slam;
         return 0;
       }
     }
@@ -2004,6 +2380,839 @@ export class World {
     }
   }
 
+  /** Vaga-lume: acendendo (aviso, parado) → clarão em círculo → apagado um instante → espera. */
+  private flash(e: Enemy, dt: number): number {
+    if ((e.skillTimer -= dt) > 0) return 0;
+    if (e.skill === SKILL_WARN) {
+      e.skill = SKILL_ACT;
+      e.skillTimer = RULES.flashTime;
+    } else if (e.skill === SKILL_ACT) {
+      e.skill = SKILL_REST;
+      e.skillTimer = RULES.flashRest;
+    } else {
+      e.skill = SKILL_NONE;
+      e.skillCd = RULES.flashCooldown * this.cdMult;
+    }
+    return 0;
+  }
+
+  /** Sapo: bochechas inchando (aviso, parado) → sopra a bolha na direção de quem está mais perto → parado. */
+  private blowBubble(e: Enemy, dt: number): number {
+    if ((e.skillTimer -= dt) > 0) return 0;
+    if (e.skill === SKILL_WARN) {
+      const target = this.nearestPlayer(e.body);
+      if (target) e.dir = target.body.x > e.body.x ? 1 : -1;
+      const s = RULES.spitSize * TILE;
+      const box = enemyBox(e);
+      const id = this.nextId++;
+      this.spits.set(id, {
+        id,
+        kind: SPIT_BOLHA,
+        x: e.dir > 0 ? box.x + box.w : box.x - s,
+        y: box.y + box.h * 0.4 - s / 2,
+        vx: e.dir * RULES.bubbleSpeed * TILE,
+        vy: 0,
+        life: RULES.bubbleLife,
+      });
+      e.skill = SKILL_REST;
+      e.skillTimer = RULES.slamRest;
+      return 0;
+    }
+    e.skill = SKILL_NONE;
+    return 0;
+  }
+
+  /**
+   * Besouro: corre como o grampo; com alguém à frente no mesmo andar, para (aviso) e chuta uma gota de
+   * orvalho que rola pelo chão para a frente e cai pelos vãos.
+   */
+  private besouro(e: Enemy, dt: number): number {
+    if (e.skill !== SKILL_NONE) {
+      if ((e.skillTimer -= dt) > 0) return 0;
+      if (e.skill === SKILL_WARN) {
+        this.kickDew(e);
+        e.skill = SKILL_REST;
+        e.skillTimer = RULES.dewRest;
+      } else {
+        e.skill = SKILL_NONE;
+        e.skillCd = RULES.dewCooldown * this.cdMult;
+      }
+      return 0;
+    }
+    if (e.skilled && e.body.onGround && e.skillCd === 0 && this.preyInLine(e, RULES.dewSight, true)) {
+      e.skill = SKILL_WARN;
+      e.skillTimer = this.warn.dew;
+      return 0;
+    }
+    return this.grampo(e);
+  }
+
+  /** A gota sai da frente do besouro, apoiada no chão dele. */
+  private kickDew(e: Enemy): void {
+    const s = RULES.spitSize * TILE;
+    const box = enemyBox(e);
+    const feet = Math.round((box.y + box.h) / TILE) * TILE;
+    const id = this.nextId++;
+    this.spits.set(id, {
+      id,
+      kind: SPIT_ORVALHO,
+      x: e.dir > 0 ? box.x + box.w : box.x - s,
+      y: feet - s,
+      vx: e.dir * RULES.dewSpeed * TILE,
+      vy: 0,
+      life: RULES.dewLife,
+    });
+  }
+
+  /**
+   * Sino no fio: com alguém de pé embaixo (perto na horizontal), treme (aviso) e balança como um pêndulo
+   * largo, preso no ponto do fio (`aimX`, `anchorY`), e para de novo embaixo dele. Devolve true enquanto
+   * o fio fica parado. `fromY` guarda o comprimento do fio até o meio do corpo. No aviso ele desce até o
+   * fim do fio, para balançar com o fio inteiro.
+   */
+  private swing(e: Enemy, dt: number): boolean {
+    const b = e.body;
+    const size = ENEMY_SIZE * TILE;
+    e.skillCd = Math.max(0, e.skillCd - dt);
+    if (e.skill === SKILL_WARN) {
+      b.y = Math.min(e.threadEnd, b.y + RULES.swingDrop * TILE * dt);
+      if ((e.skillTimer -= dt) > 0) return true;
+      e.skill = SKILL_ACT;
+      e.clock = 0;
+      e.aimX = b.x + size / 2;
+      e.fromY = b.y + size / 2 - e.anchorY;
+      return true;
+    }
+    if (e.skill === SKILL_ACT) {
+      e.clock += dt;
+      const total = RULES.swingPeriod * RULES.swingCount;
+      const t = Math.min(e.clock, total);
+      const angle = RULES.swingAngle * Math.sin((2 * Math.PI * t) / RULES.swingPeriod);
+      const cx = e.aimX + Math.sin(angle) * e.fromY;
+      const cy = e.anchorY + Math.cos(angle) * e.fromY;
+      b.x = Math.min((this.arena.cols - 1) * TILE - size, Math.max(TILE, cx - size / 2));
+      b.y = cy - size / 2;
+      const v = Math.cos((2 * Math.PI * t) / RULES.swingPeriod);
+      if (Math.abs(v) > 0.05) e.dir = v > 0 ? 1 : -1;
+      if (e.clock >= total) {
+        b.x = e.aimX - size / 2;
+        b.y = e.anchorY + e.fromY - size / 2;
+        e.skill = SKILL_REST;
+        e.skillTimer = RULES.swingRest;
+      }
+      return true;
+    }
+    if (e.skill === SKILL_REST) {
+      if ((e.skillTimer -= dt) <= 0) {
+        e.skill = SKILL_NONE;
+        e.skillCd = RULES.swingCooldown * this.cdMult;
+      }
+      return true;
+    }
+    if (!e.skilled || e.skillCd > 0 || !this.preyUnderSwing(e)) return false;
+    e.skill = SKILL_WARN;
+    e.skillTimer = this.warn.swing;
+    return true;
+  }
+
+  /** Alguém de pé embaixo do sino, a até `swingReach` células para o lado e ao alcance do balanço. */
+  private preyUnderSwing(e: Enemy): boolean {
+    const size = ENEMY_SIZE * TILE;
+    const cx = e.body.x + size / 2;
+    const bottom = e.body.y + size;
+    for (const p of this.players.values()) {
+      if (p.down || p.away || !p.body.onGround) continue;
+      const px = p.body.x + (this.params.playerWidth * TILE) / 2;
+      const dy = p.body.y + this.params.playerHeight * TILE - bottom;
+      if (Math.abs(px - cx) <= RULES.swingReach * TILE && dy >= -TILE && dy <= 2 * TILE) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Chafariz: anda devagar sem sair do andar; vendo alguém de pé por perto (mesmo em outro andar), marca o
+   * chão onde ele está (aviso: borbulha) e o jato sobe dali (`geyserBox`).
+   */
+  private chafariz(e: Enemy, dt: number): number {
+    const b = e.body;
+    if (e.skill !== SKILL_NONE) {
+      if ((e.skillTimer -= dt) > 0) return 0;
+      if (e.skill === SKILL_WARN) {
+        e.skill = SKILL_ACT;
+        e.skillTimer = RULES.geyserTime;
+      } else if (e.skill === SKILL_ACT) {
+        e.skill = SKILL_REST;
+        e.skillTimer = RULES.geyserRest;
+      } else {
+        e.skill = SKILL_NONE;
+        e.skillCd = RULES.geyserCooldown * this.cdMult;
+      }
+      return 0;
+    }
+    if (!b.onGround) return 0;
+    const prey = e.skilled && e.skillCd === 0 ? this.preyForGeyser(e) : null;
+    if (prey) {
+      e.aimX = prey.body.x + (this.params.playerWidth * TILE) / 2;
+      e.aimY = Math.round((prey.body.y + this.params.playerHeight * TILE) / TILE) * TILE;
+      e.dir = e.aimX > b.x ? 1 : -1;
+      e.skill = SKILL_WARN;
+      e.skillTimer = this.warn.geyser;
+      return 0;
+    }
+    if (e.wasBlocked || this.edgeAhead(e)) e.dir = e.dir > 0 ? -1 : 1;
+    return e.dir > 0 ? BTN_RIGHT : BTN_LEFT;
+  }
+
+  /** Quem está de pé ao alcance do chafariz (o mais perto), em qualquer andar perto do dele. */
+  private preyForGeyser(e: Enemy): WorldPlayer | null {
+    const size = ENEMY_SIZE * TILE;
+    const cx = e.body.x + size / 2;
+    const feet = e.body.y + size;
+    let best: WorldPlayer | null = null;
+    let bestDist = Infinity;
+    for (const p of this.players.values()) {
+      if (p.down || p.away || !p.body.onGround) continue;
+      const dx = Math.abs(p.body.x + (this.params.playerWidth * TILE) / 2 - cx);
+      const dy = Math.abs(p.body.y + this.params.playerHeight * TILE - feet);
+      if (dx > RULES.geyserSight * TILE || dy > RULES.geyserRise * TILE || dx + dy >= bestDist) continue;
+      best = p;
+      bestDist = dx + dy;
+    }
+    return best;
+  }
+
+  /**
+   * Sombrinha: vira na hora para quem está mais perto e anda devagar; vendo alguém no mesmo andar, fecha
+   * (aviso: fechada, a tinta pega de frente) e abre de uma vez, espirrando gotinhas em leque para cima.
+   * Vale sempre, sem depender da fase. A tinta: veja `stepDrops`.
+   */
+  private sombrinha(e: Enemy, dt: number): number {
+    const b = e.body;
+    if (e.skill !== SKILL_NONE) {
+      if ((e.skillTimer -= dt) > 0) return 0;
+      if (e.skill === SKILL_WARN) {
+        this.splashDrops(e);
+        e.skill = SKILL_REST;
+        e.skillTimer = RULES.parasolRest;
+      } else {
+        e.skill = SKILL_NONE;
+        e.skillCd = RULES.parasolCooldown * this.cdMult;
+      }
+      return 0;
+    }
+    if (!b.onGround) return 0;
+    if (e.skillCd === 0) {
+      const prey = this.preyInLine(e, RULES.parasolSight, false);
+      if (prey) {
+        e.dir = prey.body.x > b.x ? 1 : -1;
+        e.skill = SKILL_WARN;
+        e.skillTimer = this.warn.parasol;
+        return 0;
+      }
+    }
+    const target = this.nearestPlayer(b);
+    if (!target) return 0;
+    const dx = target.body.x - b.x;
+    if (Math.abs(dx) > TILE) e.dir = dx > 0 ? 1 : -1;
+    if (Math.abs(dx) <= TILE / 2) return 0;
+    return e.dir > 0 ? BTN_RIGHT : BTN_LEFT;
+  }
+
+  /** As gotinhas saem do alto da sombrinha em leque, de um lado a outro, todas subindo. */
+  private splashDrops(e: Enemy): void {
+    const s = RULES.spitSize * TILE;
+    const box = enemyBox(e);
+    const x = box.x + box.w / 2 - s / 2;
+    const y = box.y - s / 2;
+    const n: number = RULES.parasolDrops;
+    const speed = RULES.parasolSpeed * TILE;
+    for (let i = 0; i < n; i++) {
+      // De -150° a -30°: para cima, abrindo para os dois lados.
+      const angle = -Math.PI * (5 / 6) + (n > 1 ? (i / (n - 1)) * (Math.PI * (2 / 3)) : Math.PI / 3);
+      const id = this.nextId++;
+      this.spits.set(id, { id, kind: SPIT_GOTINHA, x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: 3 });
+    }
+  }
+
+
+  /** Rastro de cada jogador (meio da base do corpo), do mais antigo ao mais novo, para a raposa. */
+  private readonly trails = new Map<number, Array<{ x: number; y: number }>>();
+
+  private recordTrails(): void {
+    const keep = Math.ceil(RULES.foxDelay / TICK_DT) + 1;
+    for (const p of this.players.values()) {
+      let t = this.trails.get(p.slot);
+      if (!t) this.trails.set(p.slot, (t = []));
+      t.push({ x: p.body.x + (this.params.playerWidth * TILE) / 2, y: p.body.y + this.params.playerHeight * TILE });
+      if (t.length > keep) t.shift();
+    }
+  }
+
+  // --- Oficina Mágica ---
+
+  /**
+   * Compasso: crava a ponta (aviso, parado) e gira a perna uma volta inteira em volta de si. A ponta da
+   * perna fica em `aimX`/`aimY` (o braço vai do meio dele até ali).
+   */
+  private compass(e: Enemy, dt: number): number {
+    const size = ENEMY_SIZE * TILE;
+    const cx = e.body.x + size / 2;
+    const cy = e.body.y + size / 2;
+    const reach = RULES.compassReach * TILE;
+    if (e.skill === SKILL_WARN) {
+      e.aimX = cx + e.dir * reach;
+      e.aimY = cy;
+      if ((e.skillTimer -= dt) > 0) return 0;
+      e.skill = SKILL_ACT;
+      e.skillTimer = RULES.compassTime;
+      e.clock = 0;
+      return 0;
+    }
+    if (e.skill === SKILL_ACT) {
+      e.clock += dt;
+      const angle = (e.dir > 0 ? 0 : Math.PI) - e.dir * 2 * Math.PI * Math.min(1, e.clock / RULES.compassTime);
+      e.aimX = cx + Math.cos(angle) * reach;
+      e.aimY = cy + Math.sin(angle) * reach;
+      if ((e.skillTimer -= dt) <= 0) {
+        e.skill = SKILL_REST;
+        e.skillTimer = RULES.compassRest;
+      }
+      return 0;
+    }
+    if ((e.skillTimer -= dt) <= 0) {
+      e.skill = SKILL_NONE;
+      e.skillCd = RULES.compassCooldown * this.cdMult;
+    }
+    return 0;
+  }
+
+  /** Molinha: encolhida (aviso, parada) → dispara reta na direção de quem está mais perto → cai e descansa. */
+  private spring(e: Enemy, dt: number): number {
+    if (e.skill === SKILL_WARN) {
+      if ((e.skillTimer -= dt) > 0) return 0;
+      const size = ENEMY_SIZE * TILE;
+      const target = this.nearestPlayer(e.body);
+      let dx = e.dir;
+      let dy = -1;
+      if (target) {
+        dx = target.body.x + (this.params.playerWidth * TILE) / 2 - (e.body.x + size / 2);
+        dy = target.body.y + (this.params.playerHeight * TILE) / 2 - (e.body.y + size / 2);
+      }
+      const len = Math.hypot(dx, dy) || 1;
+      e.fromX = (dx / len) * RULES.springSpeed * TILE;
+      e.fromY = (dy / len) * RULES.springSpeed * TILE;
+      if (Math.abs(dx) > 1) e.dir = dx > 0 ? 1 : -1;
+      e.skill = SKILL_ACT;
+      e.skillTimer = RULES.springTime;
+      return 0;
+    }
+    if ((e.skillTimer -= dt) <= 0) e.skill = SKILL_NONE;
+    return 0;
+  }
+
+  /** O ricochete: anda reto (`fromX`, `fromY` é a velocidade) e rebate nos blocos e nas paredes; atravessa plataformas. */
+  private ricochet(e: Enemy, dt: number): void {
+    const b = e.body;
+    e.skillTimer -= dt;
+    if (this.solidAt(b.x + e.fromX * dt, b.y)) e.fromX = -e.fromX;
+    else b.x += e.fromX * dt;
+    if (this.solidAt(b.x, b.y + e.fromY * dt)) e.fromY = -e.fromY;
+    else b.y += e.fromY * dt;
+    if (Math.abs(e.fromX) > 1) e.dir = e.fromX > 0 ? 1 : -1;
+    b.vx = 0;
+    b.vy = 0;
+    b.onGround = false;
+    if (e.skillTimer <= 0) {
+      e.skill = SKILL_REST;
+      e.skillTimer = RULES.slamRest;
+    }
+  }
+
+  /**
+   * Ímã: corre como o grampo; com alguém no mesmo andar, para e marca dois pontos no chão, um de cada
+   * lado (`aimX` à esquerda, `aimY` à direita, os dois em x), e de lá dois parafusos deslizam até ele.
+   */
+  private ima(e: Enemy, dt: number): number {
+    const b = e.body;
+    const size = ENEMY_SIZE * TILE;
+    if (e.skill !== SKILL_NONE) {
+      if ((e.skillTimer -= dt) > 0) return 0;
+      if (e.skill === SKILL_WARN) {
+        const cx = b.x + size / 2;
+        const feet = Math.round((b.y + size) / TILE) * TILE;
+        const s = RULES.spitSize * TILE;
+        const speed = RULES.magnetSpeed * TILE;
+        let longest = 0;
+        for (const from of [e.aimX, e.aimY]) {
+          const dist = Math.abs(cx - from);
+          if (dist < TILE) continue;
+          longest = Math.max(longest, dist);
+          const id = this.nextId++;
+          this.spits.set(id, { id, kind: SPIT_PARAFUSO, x: from - s / 2, y: feet - s, vx: Math.sign(cx - from) * speed, vy: 0, life: (dist - size / 2) / speed });
+        }
+        e.skill = SKILL_REST;
+        e.skillTimer = longest / speed;
+      } else {
+        e.skill = SKILL_NONE;
+        e.skillCd = RULES.magnetCooldown * this.cdMult;
+      }
+      return 0;
+    }
+    if (e.skilled && b.onGround && e.skillCd === 0 && this.preyInLine(e, RULES.magnetSight, false)) {
+      const cx = b.x + size / 2;
+      const [left, right] = floorSpan(this.arena, cx, b.y + size, RULES.magnetReach);
+      e.aimX = Math.max(left + TILE / 2, cx - RULES.magnetReach * TILE);
+      e.aimY = Math.min(right - TILE / 2, cx + RULES.magnetReach * TILE);
+      e.skill = SKILL_WARN;
+      e.skillTimer = this.warn.magnet;
+      return 0;
+    }
+    return this.grampo(e);
+  }
+
+  /**
+   * Prumo no fio: com alguém de pé logo embaixo, treme (aviso, com a marca no chão: `aimY`), despenca até
+   * o chão de baixo, solta uma onda dos dois lados, espera e sobe de volta ao fio. Devolve true enquanto
+   * o fio fica parado. `clock`: 0 caindo, 1 subindo.
+   */
+  private plumb(e: Enemy, dt: number): boolean {
+    const b = e.body;
+    const size = ENEMY_SIZE * TILE;
+    e.skillCd = Math.max(0, e.skillCd - dt);
+    if (e.skill === SKILL_WARN) {
+      if ((e.skillTimer -= dt) > 0) return true;
+      e.skill = SKILL_ACT;
+      e.clock = 0;
+      e.fromY = b.y;
+      return true;
+    }
+    if (e.skill === SKILL_ACT && e.clock === 0) {
+      b.y = Math.min(e.aimY - size, b.y + RULES.plumbSpeed * TILE * dt);
+      if (b.y >= e.aimY - size) {
+        const x = b.x + size / 2;
+        const [left, right] = floorSpan(this.arena, x, e.aimY, RULES.plumbRadius);
+        this.shocks.push({ x, y: e.aimY, left, right, age: 0 });
+        e.skill = SKILL_REST;
+        e.skillTimer = RULES.plumbRest;
+      }
+      return true;
+    }
+    if (e.skill === SKILL_REST) {
+      if ((e.skillTimer -= dt) > 0) return true;
+      e.skill = SKILL_ACT;
+      e.clock = 1;
+      return true;
+    }
+    if (e.skill === SKILL_ACT) {
+      b.y = Math.max(e.fromY, b.y - RULES.plumbRise * TILE * dt);
+      if (b.y <= e.fromY) {
+        e.skill = SKILL_NONE;
+        e.skillCd = RULES.plumbCooldown * this.cdMult;
+      }
+      return true;
+    }
+    if (!e.skilled || e.skillCd > 0) return false;
+    const floor = this.plumbFloor(e);
+    if (floor === null) return false;
+    e.aimX = b.x + size / 2;
+    e.aimY = floor;
+    e.skill = SKILL_WARN;
+    e.skillTimer = this.warn.plumb;
+    return true;
+  }
+
+  /** Chão embaixo do prumo (altura dos pés) se alguém está de pé ali, perto da coluna dele; senão null. */
+  private plumbFloor(e: Enemy): number | null {
+    const size = ENEMY_SIZE * TILE;
+    const cx = e.body.x + size / 2;
+    const col = Math.floor(cx / TILE);
+    let row = Math.floor((e.body.y + size) / TILE);
+    while (row < this.arena.rows - 1 && cellAt(this.arena, col, row) === EMPTY) row++;
+    if (cellAt(this.arena, col, row) === EMPTY) return null;
+    const floor = row * TILE;
+    if (floor - (e.body.y + size) > RULES.plumbSight * TILE) return null;
+    for (const p of this.players.values()) {
+      if (p.down || p.away || !p.body.onGround) continue;
+      const px = p.body.x + (this.params.playerWidth * TILE) / 2;
+      if (Math.abs(px - cx) <= RULES.plumbAlign * TILE && Math.abs(p.body.y + this.params.playerHeight * TILE - floor) < TILE / 2) return floor;
+    }
+    return null;
+  }
+
+  /**
+   * Furadeira: anda devagar sem sair do andar; com alguém de pé acima dela, vai para baixo dele e, alinhada,
+   * para (aviso) e dispara a broca para cima, atravessando as plataformas.
+   */
+  private furadeira(e: Enemy, dt: number): number {
+    const b = e.body;
+    const size = ENEMY_SIZE * TILE;
+    if (e.skill !== SKILL_NONE) {
+      if ((e.skillTimer -= dt) > 0) return 0;
+      if (e.skill === SKILL_WARN) {
+        const s = RULES.spitSize * TILE;
+        const id = this.nextId++;
+        this.spits.set(id, { id, kind: SPIT_BROCA, x: b.x + size / 2 - s / 2, y: b.y - s, vx: 0, vy: -RULES.drillSpeed * TILE, life: RULES.drillRange / RULES.drillSpeed });
+        e.skill = SKILL_REST;
+        e.skillTimer = RULES.drillRest;
+      } else {
+        e.skill = SKILL_NONE;
+        e.skillCd = RULES.drillCooldown * this.cdMult;
+      }
+      return 0;
+    }
+    if (!b.onGround) return 0;
+    const above = e.skilled && e.skillCd === 0 ? this.preyAbove(e) : null;
+    if (above) {
+      const dx = above.body.x + (this.params.playerWidth * TILE) / 2 - (b.x + size / 2);
+      if (Math.abs(dx) <= RULES.drillAlign * TILE) {
+        e.aimX = b.x + size / 2;
+        e.aimY = above.body.y + this.params.playerHeight * TILE;
+        e.skill = SKILL_WARN;
+        e.skillTimer = this.warn.drill;
+        return 0;
+      }
+      e.dir = dx > 0 ? 1 : -1;
+      if (!this.edgeAhead(e) && !e.wasBlocked) return e.dir > 0 ? BTN_RIGHT : BTN_LEFT;
+      return 0;
+    }
+    if (e.wasBlocked || this.edgeAhead(e)) e.dir = e.dir > 0 ? -1 : 1;
+    return e.dir > 0 ? BTN_RIGHT : BTN_LEFT;
+  }
+
+  /** Quem está de pé acima da furadeira, perto o bastante para o lado (o mais perto). */
+  private preyAbove(e: Enemy): WorldPlayer | null {
+    const size = ENEMY_SIZE * TILE;
+    const cx = e.body.x + size / 2;
+    const feet = e.body.y + size;
+    let best: WorldPlayer | null = null;
+    let bestDist = Infinity;
+    for (const p of this.players.values()) {
+      if (p.down || p.away || !p.body.onGround) continue;
+      const dy = feet - (p.body.y + this.params.playerHeight * TILE);
+      const dx = Math.abs(p.body.x + (this.params.playerWidth * TILE) / 2 - cx);
+      if (dy < TILE / 2 || dy > RULES.drillSight * TILE || dx > RULES.drillChase * TILE || dx + dy >= bestDist) continue;
+      best = p;
+      bestDist = dx + dy;
+    }
+    return best;
+  }
+
+  /**
+   * Martelo: vira na hora para quem está mais perto e anda devagar; com alguém no mesmo andar, se ergue
+   * (aviso: aberto à tinta de frente) e bate: o chão dele treme e derruba quem está de pé ali (`aimX` a
+   * `aimY`); quem está no ar escapa. Vale sempre, sem depender da fase.
+   */
+  private martelo(e: Enemy, dt: number): number {
+    const b = e.body;
+    const size = ENEMY_SIZE * TILE;
+    if (e.skill !== SKILL_NONE) {
+      if ((e.skillTimer -= dt) > 0) return 0;
+      if (e.skill === SKILL_WARN) {
+        e.skill = SKILL_ACT;
+        e.skillTimer = RULES.hammerTime;
+      } else if (e.skill === SKILL_ACT) {
+        e.skill = SKILL_REST;
+        e.skillTimer = RULES.hammerRest;
+      } else {
+        e.skill = SKILL_NONE;
+        e.skillCd = RULES.hammerCooldown * this.cdMult;
+      }
+      return 0;
+    }
+    if (!b.onGround) return 0;
+    if (e.skillCd === 0) {
+      const prey = this.preyInLine(e, RULES.hammerSight, false);
+      if (prey) {
+        e.dir = prey.body.x > b.x ? 1 : -1;
+        const [left, right] = floorSpan(this.arena, b.x + size / 2, b.y + size, RULES.hammerReach);
+        e.aimX = left;
+        e.aimY = right;
+        e.skill = SKILL_WARN;
+        e.skillTimer = this.warn.hammer;
+        return 0;
+      }
+    }
+    const target = this.nearestPlayer(b);
+    if (!target) return 0;
+    const dx = target.body.x - b.x;
+    if (Math.abs(dx) > TILE) e.dir = dx > 0 ? 1 : -1;
+    if (Math.abs(dx) <= TILE / 2) return 0;
+    return e.dir > 0 ? BTN_RIGHT : BTN_LEFT;
+  }
+
+  // --- Castelo das Nuvens ---
+
+  /** Raposa: escolhe quem está por perto (de pé) e guarda a vaga dele em `hops`; `aimX`/`aimY` marcam onde ele está. */
+  private aimFox(e: Enemy): boolean {
+    const size = ENEMY_SIZE * TILE;
+    const cx = e.body.x + size / 2;
+    const cy = e.body.y + size / 2;
+    let best: WorldPlayer | null = null;
+    let bestDist = Infinity;
+    for (const p of this.players.values()) {
+      if (p.down || p.away) continue;
+      const px = p.body.x + (this.params.playerWidth * TILE) / 2;
+      const py = p.body.y + (this.params.playerHeight * TILE) / 2;
+      const d = Math.hypot(px - cx, py - cy);
+      if (d > RULES.foxSight * TILE || d >= bestDist) continue;
+      best = p;
+      bestDist = d;
+    }
+    if (!best) return false;
+    e.hops = best.slot;
+    e.aimX = best.body.x + (this.params.playerWidth * TILE) / 2;
+    e.aimY = best.body.y + this.params.playerHeight * TILE;
+    return true;
+  }
+
+  /** Raposa: farejando (aviso, parada) → segue o rastro (em `followTrail`) → cai e descansa → espera. */
+  private fox(e: Enemy, dt: number): number {
+    if (e.skill === SKILL_WARN) {
+      if ((e.skillTimer -= dt) > 0) return 0;
+      e.skill = SKILL_ACT;
+      e.skillTimer = RULES.foxTime;
+      return 0;
+    }
+    if ((e.skillTimer -= dt) <= 0) {
+      e.skill = SKILL_NONE;
+      e.skillCd = RULES.foxCooldown * this.cdMult;
+    }
+    return 0;
+  }
+
+  /** Vai na direção de onde o alvo estava `foxDelay` segundos atrás, sem passar de `foxSpeed`, atravessando tudo. */
+  private followTrail(e: Enemy, dt: number): void {
+    const b = e.body;
+    const size = ENEMY_SIZE * TILE;
+    e.skillTimer -= dt;
+    const target = [...this.players.values()].find((p) => p.slot === e.hops);
+    const trail = this.trails.get(e.hops);
+    const spot = trail?.[0];
+    if (!target || target.down || target.away || !spot || e.skillTimer <= 0) {
+      e.skill = SKILL_REST;
+      e.skillTimer = RULES.slamRest;
+      return;
+    }
+    const tx = spot.x - size / 2;
+    const ty = spot.y - size;
+    const dx = tx - b.x;
+    const dy = ty - b.y;
+    const d = Math.hypot(dx, dy);
+    const max = RULES.foxSpeed * TILE * dt;
+    const k = d > max ? max / d : 1;
+    b.x = Math.min((this.arena.cols - 1) * TILE - size, Math.max(TILE, b.x + dx * k));
+    b.y = Math.min((this.arena.rows - 1) * TILE - size, Math.max(0, b.y + dy * k));
+    if (Math.abs(dx) > 1) e.dir = dx > 0 ? 1 : -1;
+    b.vx = 0;
+    b.vy = 0;
+    b.onGround = false;
+  }
+
+  /** Balãozinho: incha (aviso, parado) → estoura em lascas para todos os lados → parado um instante. */
+  private balloon(e: Enemy, dt: number): number {
+    if ((e.skillTimer -= dt) > 0) return 0;
+    if (e.skill === SKILL_WARN) {
+      const s = RULES.spitSize * TILE;
+      const size = ENEMY_SIZE * TILE;
+      const x = e.body.x + size / 2 - s / 2;
+      const y = e.body.y + size / 2 - s / 2;
+      const n: number = RULES.shardCount;
+      const speed = RULES.shardSpeed * TILE;
+      for (let i = 0; i < n; i++) {
+        const angle = (2 * Math.PI * i) / n;
+        const id = this.nextId++;
+        this.spits.set(id, { id, kind: SPIT_ESTILHACO, x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: RULES.shardRange / RULES.shardSpeed });
+      }
+      e.skill = SKILL_REST;
+      e.skillTimer = RULES.slamRest;
+      return 0;
+    }
+    e.skill = SKILL_NONE;
+    return 0;
+  }
+
+  /**
+   * Avião: corre como o grampo; vendo alguém por perto sem bloco no meio, para de nariz para cima (aviso,
+   * com o ponto marcado em `aimX`/`aimY`) e voa reto naquela direção até bater num bloco ou cansar.
+   */
+  private aviao(e: Enemy, dt: number): number {
+    const b = e.body;
+    const size = ENEMY_SIZE * TILE;
+    if (e.skill === SKILL_WARN) {
+      if ((e.skillTimer -= dt) > 0) return 0;
+      const dx = e.aimX - (b.x + size / 2);
+      const dy = e.aimY - (b.y + size / 2);
+      const len = Math.hypot(dx, dy) || 1;
+      e.fromX = (dx / len) * RULES.planeSpeed * TILE;
+      e.fromY = (dy / len) * RULES.planeSpeed * TILE;
+      e.skill = SKILL_ACT;
+      e.skillTimer = RULES.planeTime;
+      return 0;
+    }
+    if (e.skill === SKILL_REST) {
+      if (b.onGround && (e.skillTimer -= dt) <= 0) {
+        e.skill = SKILL_NONE;
+        e.skillCd = RULES.planeCooldown * this.cdMult;
+      }
+      return 0;
+    }
+    if (e.skilled && b.onGround && e.skillCd === 0) {
+      const prey = this.preyForBeam(e);
+      if (prey && Math.hypot(prey.body.x - b.x, prey.body.y - b.y) <= RULES.planeSight * TILE) {
+        e.aimX = prey.body.x + (this.params.playerWidth * TILE) / 2;
+        e.aimY = prey.body.y + (this.params.playerHeight * TILE) / 2;
+        e.dir = e.aimX > b.x + size / 2 ? 1 : -1;
+        e.skill = SKILL_WARN;
+        e.skillTimer = this.warn.plane;
+        return 0;
+      }
+    }
+    return this.grampo(e);
+  }
+
+  /** O voo do avião: reto, atravessando as plataformas; para ao bater num bloco, na borda ou no fim do tempo. */
+  private flyStraight(e: Enemy, dt: number): void {
+    const b = e.body;
+    const size = ENEMY_SIZE * TILE;
+    e.skillTimer -= dt;
+    const nx = b.x + e.fromX * dt;
+    const ny = b.y + e.fromY * dt;
+    const out = nx < TILE || nx > (this.arena.cols - 1) * TILE - size || ny < 0 || ny > (this.arena.rows - 1) * TILE - size;
+    if (e.skillTimer <= 0 || out || this.solidAt(nx, ny)) {
+      e.skill = SKILL_REST;
+      e.skillTimer = RULES.slamRest;
+      b.vx = 0;
+      b.vy = 0;
+      return;
+    }
+    b.x = nx;
+    b.y = ny;
+    if (Math.abs(e.fromX) > 1) e.dir = e.fromX > 0 ? 1 : -1;
+    b.vx = 0;
+    b.vy = 0;
+    b.onGround = false;
+  }
+
+  /**
+   * Móbile no fio: com alguém perto da altura dele, para os lados, gira (aviso) e atira uma estrela para cada
+   * lado, na altura do meio dele. Devolve true enquanto o fio fica parado.
+   */
+  private mobileThrow(e: Enemy, dt: number): boolean {
+    const b = e.body;
+    const size = ENEMY_SIZE * TILE;
+    e.skillCd = Math.max(0, e.skillCd - dt);
+    if (e.skill === SKILL_WARN) {
+      if ((e.skillTimer -= dt) > 0) return true;
+      const s = RULES.spitSize * TILE;
+      const speed = RULES.starSpeed * TILE;
+      for (const dir of [-1, 1]) {
+        const id = this.nextId++;
+        this.spits.set(id, { id, kind: SPIT_ESTRELA, x: b.x + size / 2 - s / 2 + dir * size / 2, y: b.y + size / 2 - s / 2, vx: dir * speed, vy: 0, life: RULES.starRange / RULES.starSpeed });
+      }
+      e.skill = SKILL_REST;
+      e.skillTimer = RULES.mobileRest;
+      return true;
+    }
+    if (e.skill === SKILL_REST) {
+      if ((e.skillTimer -= dt) <= 0) {
+        e.skill = SKILL_NONE;
+        e.skillCd = RULES.mobileCooldown * this.cdMult;
+      }
+      return true;
+    }
+    if (!e.skilled || e.skillCd > 0) return false;
+    const cx = b.x + size / 2;
+    const cy = b.y + size / 2;
+    for (const p of this.players.values()) {
+      if (p.down || p.away) continue;
+      const px = p.body.x + (this.params.playerWidth * TILE) / 2;
+      const py = p.body.y + (this.params.playerHeight * TILE) / 2;
+      if (Math.abs(px - cx) > RULES.mobileSight * TILE || Math.abs(py - cy) > RULES.mobileHeight * TILE) continue;
+      e.skill = SKILL_WARN;
+      e.skillTimer = this.warn.mobile;
+      return true;
+    }
+    return false;
+  }
+
+  /** Cornetinha: anda devagar sem sair do andar; com alguém no mesmo andar, para (aviso) e sopra duas notas em onda. */
+  private corneta(e: Enemy, dt: number): number {
+    const b = e.body;
+    if (e.skill !== SKILL_NONE) {
+      if ((e.skillTimer -= dt) > 0) return 0;
+      if (e.skill === SKILL_WARN) {
+        const s = RULES.spitSize * TILE;
+        const box = enemyBox(e);
+        const x = e.dir > 0 ? box.x + box.w : box.x - s;
+        const baseY = box.y + box.h * 0.4 - s / 2;
+        for (const phase of [0, Math.PI]) {
+          const id = this.nextId++;
+          this.spits.set(id, { id, kind: SPIT_NOTA, x, y: baseY, vx: e.dir * RULES.noteSpeed * TILE, vy: 0, life: RULES.noteRange / RULES.noteSpeed, baseY, phase });
+        }
+        e.skill = SKILL_REST;
+        e.skillTimer = RULES.hornRest;
+      } else {
+        e.skill = SKILL_NONE;
+        e.skillCd = RULES.hornCooldown * this.cdMult;
+      }
+      return 0;
+    }
+    if (!b.onGround) return 0;
+    const prey = e.skilled && e.skillCd === 0 ? this.preyInLine(e, RULES.hornSight, false) : null;
+    if (prey) {
+      e.dir = prey.body.x > b.x ? 1 : -1;
+      e.skill = SKILL_WARN;
+      e.skillTimer = this.warn.horn;
+      return 0;
+    }
+    if (e.wasBlocked || this.edgeAhead(e)) e.dir = e.dir > 0 ? -1 : 1;
+    return e.dir > 0 ? BTN_RIGHT : BTN_LEFT;
+  }
+
+  /**
+   * Torreão: vira na hora para quem está mais perto e anda devagar; com alguém no mesmo andar, abre o portão
+   * (aviso: aberto à tinta de frente, com as três marcas no chão, `towerSpots`) e as flechas caem nelas.
+   * Vale sempre, sem depender da fase.
+   */
+  private torreao(e: Enemy, dt: number): number {
+    const b = e.body;
+    const size = ENEMY_SIZE * TILE;
+    if (e.skill !== SKILL_NONE) {
+      if ((e.skillTimer -= dt) > 0) return 0;
+      if (e.skill === SKILL_WARN) {
+        const s = RULES.spitSize * TILE;
+        const feet = Math.round((b.y + size) / TILE) * TILE;
+        for (const x of towerSpots(this.arena, { x: b.x, y: b.y, dir: e.dir })) {
+          const id = this.nextId++;
+          this.spits.set(id, { id, kind: SPIT_FLECHA, x: x - s / 2, y: feet - RULES.arrowDrop * TILE, vx: 0, vy: 0, life: 2, landY: feet });
+        }
+        e.skill = SKILL_REST;
+        e.skillTimer = RULES.towerRest;
+      } else {
+        e.skill = SKILL_NONE;
+        e.skillCd = RULES.towerCooldown * this.cdMult;
+      }
+      return 0;
+    }
+    if (!b.onGround) return 0;
+    if (e.skillCd === 0) {
+      const prey = this.preyInLine(e, RULES.towerSight, false);
+      if (prey) {
+        e.dir = prey.body.x > b.x ? 1 : -1;
+        e.skill = SKILL_WARN;
+        e.skillTimer = this.warn.tower;
+        return 0;
+      }
+    }
+    const target = this.nearestPlayer(b);
+    if (!target) return 0;
+    const dx = target.body.x - b.x;
+    if (Math.abs(dx) > TILE) e.dir = dx > 0 ? 1 : -1;
+    if (Math.abs(dx) <= TILE / 2) return 0;
+    return e.dir > 0 ? BTN_RIGHT : BTN_LEFT;
+  }
+
+
   /** Grampo: corre reto, nunca pula, desce pelos vãos e só vira na parede. */
   private grampo(e: Enemy): number {
     if (e.body.onGround && e.wasBlocked) e.dir = e.dir > 0 ? -1 : 1;
@@ -2280,6 +3489,10 @@ export class World {
       // O tapete aberto do pergaminho e o facho da coruja.
       if (e.skill !== SKILL_ACT) continue;
       if (e.kind === ENEMY_PERGAMINHO && overlaps(box, unrollBox({ x: e.body.x, y: e.body.y, dir: e.dir, aimX: e.aimX }))) return true;
+      if (e.kind === ENEMY_COMPASSO && segmentHits(box, { x0: e.body.x + (ENEMY_SIZE * TILE) / 2, y0: e.body.y + (ENEMY_SIZE * TILE) / 2, x1: e.aimX, y1: e.aimY }, (RULES.compassWidth * TILE) / 2)) return true;
+      if (e.kind === ENEMY_MARTELO && p.body.onGround && Math.abs(box.y + box.h - (e.body.y + ENEMY_SIZE * TILE)) < TILE / 2 && box.x + box.w > e.aimX && box.x < e.aimY) return true;
+      if (e.kind === ENEMY_VAGALUME && circleHits(box, e.body.x + (ENEMY_SIZE * TILE) / 2, e.body.y + (ENEMY_SIZE * TILE) / 2, RULES.flashRadius * TILE)) return true;
+      if (e.kind === ENEMY_CHAFARIZ && overlaps(box, geyserBox(this.arena, e.aimX, e.aimY))) return true;
       if (e.kind === ENEMY_CORUJA && segmentHits(box, beamLine(this.arena, { x: e.body.x, y: e.body.y, aimX: e.aimX, aimY: e.aimY }), (RULES.beamWidth * TILE) / 2)) return true;
     }
     if (this.boss?.hurts(box)) return true;
@@ -2389,7 +3602,7 @@ export class World {
         return;
       }
       // Sem ponto de fio livre, vem quem anda no lugar (do mesmo capítulo).
-      kind = kind === ENEMY_CESTO ? ENEMY_LAGARTA : kind === ENEMY_MORCEGO ? ENEMY_MARCADOR : ENEMY_TRACA;
+      kind = kind === ENEMY_CESTO ? ENEMY_LAGARTA : kind === ENEMY_MORCEGO ? ENEMY_MARCADOR : kind === ENEMY_SINO ? ENEMY_VAGALUME : kind === ENEMY_PRUMO ? ENEMY_COMPASSO : kind === ENEMY_MOBILE ? ENEMY_RAPOSA : ENEMY_TRACA;
     }
     const points = this.arena.enemySpawns;
     this.spawnEnemy(kind, points[this.spawnPoint++ % points.length]!, stage.skills.includes(kind));
