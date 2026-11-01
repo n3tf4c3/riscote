@@ -77,6 +77,8 @@ export function parseDifficulty(raw: unknown): Difficulty {
 /** Opções de quem entra (ao criar ou ao entrar pelo código). O nome passa por `parseRecordName`. */
 export interface JoinOptions {
   name?: string;
+  /** Chave das vagas do computador que criou a sala (ver `CreateRoomOptions.localKey`). */
+  localKey?: string;
 }
 
 export interface CreateRoomOptions extends JoinOptions {
@@ -84,6 +86,35 @@ export interface CreateRoomOptions extends JoinOptions {
   difficulty?: Difficulty;
   /** Sala aberta: aparece com código e nomes na lista da capa. Sem o campo, a sala é privada. */
   open?: boolean;
+  /** Vagas para quem joga no computador que cria a sala (o teclado e um controle por jogador a mais). */
+  local?: number;
+  /** Vagas para quem entra pela internet. A sala comporta `local + online` (`parseSeats`). */
+  online?: number;
+  /**
+   * Segredo sorteado pelo navegador de quem cria a sala: só quem entra com ela ocupa as vagas locais.
+   * Nunca vai para o estado sincronizado nem para a lista de salas.
+   */
+  localKey?: string;
+}
+
+/** Vagas da sala: as do computador que a criou (com quem criou) e as da internet. */
+export interface Seats {
+  local: number;
+  online: number;
+}
+
+/** Valida as vagas pedidas na criação; sem o campo (cliente antigo) ou fora do limite, 1 local e o resto pela internet. */
+export function parseSeats(local: unknown, online: unknown): Seats {
+  const l = typeof local === 'number' && Number.isInteger(local) && local >= 1 && local <= MAX_PLAYERS ? local : 1;
+  const o = typeof online === 'number' && Number.isInteger(online) && online >= 0 && online <= MAX_PLAYERS - l ? online : MAX_PLAYERS - l;
+  return { local: l, online: o };
+}
+
+const LOCAL_KEY = /^[A-Za-z0-9_-]{16,64}$/;
+
+/** Valida a chave das vagas locais; qualquer outra coisa vira null (entra pelas vagas da internet). */
+export function parseLocalKey(raw: unknown): string | null {
+  return typeof raw === 'string' && LOCAL_KEY.test(raw) ? raw : null;
 }
 
 /** Caminho HTTP do servidor com a lista das salas (`RoomSummary[]`). */
@@ -94,6 +125,10 @@ export interface RoomSummary {
   /** Código para entrar; null na sala privada. */
   code: string | null;
   players: number;
+  /** Quantos cabem na sala (vagas locais mais as da internet). */
+  capacity: number;
+  /** Vagas pela internet ainda livres: 0 é sala cheia para quem vem de fora. */
+  vacant: number;
   /** Nomes na ordem de chegada; vazio na sala privada. */
   names: string[];
   /** Índice em CHAPTERS. */
@@ -124,7 +159,10 @@ export function parseRoomList(raw: unknown): RoomSummary[] {
     if (code === undefined || players === null || chapter === null || page === null || pages === null) continue;
     if (!(DIFFICULTIES as readonly unknown[]).includes(r.difficulty)) continue;
     const names = code && Array.isArray(r.names) ? r.names.filter((n): n is string => parseRecordName(n) === n).slice(0, MAX_PLAYERS) : [];
-    rooms.push({ code, players, names, chapter, difficulty: r.difficulty as Difficulty, playing: r.playing === true, page, pages });
+    // Servidor antigo, sem os campos: sala de MAX_PLAYERS, toda pela internet.
+    const capacity = Math.max(players, count(r.capacity, MAX_PLAYERS) ?? MAX_PLAYERS);
+    const vacant = Math.min(capacity - players, count(r.vacant, MAX_PLAYERS) ?? capacity - players);
+    rooms.push({ code, players, capacity, vacant, names, chapter, difficulty: r.difficulty as Difficulty, playing: r.playing === true, page, pages });
   }
   return rooms;
 }
@@ -184,16 +222,23 @@ export const LOBBY_IDLE_MINUTES = 10;
 
 export const LOBBY_IDLE_TEXT = `A sala fechou depois de ${LOBBY_IDLE_MINUTES} minutos parada no aquecimento.`;
 
+/** Recusa de quem não tem mais vaga na sala. */
+export const ROOM_FULL = 'Sala cheia: todas as vagas estão ocupadas.';
+
+/** Recusa a quem vem pela internet quando só sobram as vagas reservadas ao computador que criou a sala. */
+export const ONLINE_FULL = 'As vagas pela internet desta sala estão ocupadas: as que sobram são de quem joga no computador que a criou.';
+
 /**
  * Traduz a recusa do matchmaking em mensagem para o jogador. A sala só fica trancada
- * ao atingir MAX_PLAYERS (o servidor não tranca por outro motivo), então "locked" = cheia.
+ * ao atingir a capacidade dela (o servidor não tranca por outro motivo), então "locked" = cheia.
  */
 export function describeJoinError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   if (message.includes(TOO_MANY_JOINS)) return TOO_MANY_JOINS;
   if (message.includes(SERVER_FULL)) return SERVER_FULL;
   if (message.includes(TOO_MANY_ROOMS)) return TOO_MANY_ROOMS;
-  if (/is locked/.test(message)) return `Sala cheia: o limite é de ${MAX_PLAYERS} jogadores.`;
+  if (message.includes(ONLINE_FULL)) return ONLINE_FULL;
+  if (message.includes(ROOM_FULL) || /is locked/.test(message)) return ROOM_FULL;
   if (/not found/.test(message)) return 'Nenhuma sala com esse código.';
   return 'Não foi possível entrar na sala. Tente de novo.';
 }
@@ -204,6 +249,9 @@ export interface SavedSeat {
   server: string;
   code: string;
   token: string;
+  /** Quem criou a sala: a chave das vagas locais e quantos jogam neste computador. */
+  localKey?: string;
+  local?: number;
 }
 
 /** Endereço do servidor na forma guardada e comparada: sem espaços, sem barra no fim, em minúsculas. */
@@ -221,7 +269,11 @@ export function seatForServer(raw: unknown, server: string): SavedSeat | null {
   const seat = raw as Record<string, unknown>;
   if (typeof seat.server !== 'string' || typeof seat.code !== 'string' || typeof seat.token !== 'string') return null;
   if (seat.server !== normalizeServerUrl(server) || !seat.token) return null;
-  return { server: seat.server, code: seat.code, token: seat.token };
+  const saved: SavedSeat = { server: seat.server, code: seat.code, token: seat.token };
+  const localKey = parseLocalKey(seat.localKey);
+  if (localKey) saved.localKey = localKey;
+  if (localKey) saved.local = parseSeats(seat.local, 0).local;
+  return saved;
 }
 
 /** Normaliza o que a pessoa digitou ("ab-cd 23" → "ABCD23"); devolve null se não for um código válido. */

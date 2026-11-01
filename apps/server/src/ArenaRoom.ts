@@ -1,9 +1,8 @@
 import { randomInt } from 'node:crypto';
-import { Room, matchMaker, type Client } from '@colyseus/core';
+import { ErrorCode, Room, ServerError, matchMaker, type Client } from '@colyseus/core';
 import {
   CLOSE_LOBBY_IDLE,
   LOBBY_IDLE_MINUTES,
-  MAX_PLAYERS,
   MSG_GIVE_UP,
   MSG_INPUT,
   MSG_NAME,
@@ -19,13 +18,17 @@ import {
   CHAPTERS,
   CHAPTER_BOSSES,
   PHASE_LOBBY,
+  ONLINE_FULL,
+  ROOM_FULL,
   World,
   chapterFrom,
   isBossArena,
   withBoss,
   parseDifficulty,
   parseInput,
+  parseLocalKey,
   parseRecordName,
+  parseSeats,
   placeholderName,
   type CreateRoomOptions,
   type InputMessage,
@@ -91,13 +94,27 @@ export class ArenaRoom extends Room<{ state: GameState }> {
   private open = false;
   /** Índice em CHAPTERS do capítulo da sala. */
   private chapterIndex = 0;
+  /** Vagas do computador que criou a sala e da internet (pedido do usuário em 2026-11-01). */
+  private seatsLocal = 1;
+  private seatsOnline = 0;
+  /** Chave de quem joga no computador que criou a sala; null depois que todos eles saem. */
+  private localKey: string | null = null;
+  /** Que vaga cada um ocupa, desde a autorização (antes do onJoin) até a saída definitiva. */
+  private kinds = new Map<string, 'local' | 'online'>();
+  /** Alguém já entrou: o primeiro é quem criou a sala. */
+  private joinedOnce = false;
 
   async onCreate(options: CreateRoomOptions = {}): Promise<void> {
     let code = randomCode();
     while ((await matchMaker.query({ roomId: code })).length > 0) code = randomCode();
     this.roomId = code;
 
-    this.maxClients = MAX_PLAYERS;
+    const seats = parseSeats(options.local, options.online);
+    this.seatsLocal = seats.local;
+    this.seatsOnline = seats.online;
+    this.localKey = parseLocalKey(options.localKey);
+    // O Colyseus tranca a sala sozinho ao chegar aqui; a divisão entre as vagas fica no onAuth.
+    this.maxClients = seats.local + seats.online;
     // 60 comandos/s mais folga; acima disso o cliente é desconectado.
     this.maxMessagesPerSecond = 120;
     // Capítulo da arena escolhida na criação da sala, sempre da 1ª fase; o chefe dele fecha o capítulo.
@@ -114,6 +131,9 @@ export class ArenaRoom extends Room<{ state: GameState }> {
     state.difficulty = difficulty;
     state.hostId = '';
     state.boss = new BossSchema();
+    state.capacity = this.maxClients;
+    state.seatsLocal = this.seatsLocal;
+    state.seatsOnline = this.seatsOnline;
     this.state = state;
     this.sync();
     this.patchRate = PATCH_RATE_MS;
@@ -154,6 +174,8 @@ export class ArenaRoom extends Room<{ state: GameState }> {
     return {
       code: this.open ? this.roomId : null,
       players: this.world.players.size,
+      capacity: this.maxClients,
+      vacant: Math.max(0, Math.min(this.seatsOnline - this.count('online'), this.maxClients - this.kinds.size)),
       names: this.open ? names : [],
       chapter: this.chapterIndex,
       difficulty: this.world.difficulty,
@@ -161,6 +183,29 @@ export class ArenaRoom extends Room<{ state: GameState }> {
       page: this.world.arenaIndex,
       pages: this.world.chapter.length,
     };
+  }
+
+  private count(kind: 'local' | 'online'): number {
+    let n = 0;
+    for (const k of this.kinds.values()) if (k === kind) n++;
+    return n;
+  }
+
+  /**
+   * Divide as vagas: quem criou a sala e quem entra com a chave dela ocupam as do computador; os
+   * outros, as da internet. Com as locais cheias, quem tem a chave ainda pode usar uma da internet.
+   * A vaga é contada já aqui, antes do onJoin, para duas entradas ao mesmo tempo não passarem juntas.
+   */
+  onAuth(client: Client, options: JoinOptions = {}): true {
+    const creator = !this.joinedOnce;
+    this.joinedOnce = true;
+    const keyed = creator || (this.localKey !== null && parseLocalKey(options?.localKey) === this.localKey);
+    let kind: 'local' | 'online';
+    if (keyed && this.count('local') < this.seatsLocal) kind = 'local';
+    else if (this.count('online') < this.seatsOnline) kind = 'online';
+    else throw new ServerError(ErrorCode.AUTH_FAILED, keyed ? ROOM_FULL : ONLINE_FULL);
+    this.kinds.set(client.sessionId, kind);
+    return true;
   }
 
   onJoin(client: Client, options: JoinOptions = {}): void {
@@ -201,6 +246,9 @@ export class ArenaRoom extends Room<{ state: GameState }> {
 
   /** Saída definitiva: por vontade própria ou fim do prazo de reconexão. */
   onLeave(client: Client): void {
+    this.releaseSeat(client.sessionId);
+    // Saiu entre a autorização e a entrada: não chegou a ganhar boneco.
+    if (!this.seats.has(client.sessionId)) return;
     this.world.removePlayer(client.sessionId);
     this.seats.delete(client.sessionId);
     this.names.delete(client.sessionId);
@@ -210,6 +258,18 @@ export class ArenaRoom extends Room<{ state: GameState }> {
     this.state.hostId = this.arrivals[0] ?? '';
     // Quem saiu fica com o nome provisório.
     if (this.pending?.message.waiting.includes(client.sessionId)) this.settleName(client.sessionId);
+  }
+
+  /** Libera a vaga; sem ninguém do computador que criou a sala, as vagas reservadas a ele passam para a internet. */
+  private releaseSeat(id: string): void {
+    this.kinds.delete(id);
+    if (this.localKey === null && this.seatsLocal === 0) return;
+    if (this.count('local') > 0) return;
+    this.localKey = null;
+    this.seatsLocal = 0;
+    this.seatsOnline = this.maxClients;
+    this.state.seatsLocal = 0;
+    this.state.seatsOnline = this.maxClients;
   }
 
   /** Fim de jogo com pontos: a partida entra no placar com nomes provisórios, que cada um troca pelo seu. */

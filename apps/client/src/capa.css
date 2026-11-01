@@ -149,7 +149,7 @@ body.inicio #panel-online > p.keys a { color: var(--muted); text-decoration-styl
   transition: transform .12s ease, box-shadow .12s ease, background-color .12s ease;
 }
 #lobby .escolhas button small { display: block; margin-top: 2px; font-size: 11px; font-weight: 600; opacity: .7; }
-#lobby .escolhas button:hover:not(.active) { background-color: #fff8ec; transform: translate(-1px, -1px); box-shadow: 3px 4px 0 rgba(31, 36, 51, .25); }
+#lobby .escolhas button:hover:not(.active):not(:disabled) { background-color: #fff8ec; transform: translate(-1px, -1px); box-shadow: 3px 4px 0 rgba(31, 36, 51, .25); }
 #lobby .escolhas button.active {
   color: var(--amarelo);
   background-color: var(--ink);
@@ -158,7 +158,10 @@ body.inicio #panel-online > p.keys a { color: var(--muted); text-decoration-styl
 }
 #difficulty-hint { min-height: 2.8em; margin: 6px 0 0; }
 #lobby .escolhas.duas { grid-template-columns: repeat(2, 1fr); }
+#lobby .escolhas.cinco { grid-template-columns: repeat(5, 1fr); }
+#lobby .escolhas button:disabled { opacity: .35; cursor: default; }
 #visibility-hint { min-height: 1.4em; margin: 6px 0 0; }
+#seats-hint { min-height: 2.8em; margin: 6px 0 0; }
 
 /* Nome do jogador: escrito na linha, como o nome no topo de uma prova. */
 .seu-nome {

@@ -180,6 +180,10 @@ export const GameState = schema(
     bossNext: t.boolean(),
     spits: t.map(SpitSchema),
     sprouts: t.map(SproutSchema),
+    /** Quantos cabem na sala: vagas do computador que a criou (`seatsLocal`) mais as da internet (`seatsOnline`). */
+    capacity: t.uint8(),
+    seatsLocal: t.uint8(),
+    seatsOnline: t.uint8(),
   },
   'GameState',
 );

@@ -3,6 +3,7 @@ import {
   ARENAS,
   BOSS_ARENAS,
   Interpolator,
+  MAX_PLAYERS,
   MSG_GIVE_UP,
   MSG_INPUT,
   MSG_NAME,
@@ -110,6 +111,10 @@ export interface NetState {
   bossNext: boolean;
   spits: NetMap<NetSpit>;
   sprouts?: NetMap<NetSprout>;
+  /** Vagas da sala; servidor antigo não manda (vale MAX_PLAYERS, todas pela internet). */
+  capacity?: number;
+  seatsLocal?: number;
+  seatsOnline?: number;
 }
 
 export interface NetItem {
@@ -205,6 +210,11 @@ export class OnlineSession {
 
   get me(): NetPlayer | undefined {
     return this.state.players.get(this.room.sessionId);
+  }
+
+  /** Quantos cabem na sala; servidor antigo não manda e vale MAX_PLAYERS. */
+  get capacity(): number {
+    return this.state.capacity || MAX_PLAYERS;
   }
 
   get isHost(): boolean {

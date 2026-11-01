@@ -22,6 +22,7 @@ import {
   normalizeRoomCode,
   parseDifficulty,
   parseRecordName,
+  placeholderName,
   normalizeServerUrl,
   parseRoomList,
   seatForServer,
@@ -141,9 +142,22 @@ function firstState(room: Room): Promise<void> {
 /** Vaga na sala guardada por aba: recarregar a página volta ao mesmo boneco enquanto a vaga estiver reservada. */
 const SEAT_KEY = 'riscote.vaga.v1';
 
-function saveSeat(room: Room, server: string): void {
+/** Quem criou a sala: a chave das vagas deste computador e quantos jogam nele. */
+interface LocalPlan {
+  key: string;
+  wanted: number;
+}
+
+/** Chave sorteada das vagas locais (24 caracteres de base64 para URL). */
+function newLocalKey(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(18));
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_');
+}
+
+function saveSeat(room: Room, server: string, plan: LocalPlan | null): void {
   try {
     const seat: SavedSeat = { server: normalizeServerUrl(server), code: room.roomId, token: room.reconnectionToken };
+    if (plan) Object.assign(seat, { localKey: plan.key, local: plan.wanted });
     sessionStorage.setItem(SEAT_KEY, JSON.stringify(seat));
   } catch {
     // Sem armazenamento: só não haverá retomada após recarregar.
@@ -226,6 +240,8 @@ export function bootOnline(input: InputSource): void {
   let unloading = false;
   window.addEventListener('pagehide', () => {
     unloading = true;
+    // Os jogadores a mais não voltam sozinhos ao recarregar: saem de vez e liberam as vagas deste computador.
+    for (const guest of guests) void guest.session.room.leave();
   });
   // Enquanto a capa está na tela, os bonecos e inimigos já vão sendo rasterizados (variação 0 primeiro).
   const common = commonSpecs(PLAYER_COLORS);
@@ -288,6 +304,58 @@ export function bootOnline(input: InputSource): void {
     if (button.dataset.aberta === '1') pick();
   });
 
+  // Vagas da sala: quantos jogam neste computador e quantos podem entrar pela internet.
+  let localCount = 1;
+  let remoteCount = MAX_PLAYERS - 1;
+  /** Até a pessoa escolher as vagas da internet, elas acompanham o que sobra. */
+  let remoteChosen = false;
+  const localButtons = el('online-local');
+  const remoteButtons = el('online-remote');
+  function showSeats(): void {
+    remoteCount = remoteChosen ? Math.min(remoteCount, MAX_PLAYERS - localCount) : MAX_PLAYERS - localCount;
+    const mark = (group: HTMLElement, chosen: number) =>
+      group.querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
+        const on = Number(b.dataset.n) === chosen;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-pressed', String(on));
+      });
+    mark(localButtons, localCount);
+    mark(remoteButtons, remoteCount);
+    remoteButtons.querySelectorAll<HTMLButtonElement>('button').forEach((b) => (b.disabled = Number(b.dataset.n) > MAX_PLAYERS - localCount));
+    const pads = localCount - 1;
+    const here = `${localCount} neste computador (${pads ? `teclado e ${pads} ${pads === 1 ? 'controle' : 'controles'}` : 'teclado ou controle'})`;
+    el('seats-hint').textContent =
+      remoteCount === 0
+        ? `Sala de ${localCount}: ${here}; ninguém entra pela internet.`
+        : `Sala de ${localCount + remoteCount}: ${here} e ${remoteCount} pela internet.`;
+  }
+  for (let n = 1; n <= MAX_PLAYERS; n++) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = String(n);
+    button.dataset.n = String(n);
+    button.setAttribute('aria-label', `${n} ${n === 1 ? 'jogador' : 'jogadores'} neste computador`);
+    button.addEventListener('click', () => {
+      localCount = n;
+      showSeats();
+    });
+    localButtons.append(button);
+  }
+  for (let n = 0; n < MAX_PLAYERS; n++) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = String(n);
+    button.dataset.n = String(n);
+    button.setAttribute('aria-label', `${n} ${n === 1 ? 'vaga' : 'vagas'} pela internet`);
+    button.addEventListener('click', () => {
+      remoteCount = n;
+      remoteChosen = true;
+      showSeats();
+    });
+    remoteButtons.append(button);
+  }
+  showSeats();
+
   const nameInput = el<HTMLInputElement>('player-name');
   nameInput.value = loadName();
   /** Opções de entrada com o nome do campo; null se o nome não vale (a mensagem já foi para a tela). */
@@ -333,7 +401,7 @@ export function bootOnline(input: InputSource): void {
       const title = document.createElement('span');
       title.className = 'sala-titulo';
       if (r.code) title.append(Object.assign(document.createElement('code'), { textContent: r.code }));
-      title.append(r.code ? `${r.players}/${MAX_PLAYERS}` : `Sala privada · ${r.players}/${MAX_PLAYERS}`);
+      title.append(r.code ? `${r.players}/${r.capacity}` : `Sala privada · ${r.players}/${r.capacity}`);
       const info = document.createElement('span');
       info.className = 'sala-info';
       const where = r.playing ? `jogando, página ${r.page + 1} de ${r.pages}` : 'no aquecimento';
@@ -345,7 +413,8 @@ export function bootOnline(input: InputSource): void {
       }
       const code = r.code;
       if (code) {
-        const full = r.players >= MAX_PLAYERS;
+        // As vagas que sobram podem ser só do computador que criou a sala.
+        const full = r.vacant === 0;
         const button = document.createElement('button');
         button.type = 'button';
         button.textContent = full ? 'Cheia' : 'Entrar';
@@ -439,7 +508,10 @@ export function bootOnline(input: InputSource): void {
     }
   }
 
-  async function enter(joining: Promise<Room>, failure?: string): Promise<void> {
+  /** Vagas locais da sala atual, se foi este navegador que a criou. */
+  let localPlan: LocalPlan | null = null;
+
+  async function enter(joining: Promise<Room>, failure?: string, plan: LocalPlan | null = null): Promise<void> {
     setBusy(true);
     statusOut.textContent = 'Conectando…';
     try {
@@ -449,9 +521,10 @@ export function bootOnline(input: InputSource): void {
       current.onArenaChange = (arena) => startGame(arena);
       current.onPresence = notify;
       session = current;
+      localPlan = plan;
       // O que estava preenchido na capa foi usado: ao voltar para ela, a recarga por versão nova vale de novo.
       lobbyTouched = false;
-      saveSeat(room, serverUrl);
+      saveSeat(room, serverUrl, plan);
       // Queda de rede: o SDK tenta reconectar sozinho; a vaga fica reservada no servidor.
       room.onDrop(() => {
         if (session === current) current.reconnecting = true;
@@ -459,7 +532,7 @@ export function bootOnline(input: InputSource): void {
       room.onReconnect(() => {
         if (session !== current) return;
         current.reconnecting = false;
-        saveSeat(room, serverUrl);
+        saveSeat(room, serverUrl, plan);
       });
       room.onLeave((code: number) => {
         if (session !== current) return;
@@ -476,6 +549,8 @@ export function bootOnline(input: InputSource): void {
       setCover(false);
       el('room-code').textContent = current.code;
       statusOut.textContent = '';
+      // Jogadores deste computador escolhidos na capa: o painel já espera o controle do próximo.
+      waitNextLocal();
     } catch (error) {
       if (failure) clearSeat();
       statusOut.textContent = failure ?? describeJoinError(error);
@@ -489,7 +564,7 @@ export function bootOnline(input: InputSource): void {
   // Também espera quem digitou ou escolheu algo na capa e ainda não usou: a recarga apagaria tudo.
   lobby.addEventListener('input', () => (lobbyTouched = true));
   lobby.addEventListener('click', (e) => {
-    if (e.target instanceof Element && e.target.closest('#online-arenas, #online-difficulty, #online-visibility')) lobbyTouched = true;
+    if (e.target instanceof Element && e.target.closest('#online-arenas, #online-difficulty, #online-visibility, #online-local, #online-remote')) lobbyTouched = true;
   });
   const version = watchNewVersion(
     () =>
@@ -503,8 +578,9 @@ export function bootOnline(input: InputSource): void {
   createButton.addEventListener('click', () => {
     const join = joinOptions();
     if (!join) return;
-    const options: CreateRoomOptions = { ...join, arenaId, difficulty, open };
-    void enter(sdk.create(ROOM_NAME, options));
+    const plan: LocalPlan = { key: newLocalKey(), wanted: localCount };
+    const options: CreateRoomOptions = { ...join, arenaId, difficulty, open, local: localCount, online: remoteCount, localKey: plan.key };
+    void enter(sdk.create(ROOM_NAME, options), undefined, plan);
   });
 
   el('join-form').addEventListener('submit', (e) => {
@@ -544,6 +620,11 @@ export function bootOnline(input: InputSource): void {
     input.cancelClaim();
     addLocal.textContent = ADD_LOCAL;
   }
+  function waitPad(hint: string): void {
+    localHint.textContent = hint;
+    addLocal.textContent = 'Cancelar';
+    input.armClaim((pad) => void addGuest(pad));
+  }
   addLocal.addEventListener('click', () => {
     addLocal.blur();
     if (input.claiming) {
@@ -551,10 +632,15 @@ export function bootOnline(input: InputSource): void {
       localHint.textContent = '';
       return;
     }
-    localHint.textContent = 'Aperte A no controle do novo jogador.';
-    addLocal.textContent = 'Cancelar';
-    input.armClaim((pad) => void addGuest(pad));
+    waitPad('Aperte A no controle do novo jogador.');
   });
+
+  /** Ainda falta o controle de algum jogador deste computador escolhido na capa: espera o do próximo. */
+  function waitNextLocal(): void {
+    const wanted = localPlan?.wanted ?? 1;
+    if (!session || input.claiming || guests.length + 1 >= wanted) return;
+    waitPad(`Jogador ${guests.length + 2} de ${wanted} neste computador: aperte A no controle dele.`);
+  }
 
   async function addGuest(pad: number): Promise<void> {
     stopWaiting();
@@ -568,7 +654,10 @@ export function bootOnline(input: InputSource): void {
       // O nome do primeiro com o número do jogador (sem nome, o servidor usa "Jogador N").
       const base = parseRecordName(nameInput.value.trim());
       const name = base ? parseRecordName(`${base.slice(0, 9).trim()} ${guests.length + 2}`) : null;
-      const room = await sdk.joinById(host.code, name ? { name } : {});
+      // Com a chave de quem criou a sala, o jogador a mais ocupa uma vaga deste computador, e não uma da internet.
+      const options: JoinOptions = name ? { name } : {};
+      if (localPlan) options.localKey = localPlan.key;
+      const room = await sdk.joinById(host.code, options);
       await firstState(room);
       if (session !== host) {
         void room.leave();
@@ -584,16 +673,18 @@ export function bootOnline(input: InputSource): void {
         renderGuests();
       });
       localHint.textContent = '';
+      renderGuests();
+      waitNextLocal();
     } catch (error) {
       input.release(pad);
       localHint.textContent = describeJoinError(error);
+      renderGuests();
     }
-    renderGuests();
   }
 
   /** Sala cheia: não cabe mais ninguém (esperando um controle, o botão é o de cancelar). */
   function updateAddLocal(): void {
-    addLocal.disabled = !input.claiming && (!session || session.state.players.size >= MAX_PLAYERS);
+    addLocal.disabled = !input.claiming && (!session || session.state.players.size >= session.capacity);
   }
 
   function dropGuests(): void {
@@ -665,7 +756,7 @@ export function bootOnline(input: InputSource): void {
   } else if (saved) {
     // Página recarregada: volta ao mesmo boneco se a vaga ainda estiver reservada.
     codeInput.value = saved.code;
-    void enter(sdk.reconnect(saved.token), 'A vaga na sala anterior expirou. Entre de novo pelo código.');
+    void enter(sdk.reconnect(saved.token), 'A vaga na sala anterior expirou. Entre de novo pelo código.', saved.localKey ? { key: saved.localKey, wanted: saved.local ?? 1 } : null);
   }
 
   const hud = {
@@ -711,8 +802,21 @@ export function bootOnline(input: InputSource): void {
       }),
     );
   }
+  const seatsInfo = el('seats-info');
+  /** Jogadores a mais que já resolveram o nome deste fim de jogo. */
+  const namedGuests = new WeakSet<OnlineSession>();
   setInterval(() => {
     updateRecords();
+    // O jogador a mais não tem campo de nome no placar: fica com o que já tem ("Ana 2" ou "Jogador N")
+    // e não segura a pausa do fim de jogo esperando um nome que não tem onde escrever.
+    for (const guest of guests) {
+      const s = guest.session;
+      if (!s.records) namedGuests.delete(s);
+      else if (s.mayName && !namedGuests.has(s)) {
+        namedGuests.add(s);
+        s.sendName(s.state.players.get(s.room.sessionId)?.name ?? placeholderName(s.slot));
+      }
+    }
     if (!session) return;
     renderPlayers(session);
     updateAddLocal();
@@ -740,7 +844,12 @@ export function bootOnline(input: InputSource): void {
     hud.ink.textContent = !me ? '—' : limitedInk ? `${Math.floor(me.ink)}/${RULES.tankSize}` : '∞';
     hud.kills.textContent = me ? String(me.kills) : '—';
     hud.powers.textContent = me ? describePowers(me) : '—';
-    playersOut.textContent = `${state.players.size}/${MAX_PLAYERS}`;
+    playersOut.textContent = `${state.players.size}/${session.capacity}`;
+    const reserved = state.seatsLocal ?? 0;
+    const online = state.seatsOnline ?? session.capacity;
+    seatsInfo.textContent = reserved
+      ? `Sala de ${session.capacity}: ${reserved} ${reserved === 1 ? 'vaga' : 'vagas'} no computador que criou a sala e ${online} pela internet.`
+      : `Sala de ${session.capacity}, todas as vagas pela internet.`;
     correctionsOut.textContent = String(session.corrections);
     pendingOut.textContent = `${session.pendingCount} (~${Math.round(session.pendingCount * TICK_DT * 1000)} ms)`;
   }, 200);

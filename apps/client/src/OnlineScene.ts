@@ -62,7 +62,6 @@ import {
   ENEMY_SALTADOR,
   ENEMY_SIZE,
   ENEMY_TINTEIRO,
-  MAX_PLAYERS,
   MODE_ROLL,
   MODE_WALK,
   SKILL_ACT,
@@ -1224,7 +1223,7 @@ function bannerText(session: OnlineSession, touch: boolean): string {
   switch (state.phase) {
     case PHASE_LOBBY: {
       const start = touch ? 'Toque em “Começar partida” abaixo' : 'Aperte Enter para começar';
-      return `Aquecimento: ${state.players.size}/${MAX_PLAYERS} na sala\n${session.isHost ? start : 'O anfitrião começa quando todos entrarem'}`;
+      return `Aquecimento: ${state.players.size}/${session.capacity} na sala\n${session.isHost ? start : 'O anfitrião começa quando todos entrarem'}`;
     }
     case PHASE_CLEAR:
       if (isBossPage(state.arenaId)) return `${visualDe(state.arenaId).chefe.nome} foi derrotado!`;
