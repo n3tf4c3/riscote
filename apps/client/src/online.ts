@@ -35,7 +35,7 @@ import {
 } from '@riscote/shared';
 import { el } from './dom';
 import type { InputSource } from './input';
-import { OnlineSession, type NetState, type Presence } from './net';
+import { OnlineSession, type LocalGuest, type NetState, type Presence } from './net';
 import { OnlineScene } from './OnlineScene';
 import { bindRecords, bindRecordsBoard } from './records';
 import { RES, commonSpecs, prepareArt } from './art/textures';
@@ -216,7 +216,9 @@ export function bootOnline(input: InputSource): void {
     if (now) loader.hidden = false;
     else if (loader.hidden) loaderTimer = setTimeout(() => (loader.hidden = false), LOADER_DELAY_MS);
   }
-  const scene = new OnlineScene({ session: () => session, input, loading: showLoading });
+  /** Jogadores a mais nesta tela (pedido do usuário em 2026-11-01): cada um com uma vaga na sala e um controle. */
+  const guests: LocalGuest[] = [];
+  const scene = new OnlineScene({ session: () => session, guests: () => guests, input, loading: showLoading });
   // A sala joga o capítulo inteiro a partir da 1ª fase: o menu escolhe o capítulo pela arena de abertura.
   let arenaId = CHAPTERS[0]![0]!.id;
   let difficulty: Difficulty = 'medio';
@@ -462,6 +464,8 @@ export function bootOnline(input: InputSource): void {
       room.onLeave((code: number) => {
         if (session !== current) return;
         session = null;
+        // Quem jogava nesta tela sai junto.
+        dropGuests();
         if (unloading) return;
         clearSeat();
         showLobby(code === CloseCode.CONSENTED ? '' : code === CLOSE_LOBBY_IDLE ? LOBBY_IDLE_TEXT : 'A conexão com a sala caiu.');
@@ -529,6 +533,91 @@ export function bootOnline(input: InputSource): void {
   el('leave').addEventListener('click', () => {
     void session?.room.leave();
   });
+
+  // Mais um jogador nesta tela: o painel espera o próximo controle que apertar um botão; esse controle
+  // entra numa vaga própria da mesma sala e passa a mexer só no boneco dele.
+  const addLocal = el<HTMLButtonElement>('add-local');
+  const localHint = el('local-hint');
+  const localList = el('local-players');
+  const ADD_LOCAL = 'Mais um jogador no controle';
+  function stopWaiting(): void {
+    input.cancelClaim();
+    addLocal.textContent = ADD_LOCAL;
+  }
+  addLocal.addEventListener('click', () => {
+    addLocal.blur();
+    if (input.claiming) {
+      stopWaiting();
+      localHint.textContent = '';
+      return;
+    }
+    localHint.textContent = 'Aperte A no controle do novo jogador.';
+    addLocal.textContent = 'Cancelar';
+    input.armClaim((pad) => void addGuest(pad));
+  });
+
+  async function addGuest(pad: number): Promise<void> {
+    stopWaiting();
+    const host = session;
+    if (!host) {
+      input.release(pad);
+      return;
+    }
+    localHint.textContent = 'Entrando na sala…';
+    try {
+      // O nome do primeiro com o número do jogador (sem nome, o servidor usa "Jogador N").
+      const base = parseRecordName(nameInput.value.trim());
+      const name = base ? parseRecordName(`${base.slice(0, 9).trim()} ${guests.length + 2}`) : null;
+      const room = await sdk.joinById(host.code, name ? { name } : {});
+      await firstState(room);
+      if (session !== host) {
+        void room.leave();
+        input.release(pad);
+        return;
+      }
+      const guest: LocalGuest = { session: new OnlineSession(room), pad };
+      guests.push(guest);
+      room.onLeave(() => {
+        const i = guests.indexOf(guest);
+        if (i >= 0) guests.splice(i, 1);
+        input.release(pad);
+        renderGuests();
+      });
+      localHint.textContent = '';
+    } catch (error) {
+      input.release(pad);
+      localHint.textContent = describeJoinError(error);
+    }
+    renderGuests();
+  }
+
+  /** Sala cheia: não cabe mais ninguém (esperando um controle, o botão é o de cancelar). */
+  function updateAddLocal(): void {
+    addLocal.disabled = !input.claiming && (!session || session.state.players.size >= MAX_PLAYERS);
+  }
+
+  function dropGuests(): void {
+    stopWaiting();
+    localHint.textContent = '';
+    for (const guest of [...guests]) void guest.session.room.leave();
+  }
+
+  /** A lista dos jogadores a mais, cada um com a cor do boneco, o controle e o botão de tirar. */
+  function renderGuests(): void {
+    updateAddLocal();
+    localList.replaceChildren(
+      ...guests.map((guest) => {
+        const li = document.createElement('li');
+        li.append(colorDot(guest.session.slot), `Jogador ${guest.session.slot + 1} · controle ${guest.pad + 1} `);
+        const out = document.createElement('button');
+        out.type = 'button';
+        out.textContent = 'Tirar';
+        out.addEventListener('click', () => void guest.session.room.leave());
+        li.append(out);
+        return li;
+      }),
+    );
+  }
 
   // Desistir encerra a partida de todos: o primeiro clique só pede confirmação.
   const giveUpButton = el<HTMLButtonElement>('give-up');
@@ -605,7 +694,8 @@ export function bootOnline(input: InputSource): void {
     const state = current.state;
     const rows: { slot: number; text: string; away: boolean }[] = [];
     state.players.forEach((p, id) => {
-      const tags = [id === current.room.sessionId && 'você', id === state.hostId && 'anfitrião', p.away && 'sem conexão'].filter(Boolean);
+      const here = guests.some((g) => g.session.room.sessionId === id);
+      const tags = [id === current.room.sessionId && 'você', here && 'nesta tela', id === state.hostId && 'anfitrião', p.away && 'sem conexão'].filter(Boolean);
       rows.push({ slot: p.slot, text: tags.length ? `${p.name} (${tags.join(', ')})` : p.name, away: p.away });
     });
     rows.sort((a, b) => a.slot - b.slot);
@@ -625,6 +715,7 @@ export function bootOnline(input: InputSource): void {
     updateRecords();
     if (!session) return;
     renderPlayers(session);
+    updateAddLocal();
     const state = session.state;
     const me = session.me;
     lobbyStart.hidden = state.phase !== PHASE_LOBBY;

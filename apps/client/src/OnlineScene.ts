@@ -112,7 +112,7 @@ import { som } from './audio/som';
 import { BossView, drawBossTurn } from './bossView';
 import { Effects } from './fx';
 import type { InputSource } from './input';
-import type { OnlineSession, PlayerView } from './net';
+import type { LocalGuest, OnlineSession, PlayerView } from './net';
 
 const MAX_FRAME = 0.25;
 const GREY = 0x888888;
@@ -190,6 +190,8 @@ function isBossPage(arenaId: string): boolean {
 /** Modo online: o próprio boneco é previsto; inimigos, gotas e os outros chegam interpolados do servidor. */
 export class OnlineScene extends Phaser.Scene {
   private acc = 0;
+  /** Posição prevista no tick anterior de cada jogador a mais nesta tela (para suavizar entre ticks). */
+  private readonly guestPrev = new WeakMap<OnlineSession, { x: number; y: number }>();
   private prevX = 0;
   private prevY = 0;
   private prevButtons = 0;
@@ -242,6 +244,8 @@ export class OnlineScene extends Phaser.Scene {
   constructor(
     private readonly ctx: {
       session: () => OnlineSession | null;
+      /** Jogadores a mais nesta tela, cada um com o seu controle. */
+      guests?: () => readonly LocalGuest[];
       input: InputSource;
       /** Progresso da arte que a arena precisa para sair do greybox. */
       loading?: (done: number, total: number) => void;
@@ -411,10 +415,17 @@ export class OnlineScene extends Phaser.Scene {
     const pressed = buttons & BTN_ATTACK && !(this.prevButtons & BTN_ATTACK);
     if (pressed) this.shotAt[session.slot] = now;
     this.prevButtons = buttons;
+    // Jogadores a mais nesta tela: cada um com o controle dele, no mesmo passo fixo do primeiro.
+    const guests = this.ctx.guests?.() ?? [];
+    const guestButtons = guests.map((guest) => this.ctx.input.padButtons(guest.pad));
     while (this.acc >= TICK_DT) {
       this.prevX = session.local.x;
       this.prevY = session.local.y;
       session.tick(buttons);
+      guests.forEach((guest, i) => {
+        this.guestPrev.set(guest.session, { x: guest.session.local.x, y: guest.session.local.y });
+        guest.session.tick(guestButtons[i]!);
+      });
       this.acc -= TICK_DT;
     }
 
@@ -423,11 +434,19 @@ export class OnlineScene extends Phaser.Scene {
     this.poderes.clear();
     const inkGauge = state.difficulty === 'dificil';
     const live = state.phase === PHASE_PLAYING || state.phase === PHASE_CLEAR;
-    const remotes = session.remotePlayers(now);
+    const alpha = this.acc / TICK_DT;
+    // Os jogadores desta tela aparecem pela previsão deles, sem o atraso de quem está longe.
+    const here = new Map(guests.map((guest) => [guest.session.room.sessionId, guest.session]));
+    const remotes = session.remotePlayers(now).map((r) => {
+      const own = here.get(r.id);
+      if (!own) return r;
+      const st = own.local;
+      const prev = this.guestPrev.get(own) ?? st;
+      return { ...r, x: prev.x + (st.x - prev.x) * alpha, y: prev.y + (st.y - prev.y) * alpha, facing: st.facing, vx: st.vx, vy: st.vy, onGround: st.onGround };
+    });
     const drops = session.dropViews(now);
     const enemies = session.enemyViews(now);
     const me = session.me;
-    const alpha = this.acc / TICK_DT;
     const local = session.local;
     const localX = this.prevX + (local.x - this.prevX) * alpha;
     const localY = this.prevY + (local.y - this.prevY) * alpha;
@@ -549,7 +568,7 @@ export class OnlineScene extends Phaser.Scene {
         g.lineStyle(1.2, PLAYER_COLORS[d.slot] ?? INK, 0.9).strokeCircle(d.x + dropSize / 2 + dir * 1.5, d.y + dropSize / 2, 4);
       }
       for (const r of remotes) {
-        this.drawRiscote(art, r.slot, r.x, r.y, { ...r, inkGauge }, r, now, DEPTH_PLAYER, false);
+        this.drawRiscote(art, r.slot, r.x, r.y, { ...r, inkGauge }, r, now, DEPTH_PLAYER, here.has(r.id));
       }
       if (localLook) {
         this.drawRiscote(art, session.slot, localX, localY, localLook, { x: localX, y: localY, vx: local.vx, vy: local.vy, onGround: local.onGround }, now, DEPTH_PLAYER + 0.5, true);
@@ -575,7 +594,7 @@ export class OnlineScene extends Phaser.Scene {
         this.drawPowerWarning(g, e, now);
         this.drawPowerEffect(this.poderes, null, e, now);
       }
-      for (const r of remotes) drawPlayerFull(g, r.x, r.y, session.params, { ...r, inkGauge }, PLAYER_COLORS[r.slot] ?? GREY, false, now);
+      for (const r of remotes) drawPlayerFull(g, r.x, r.y, session.params, { ...r, inkGauge }, PLAYER_COLORS[r.slot] ?? GREY, here.has(r.id), now);
       if (localLook) drawPlayerFull(g, localX, localY, session.params, localLook, PLAYER_COLORS[session.slot] ?? GREY, true, now);
       for (const d of drops) drawDrop(g, d.x, d.y, PLAYER_COLORS[d.slot] ?? INK);
       this.fx.draw(null, this.fxBack, this.fxFront, DEPTH_FX, DEPTH_FX_FRONT);

@@ -147,6 +147,12 @@ export type DropView = Positioned & NetDrop;
 export type SpitView = Positioned & NetSpit;
 
 /** Liga a sala do Colyseus à previsão do próprio jogador e à interpolação do resto. */
+/** Um jogador a mais nesta tela: a vaga dele na sala e o controle que é só dele. */
+export interface LocalGuest {
+  session: OnlineSession;
+  pad: number;
+}
+
 export class OnlineSession {
   arena: Arena;
   /** Mesmos parâmetros do servidor para o modo da sala (a velocidade muda no fácil). */
