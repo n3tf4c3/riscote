@@ -10,6 +10,7 @@ import {
   Predictor,
   createPlayer,
   movementParams,
+  stepDowned,
   stepPlayer,
   type InputMessage,
   type NetPlayer,
@@ -76,6 +77,24 @@ describe('Predictor', () => {
     for (let i = 0; i < 30; i++) predictor.tick(BTN_RIGHT);
     expect(predictor.state.x).toBe(x);
     expect(predictor.state.prevButtons).toBe(BTN_RIGHT);
+  });
+
+  it('derrubado no ar: a previsão cai como o servidor, sem obedecer aos botões e sem correções', () => {
+    const start = createPlayer(arena.playerSpawns[0]!, params);
+    start.y -= 3 * 20;
+    start.onGround = false;
+    const predictor = new Predictor(arena, params, net(start, 0));
+    predictor.reconcile(net(start, 0, true));
+    const server = { ...start };
+    for (let seq = 1; seq <= 60; seq++) {
+      predictor.tick(BTN_RIGHT);
+      stepDowned(server, BTN_RIGHT, arena, params);
+    }
+    expect(predictor.state.onGround).toBe(true);
+    expect(predictor.state.x).toBe(start.x);
+    predictor.reconcile(net(server, 60, true));
+    expect(predictor.corrections).toBe(0);
+    expect(predictor.state).toEqual(server);
   });
 
   it('agilidade pega no servidor: a previsão passa a usar a velocidade nova, sem correções depois', () => {

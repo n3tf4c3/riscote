@@ -1,4 +1,4 @@
-import { stepPlayer, type PlayerState } from './physics.ts';
+import { stepDowned, stepPlayer, type PlayerState } from './physics.ts';
 import type { Arena } from './arena.ts';
 import type { MovementParams } from './params.ts';
 import type { InputMessage, NetPlayer } from './protocol.ts';
@@ -26,7 +26,7 @@ export class Predictor {
   readonly state: PlayerState;
   /** Reconciliações que mudaram a posição prevista. */
   corrections = 0;
-  /** Derrubado no servidor: os comandos seguem sendo enviados, mas o boneco não se move. */
+  /** Derrubado no servidor: os comandos seguem sendo enviados, mas o boneco só cai até pousar. */
   frozen = false;
   private seq = 0;
   private pending: InputMessage[] = [];
@@ -88,9 +88,9 @@ export class Predictor {
     return corrected;
   }
 
-  /** Mesma regra do servidor (World.applyInput): derrubado só registra os botões. */
+  /** Mesma regra do servidor (World.applyInput): derrubado só cai, sem obedecer aos botões. */
   private apply(buttons: number): void {
-    if (this.frozen) this.state.prevButtons = buttons;
+    if (this.frozen) stepDowned(this.state, buttons, this.arena, this.params);
     else stepPlayer(this.state, buttons, this.arena, this.params);
   }
 }

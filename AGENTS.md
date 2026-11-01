@@ -193,7 +193,7 @@ Ainda não há lint. O aviso de bundle acima de 500 kB vem do Phaser e é espera
   - Sem comandos por mais de 10 ticks, o jogador segue a simulação com os botões soltos.
   - `ack` informa o último comando aplicado; a reconciliação depende dele.
 - **Estado sincronizado.** Os campos de `PlayerSchema` espelham `NetPlayer`, em `float64`, para a reconciliação partir do estado exato do servidor.
-- **Previsão só do próprio movimento.** Inimigos, gotas e derrubadas não são previstos. Derrubado, o `Predictor` congela o boneco como o servidor faz. Renascimento e derrubada geram correções esperadas.
+- **Previsão só do próprio movimento.** Inimigos, gotas e derrubadas não são previstos. Derrubado, o boneco não obedece aos comandos, mas cai até pousar num chão (`stepDowned`, no servidor e no `Predictor`): derrubado no ar, ficaria fora do alcance do resgate (pedido do usuário em 2026-11-01). Renascimento e derrubada geram correções esperadas.
 - **Queda de conexão.** `onDrop` deixa o jogador ausente (`away`: parado, invulnerável e ignorado pelos inimigos) e reserva a vaga por 30 s, que conta no limite de 5. O SDK reconecta sozinho. Recarregar a aba retoma a vaga pelo token guardado em `sessionStorage`. Saída voluntária ou prazo vencido chama `onLeave` e libera a vaga.
 - **Limite de entradas.** 20 tentativas de criar ou entrar em sala por minuto por endereço, com resposta HTTP 429.
   - O endereço vem do socket, gravado em `x-riscote-peer` por `markPeerAddress`, que intercepta o `emit('request')` antes do roteador do Colyseus.

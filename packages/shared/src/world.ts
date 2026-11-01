@@ -1,7 +1,7 @@
 import { EMPTY, SOLID, cellAt, type Arena, type CellPos, type Stage } from './arena.ts';
 import { BTN_ATTACK, BTN_DOWN, BTN_JUMP, BTN_LEFT, BTN_RIGHT } from './input.ts';
 import { DEFAULT_PARAMS, TICK_DT, TILE, type MovementParams } from './params.ts';
-import { createPlayer, stepPlayer, touchesTube, type PlayerState } from './physics.ts';
+import { createPlayer, stepDowned, stepPlayer, touchesTube, type PlayerState } from './physics.ts';
 import { DIFFICULTY_RULES, POWER_MAX_LEVEL, movementParams, type Difficulty } from './protocol.ts';
 import type { RunEndReason } from './records.ts';
 import { BOSS_APONTADOR, BOSS_CALHAMACO, BOSS_DRAGAO, BOSS_LAPISEIRA, BOSS_REGADOR, BOSS_RULES, Boss, bossKind, isBossArena } from './boss.ts';
@@ -1120,7 +1120,7 @@ export class World {
     if (!p) return;
     const pressed = buttons & ~p.body.prevButtons;
     if (p.down) {
-      p.body.prevButtons = buttons;
+      stepDowned(p.body, buttons, this.arena, this.speedParams[p.speed]!);
       return;
     }
     stepPlayer(p.body, buttons, this.arena, this.speedParams[p.speed]!);

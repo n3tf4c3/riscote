@@ -294,6 +294,29 @@ describe('derrubada, resgate e vidas', () => {
     expect(world.drops.size).toBe(0);
   });
 
+  it('derrubado no ar cai até o chão (sem andar para o lado) e lá pode ser resgatado', () => {
+    const world = setup(2);
+    const p = world.players.get('p0')!;
+    // No alto, longe da plataforma: sem cair, ninguém o alcançaria.
+    p.body.x = 14 * TILE;
+    p.body.y = 2 * TILE;
+    p.body.vx = 0;
+    p.body.vy = 0;
+    p.body.onGround = false;
+    const down = knockDown(world, 'p0');
+    const x = down.body.x;
+    run(world, ticks(1.5), { p0: BTN_RIGHT });
+    expect(down.down).toBe(true);
+    expect(down.body.onGround).toBe(true);
+    expect(down.body.y + world.params.playerHeight * TILE).toBeCloseTo(7 * TILE, 5);
+    expect(down.body.x).toBe(x);
+    const ally = world.players.get('p1')!;
+    ally.body.x = down.body.x + 4;
+    ally.body.y = down.body.y;
+    run(world, ticks(RULES.rescueTime) + 1);
+    expect(down.down).toBe(false);
+  });
+
   it('todos derrubados e sem vidas: a arena recomeça com a reserva cheia', () => {
     const world = setup(2);
     world.lives = 0;
