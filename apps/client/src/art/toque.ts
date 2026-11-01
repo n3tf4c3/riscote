@@ -60,7 +60,7 @@ function hop(color: string): string {
 /** Botão solto (miolo translúcido, anel e ícone na cor dele) ou apertado (cheio da cor). */
 function buttonSvg(kind: 'pular' | 'atirar', down: boolean): string {
   const color = kind === 'atirar' ? AZUL : AMARELO;
-  const icon = kind === 'atirar' ? drop(down ? WHITE : AZUL, INK) : hop(INK);
+  const icon = kind === 'atirar' ? `<g transform="translate(42 30) scale(0.8) translate(-42 -30)">${drop(down ? WHITE : AZUL, INK)}</g>` : hop(INK);
   const body = down ? ring(42, 37, color, 1) : ring(42, 37, WHITE, 0.6) + `<circle cx="42" cy="42" r="31" fill="none" stroke="${color}" stroke-width="7"/>`;
   return svgDoc('0 0 84 84', body + icon + (down ? '' : shine('M18 34 Q20 22 30 16', 3.5, 0.8)));
 }

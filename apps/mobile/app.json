@@ -5,7 +5,7 @@
     "version": "0.1.0",
     "orientation": "landscape",
     "icon": "./assets/icon.png",
-    "backgroundColor": "#ebe3cf",
+    "backgroundColor": "#f6f1e7",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "win.riscote.app"
@@ -14,7 +14,7 @@
       "package": "win.riscote.app",
       "allowBackup": false,
       "adaptiveIcon": {
-        "backgroundColor": "#ebe3cf",
+        "backgroundColor": "#f6f1e7",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

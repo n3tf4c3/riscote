@@ -35,6 +35,7 @@ import { bossSpecs } from './art/boss';
 import { ITEM_LIQUIDS } from './art/items';
 import { ArtLayer } from './art/layer';
 import { RES, arenaSpecs, artSize, commonSpecs, loadArt, protecaoKey, riscoteKey, type ArtSpec } from './art/textures';
+import { ROUNDED } from './art/capa';
 import {
   INK,
   PLAYER_COLORS,
@@ -156,14 +157,14 @@ export class OnlineScene extends Phaser.Scene {
     this.fxBack = this.add.graphics().setDepth(DEPTH_FX);
     this.fxFront = this.add.graphics().setDepth(DEPTH_FX_FRONT);
     this.banner = this.add
-      // Contorno da cor do papel: legível sobre qualquer coisa sem uma caixa cobrindo as plataformas.
+      // Contorno branco, como as etiquetas da interface: legível sobre qualquer coisa sem uma caixa cobrindo as plataformas.
       .text(w / 2, TILE * 1.5, '', {
-        fontFamily: 'system-ui, sans-serif',
+        fontFamily: ROUNDED,
         fontSize: '20px',
-        color: '#1f1d1a',
+        color: '#1f2433',
         fontStyle: 'bold',
         align: 'center',
-        stroke: '#f1ead9',
+        stroke: '#ffffff',
         strokeThickness: 6,
       })
       .setOrigin(0.5, 0)
@@ -171,12 +172,12 @@ export class OnlineScene extends Phaser.Scene {
       .setDepth(DEPTH_BANNER);
     this.hint = this.add
       .text(w / 2, h - TILE * 0.35, '', {
-        fontFamily: 'system-ui, sans-serif',
+        fontFamily: ROUNDED,
         fontSize: '12px',
-        color: '#1f1d1a',
+        color: '#1f2433',
         fontStyle: 'bold',
         align: 'center',
-        stroke: '#f1ead9',
+        stroke: '#ffffff',
         strokeThickness: 4,
       })
       .setOrigin(0.5, 1)

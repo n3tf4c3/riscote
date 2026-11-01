@@ -33,13 +33,15 @@ body.toque:not(.inicio) .toque-controles {
 .toque-botao {
   display: grid; place-items: end center; width: 84px; height: 84px; padding-bottom: 15px;
   font: 800 15px/1 var(--titulo); letter-spacing: 0; color: var(--ink);
+  /* Halo branco: o rótulo passa por cima do anel colorido e continua legível. */
+  text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 3px #fff;
   transition: transform .06s ease-out;
 }
 /* Na diagonal, como num controle: Pular (amarelo) mais alto e à direita; Atirar na tinta azul. */
 .toque-botao[data-botao="pular"] { margin-bottom: 48px; background-image: var(--toque-pular); }
-.toque-botao[data-botao="atirar"] { background-image: var(--toque-atirar); color: #1f4fa3; }
+.toque-botao[data-botao="atirar"] { background-image: var(--toque-atirar); }
 .toque-botao.apertado { transform: translate(2px, 3px) scale(.95); filter: drop-shadow(1px 1px 0 rgba(31, 36, 51, .3)); }
-.toque-botao[data-botao="atirar"].apertado { color: #fff; }
+.toque-botao[data-botao="atirar"].apertado { color: #fff; text-shadow: 0 0 2px #1f2433, 0 0 3px #1f2433; }
 .toque-botao[data-botao="pular"].apertado { background-image: var(--toque-pular-apertado); }
 .toque-botao[data-botao="atirar"].apertado { background-image: var(--toque-atirar-apertado); }
 
@@ -68,6 +70,6 @@ body.toque:not(.inicio) .toque-controles {
   body.toque:not(.inicio) aside { height: auto; overflow: visible; border-left: 0; border-top: 2px solid var(--ink); }
   .toque-direcional { width: 120px; height: 120px; }
   .toque-alavanca { width: 52px; height: 52px; margin: -26px 0 0 -26px; }
-  .toque-botao { width: 70px; height: 70px; padding-bottom: 12px; font-size: 13px; }
+  .toque-botao { width: 70px; height: 70px; padding-bottom: 13px; font-size: 11px; }
   .toque-botao[data-botao="pular"] { margin-bottom: 40px; }
 }

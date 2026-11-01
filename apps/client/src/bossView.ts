@@ -19,6 +19,7 @@ import {
 import { type BossPose } from './art/boss';
 import type { ArtLayer } from './art/layer';
 import { RES } from './art/textures';
+import { ROUNDED } from './art/capa';
 import { som } from './audio/som';
 import { INK, INK_BLUE } from './draw';
 import type { Effects } from './fx';
@@ -93,15 +94,15 @@ export class BossView {
   ) {
     const text = (size: number, color: string, stroke = 6) =>
       scene.add
-        .text(0, 0, '', { fontFamily: 'system-ui, sans-serif', fontSize: `${size}px`, color, fontStyle: 'bold', stroke: '#f1ead9', strokeThickness: stroke, align: 'center' })
+        .text(0, 0, '', { fontFamily: ROUNDED, fontSize: `${size}px`, color, fontStyle: 'bold', stroke: '#ffffff', strokeThickness: stroke, align: 'center' })
         .setOrigin(0.5)
         .setResolution(RES)
         .setDepth(depths.text)
         .setVisible(false);
     const width = arena.cols * TILE;
-    this.title = text(34, '#141414', 8).setPosition(width / 2, arena.rows * TILE * 0.36).setText('MATA-BORRÃO');
-    this.subtitle = text(13, '#7d2219', 5).setPosition(width / 2, arena.rows * TILE * 0.36 + 28).setText('ele quer secar a página!');
-    this.label = text(9, '#141414', 4).setOrigin(1, 0.5).setPosition(width * 0.25 - 4, 9).setText('MATA-BORRÃO');
+    this.title = text(34, '#1f2433', 8).setPosition(width / 2, arena.rows * TILE * 0.36).setText('MATA-BORRÃO');
+    this.subtitle = text(13, '#c8344a', 5).setPosition(width / 2, arena.rows * TILE * 0.36 + 28).setText('ele quer secar a página!');
+    this.label = text(9, '#1f2433', 4).setOrigin(1, 0.5).setPosition(width * 0.25 - 4, 9).setText('MATA-BORRÃO');
     this.heavyText = text(11, '#2f6fd6', 4).setText('PESADO! bolas ×2');
   }
 
