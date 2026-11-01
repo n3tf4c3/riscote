@@ -4,18 +4,19 @@ Cartões HTML autocontidos que alimentam o design system do Riscote no Claude De
 
 Cada arquivo é um cartão. A primeira linha (`<!-- @dsCard group="…" -->`) define o grupo no painel. Regras:
 - sem CDN, fontes remotas ou scripts;
-- cores e medidas copiadas do código real: `apps/client/src/draw.ts`, `apps/client/index.html`, `packages/shared/src/world.ts` e `packages/shared/src/arenas.ts`.
+- cores e medidas copiadas do código real: `apps/client/src/art/` (geradores e `svg.ts`), `apps/client/src/capa.css`, `apps/client/index.html`, `apps/client/src/draw.ts`, `packages/shared/src/world.ts` e `packages/shared/src/arenas.ts`;
+- os desenhos entram como SVG embutido com ids de sufixo único (vários desenhos na mesma página não podem dividir ids).
 
 | Grupo | Cartões |
 | --- | --- |
 | Marca | `marca/riscote.html`: premissa, linguagem e o que não copiar |
 | Cores | `cores/papel-e-tinta.html`, `cores/jogadores.html` |
 | Fundamentos | `fundamentos/camadas.html`, `fundamentos/escala.html`, `fundamentos/tipografia.html` |
-| Personagens | `personagens/jogadores.html` (figuras de pincel seco, poses, expressões, animação e estados), `personagens/inimigos.html` (inimigos, movimento próprio e ciclo da tinta) |
-| Cenário | `cenario/arena-tinta.html` (arena em tinta, em duas camadas), `cenario/arena.html` (geometria greybox), `cenario/itens.html`, `cenario/efeitos.html` (partículas, chacoalhar e transições) |
+| Personagens | `personagens/jogadores.html` (os cinco riscotes de cartum: poses, expressões, auras e tamanho do jogo), `personagens/inimigos.html` (inimigos, estados, encharcado e o Mata-Borrão) |
+| Cenário | `cenario/arena-tinta.html` (as páginas dos capítulos e a mesa do chefe, em duas camadas), `cenario/arena.html` (geometria greybox), `cenario/itens.html`, `cenario/efeitos.html` |
 | Interface | `interface/painel.html` |
 
-A arte aprovada nasceu na prancha "Riscote — personagens" (Claude Design, artifact QnTcq5XpucJxr2GPxGfR3t). Desde 2026-10-20, com o acabamento novo aprovado no jogo, a fonte é o código: os desenhos dos cartões de personagens, itens, efeitos, arena em tinta e marca saem dos geradores de `apps/client/src/art/` (variação 0 da linha viva). Ao mudar um gerador, refaça o cartão correspondente.
+A primeira arte (pincel de nanquim) nasceu na prancha "Riscote — personagens" (Claude Design, artifact QnTcq5XpucJxr2GPxGfR3t). Em 2026-10-31 a direção mudou para cartum de traço marinho, cor chapada, sombra dura e rostos expressivos, a pedido do usuário. A fonte é o código: os cartões de marca, cores, personagens, cenário e efeitos saem dos geradores de `apps/client/src/art/`; tipografia, painel e camadas são escritos à mão a partir do CSS. Ao mudar um gerador, refaça o cartão correspondente.
 
 ## Publicar ou atualizar
 

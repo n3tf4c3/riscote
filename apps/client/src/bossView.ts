@@ -27,7 +27,7 @@ import type { Effects } from './fx';
 // e os efeitos de impacto. Só lê o estado que chega do servidor; nada aqui muda regra.
 
 const WARN = 0xc8402a;
-const PAPER = 0xf1ead9;
+const PAPER = 0xf6f1e7;
 const BAR_RED = 0x8f2a1c;
 
 /** O que o servidor manda do chefe (espelha `BossSchema`). */

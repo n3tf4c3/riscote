@@ -1,5 +1,4 @@
 import './capa.css';
-import '@fontsource/bebas-neue/latin.css';
 import { GROUND, LEDGES, STAGE_H, STAGE_W, logoSvg, palcoSvg, pincelSvg } from './art/capa';
 import { POSES, runPose, type Pose } from './art/riscote';
 import { INK, BOIL } from './art/svg';

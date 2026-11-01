@@ -15,11 +15,11 @@ body.toque:not(.inicio) .toque-controles {
   pointer-events: auto; touch-action: none;
   user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
 }
-/* Desenhos de pincel (art/toque.ts): papel translúcido e anel de tinta, para a arte aparecer por baixo. */
+/* Desenhos de cartum (art/toque.ts): miolo translúcido e contorno marinho, para a arte aparecer por baixo. */
 .toque-direcional, .toque-alavanca, .toque-botao {
   background: no-repeat center / 100% 100%;
   /* Sombra deslocada, como a do cartão da capa. */
-  filter: drop-shadow(3px 4px 0 rgba(31, 29, 26, .16));
+  filter: drop-shadow(3px 4px 0 rgba(31, 36, 51, .3));
 }
 .toque-direcional {
   position: relative; flex-shrink: 0; width: 140px; height: 140px;
@@ -32,13 +32,14 @@ body.toque:not(.inicio) .toque-controles {
 .toque-botoes { display: flex; align-items: flex-end; gap: 14px; }
 .toque-botao {
   display: grid; place-items: end center; width: 84px; height: 84px; padding-bottom: 15px;
-  font: 400 17px/1 var(--titulo); letter-spacing: .06em; color: var(--ink);
+  font: 800 15px/1 var(--titulo); letter-spacing: 0; color: var(--ink);
   transition: transform .06s ease-out;
 }
-/* Na diagonal, como num controle: Pular mais alto e à direita; Atirar na tinta azul. */
+/* Na diagonal, como num controle: Pular (amarelo) mais alto e à direita; Atirar na tinta azul. */
 .toque-botao[data-botao="pular"] { margin-bottom: 48px; background-image: var(--toque-pular); }
 .toque-botao[data-botao="atirar"] { background-image: var(--toque-atirar); color: #1f4fa3; }
-.toque-botao.apertado { transform: scale(.93); color: var(--panel); filter: none; }
+.toque-botao.apertado { transform: translate(2px, 3px) scale(.95); filter: drop-shadow(1px 1px 0 rgba(31, 36, 51, .3)); }
+.toque-botao[data-botao="atirar"].apertado { color: #fff; }
 .toque-botao[data-botao="pular"].apertado { background-image: var(--toque-pular-apertado); }
 .toque-botao[data-botao="atirar"].apertado { background-image: var(--toque-atirar-apertado); }
 
@@ -67,6 +68,6 @@ body.toque:not(.inicio) .toque-controles {
   body.toque:not(.inicio) aside { height: auto; overflow: visible; border-left: 0; border-top: 2px solid var(--ink); }
   .toque-direcional { width: 120px; height: 120px; }
   .toque-alavanca { width: 52px; height: 52px; margin: -26px 0 0 -26px; }
-  .toque-botao { width: 70px; height: 70px; padding-bottom: 12px; font-size: 15px; }
+  .toque-botao { width: 70px; height: 70px; padding-bottom: 12px; font-size: 13px; }
   .toque-botao[data-botao="pular"] { margin-bottom: 40px; }
 }

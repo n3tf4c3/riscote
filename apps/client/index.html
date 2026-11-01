@@ -5,52 +5,69 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Riscote</title>
     <meta name="description" content="Plataforma cooperativa de tinta e papel para até 5 amigos, no navegador." />
-    <meta name="theme-color" content="#ebe3cf" />
+    <meta name="theme-color" content="#f6f1e7" />
     <style>
       :root {
-        --paper: #e7dfcc;
-        --panel: #f6f1e6;
-        --ink: #1f1d1a;
-        --muted: #6d665a;
+        --paper: #f6f1e7;
+        --pauta: #e3dbca;
+        --panel: #fffdf8;
+        --ink: #1f2433;
+        --muted: #6b7184;
         --accent: #2f6fd6;
+        --chip: #ffc234;
+        --rounded: ui-rounded, 'Arial Rounded MT Bold', 'Nunito', 'Segoe UI Black', 'Segoe UI', system-ui, sans-serif;
       }
       * { box-sizing: border-box; }
       html, body { margin: 0; height: 100%; }
+      /* Papel pautado, como o caderno das referências. */
       body {
-        background: var(--paper);
+        background: var(--paper) repeating-linear-gradient(transparent 0 31px, var(--pauta) 31px 33px);
         color: var(--ink);
-        font: 14px/1.4 system-ui, sans-serif;
+        font: 500 14px/1.4 'Segoe UI', system-ui, sans-serif;
         display: grid;
         grid-template-columns: 1fr 300px;
       }
       #game { min-width: 0; height: 100vh; }
       aside {
         background: var(--panel);
-        border-left: 2px solid var(--ink);
+        border-left: 3px solid var(--ink);
         padding: 12px 14px;
         overflow-y: auto;
         height: 100vh;
       }
-      h1 { font-size: 16px; margin: 0 0 4px; }
-      h2 { font-size: 13px; margin: 14px 0 6px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+      h1 { font: 800 17px/1.2 var(--rounded); margin: 0 0 4px; }
+      h2 { font: 800 12px/1.2 var(--rounded); margin: 16px 0 6px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
       p.keys { margin: 0; color: var(--muted); font-size: 12px; }
-      .stack { display: grid; gap: 4px; margin-bottom: 8px; }
+      .stack { display: grid; gap: 6px; margin-bottom: 8px; }
       #game { display: grid; place-items: center; }
-      button.primary { background: var(--ink); color: var(--panel); text-align: center; width: 100%; }
+      button.primary {
+        background: #ff6b3d; color: #fff; text-align: center; width: 100%;
+        font: 800 16px/1.2 var(--rounded); padding: 9px 10px; border-width: 2.5px; border-radius: 12px;
+        box-shadow: 3px 4px 0 rgba(31, 36, 51, .25);
+      }
       button:disabled { opacity: .5; cursor: progress; }
       input[type="text"], #join-code {
         font: inherit; text-transform: uppercase; letter-spacing: .12em; width: 9.5em;
-        padding: 5px 8px; border: 1.5px solid var(--ink); border-radius: 4px; background: #fff; color: var(--ink);
+        padding: 5px 8px; border: 2px solid var(--ink); border-radius: 10px; background: #fff; color: var(--ink);
       }
       .status { min-height: 1.4em; margin: 6px 0 0; font-size: 13px; }
       #lobby-start { margin-top: 10px; }
-      .code { font: 700 28px/1 ui-monospace, monospace; letter-spacing: .15em; margin: 0 0 8px; }
-      a { color: var(--accent); }
-      button {
-        font: inherit; text-align: left; padding: 5px 8px; cursor: pointer;
-        background: #fff; color: var(--ink); border: 1.5px solid var(--ink); border-radius: 4px;
+      /* Código da sala: o chip marinho com texto amarelo. */
+      .code {
+        display: inline-block; font: 800 26px/1 ui-monospace, monospace; letter-spacing: .15em; margin: 0 0 10px;
+        padding: 8px 12px 7px; color: var(--chip); background: var(--ink); border-radius: 12px;
+        box-shadow: 4px 5px 0 rgba(31, 36, 51, .25);
       }
-      button.active { background: var(--ink); color: var(--panel); }
+      a { color: var(--accent); font-weight: 600; }
+      button {
+        font: 700 13px/1.3 'Segoe UI', system-ui, sans-serif; text-align: left; padding: 6px 10px; cursor: pointer;
+        background: #fff; color: var(--ink); border: 2px solid var(--ink); border-radius: 10px;
+        box-shadow: 2px 3px 0 rgba(31, 36, 51, .22);
+        transition: transform .1s ease, box-shadow .1s ease;
+      }
+      button:hover:not(:disabled) { transform: translate(-1px, -1px); box-shadow: 3px 4px 0 rgba(31, 36, 51, .25); }
+      button:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: 0 0 0 rgba(31, 36, 51, .25); }
+      button.active { background: var(--ink); color: var(--chip); }
       .row { display: flex; gap: 6px; flex-wrap: wrap; }
       dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; font-size: 12px; }
       dt { color: var(--muted); }
@@ -62,56 +79,60 @@
       .config { margin: 10px 0 4px; }
       .config > summary {
         display: inline-flex; align-items: center; gap: 6px; list-style: none; cursor: pointer;
-        padding: 5px 10px; background: #fff; border: 1.5px solid var(--ink); border-radius: 4px; font-weight: 600;
+        padding: 6px 12px; background: #fff; border: 2px solid var(--ink); border-radius: 10px; font: 800 13px/1.3 var(--rounded);
+        box-shadow: 2px 3px 0 rgba(31, 36, 51, .22);
       }
       .config > summary::-webkit-details-marker { display: none; }
       .config > summary::after { content: '▾'; font-size: 11px; transition: transform .12s ease; }
-      .config[open] > summary { background: var(--ink); color: var(--panel); }
+      .config[open] > summary { background: var(--ink); color: var(--chip); }
       .config[open] > summary::after { transform: rotate(180deg); }
       .config > summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
       .config > section h2 { margin-top: 10px; }
       /* Textos de controles: só os do modo de teclas escolhido; no toque, os do direcional na tela. */
       body:not([data-teclas="asd"]) .teclas-asd, body[data-teclas="asd"] .teclas-padrao, body:not(.toque) .so-toque { display: none; }
       body.toque #controles :is(.teclas-padrao, .teclas-asd), body.toque :is(#teclas, .dica-teclas) { display: none; }
-      /* Placar do fim de jogo: folha de papel por cima da arena, escrita a nanquim. */
+      /* Placar do fim de jogo: cartão branco com sombra dura por cima da arena. */
       #game { position: relative; }
       .records {
         position: absolute; top: 50%; left: 50%; z-index: 5;
-        transform: translate(-50%, -50%) rotate(-.7deg);
+        transform: translate(-50%, -50%);
         width: min(400px, calc(100% - 32px)); max-height: calc(100% - 24px); overflow-y: auto;
-        padding: 14px 18px 12px;
-        background: var(--panel); color: var(--ink);
-        border: 2.5px solid var(--ink);
-        border-radius: 16px 5px 14px 6px / 6px 14px 5px 16px;
-        box-shadow: 5px 6px 0 rgba(31, 29, 26, .16);
+        padding: 16px 18px 14px;
+        background: #fff; color: var(--ink);
+        border: 3px solid var(--ink);
+        border-radius: 18px;
+        box-shadow: 6px 7px 0 rgba(31, 36, 51, .28);
       }
       .records[hidden] { display: none; }
-      .records h2 { margin: 0; font-size: 24px; line-height: 1.1; text-transform: none; letter-spacing: 0; color: var(--ink); }
+      .records h2 { margin: 0; font: 800 26px/1.1 var(--rounded); text-transform: none; letter-spacing: 0; color: var(--ink); }
       .records h3 { margin: 12px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
       .records-why { margin: 2px 0 6px; color: var(--muted); }
       .records-score { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
-      .records-score span { font: 800 30px/1 ui-monospace, monospace; color: var(--ink); margin-right: 4px; }
+      .records-score span {
+        display: inline-block; font: 800 28px/1 ui-monospace, monospace; color: var(--chip); margin-right: 6px;
+        padding: 5px 10px 4px; background: var(--ink); border-radius: 10px; box-shadow: 3px 4px 0 rgba(31, 36, 51, .25);
+      }
       .records-form { display: flex; gap: 6px; }
       .records-form input {
-        flex: 1; min-width: 0; font: 600 16px/1.2 system-ui, sans-serif; padding: 6px 8px;
+        flex: 1; min-width: 0; font: 800 17px/1.2 var(--rounded); padding: 6px 8px;
         text-transform: none; letter-spacing: 0;
-        border: 0; border-bottom: 2px solid var(--ink); border-radius: 0; background: transparent; color: var(--ink);
+        border: 0; border-bottom: 3px solid var(--ink); border-radius: 0; background: transparent; color: var(--ink); box-shadow: none;
       }
       .records-form input:focus { outline: none; border-bottom-color: var(--accent); }
-      .records-form button { background: var(--ink); color: var(--panel); text-align: center; }
+      .records-form button { background: #ff6b3d; color: #fff; text-align: center; font-family: var(--rounded); font-weight: 800; }
       .records-form[hidden] { display: none; }
       .records-status { min-height: 1.3em; margin: 4px 0 0; font-size: 13px; }
       .records-list { list-style: none; margin: 0; padding: 0; font-variant-numeric: tabular-nums; }
       .records-list li {
         display: grid; grid-template-columns: 2.2em 4.6em 1fr; gap: 6px; align-items: baseline;
-        padding: 3px 2px; border-bottom: 1px dashed rgba(31, 29, 26, .28);
+        padding: 4px 2px; border-bottom: 2px dashed rgba(31, 36, 51, .16);
       }
       .records-list li:last-child { border-bottom: 0; }
       .records-list .pos { color: var(--muted); font-size: 12px; }
       .records-list .pts { font-weight: 800; text-align: right; }
       .records-list .names { overflow-wrap: anywhere; }
-      /* A linha desta partida, grifada como caneta marca-texto. */
-      .records-list li.mine { background: linear-gradient(transparent 30%, rgba(47, 111, 214, .22) 30%, rgba(47, 111, 214, .22) 88%, transparent 88%); }
+      /* A linha desta partida, grifada com marca-texto amarelo. */
+      .records-list li.mine { background: linear-gradient(transparent 30%, rgba(255, 194, 52, .55) 30%, rgba(255, 194, 52, .55) 88%, transparent 88%); }
       .records-list li.empty { display: block; color: var(--muted); border: 0; }
       .records-timer { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
       /* Avisos de quem entrou ou saiu: bilhetes no canto da arena, que somem sozinhos. */
@@ -121,41 +142,41 @@
         max-width: calc(100% - 20px);
       }
       .avisos p {
-        margin: 0; padding: 5px 10px 4px 8px;
-        background: var(--panel); color: var(--ink); font-weight: 600;
-        border: 2px solid var(--ink); border-radius: 10px 4px 9px 5px / 5px 9px 4px 10px;
-        box-shadow: 3px 3px 0 rgba(31, 29, 26, .16);
+        margin: 0; padding: 6px 12px 5px 9px;
+        background: #fff; color: var(--ink); font-weight: 700;
+        border: 2.5px solid var(--ink); border-radius: 12px;
+        box-shadow: 3px 4px 0 rgba(31, 36, 51, .25);
         animation: aviso 4.5s ease forwards;
       }
       .avisos .cor, .na-sala .cor {
         display: inline-block; width: .8em; height: .8em; margin-right: 6px; vertical-align: -1px;
-        border: 1.5px solid var(--ink); border-radius: 50%;
+        border: 2px solid var(--ink); border-radius: 50%;
       }
       @keyframes aviso { 0% { opacity: 0; transform: translateY(-4px); } 6%, 82% { opacity: 1; transform: none; } 100% { opacity: 0; } }
       @media (prefers-reduced-motion: reduce) { .avisos p { animation-name: aviso-sem-movimento; } }
       @keyframes aviso-sem-movimento { 0%, 82% { opacity: 1; } 100% { opacity: 0; } }
       .na-sala { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 2px; }
       .na-sala .dim { color: var(--muted); }
-      /* Carregando a arte: um pote de nanquim enchendo de tinta azul por cima do papel. */
+      /* Carregando a arte: um pote enchendo de tinta azul por cima do papel pautado. */
       .carregando {
         position: absolute; inset: 0; z-index: 4;
         display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
-        background: var(--paper); color: var(--ink);
+        background: var(--paper) repeating-linear-gradient(transparent 0 31px, var(--pauta) 31px 33px); color: var(--ink);
       }
       .carregando[hidden] { display: none; }
-      .carregando p { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+      .carregando p { margin: 0; font: 800 16px/1.2 var(--rounded); font-variant-numeric: tabular-nums; }
       .pote {
         --nivel: 0%;
         position: relative; width: 72px; height: 88px; overflow: hidden;
-        border: 3px solid var(--ink);
-        border-radius: 14px 12px 22px 20px / 10px 12px 26px 22px;
-        background: #fbf8f0;
+        border: 4px solid var(--ink);
+        border-radius: 16px 16px 24px 24px;
+        background: #fff; box-shadow: 5px 6px 0 rgba(31, 36, 51, .25);
         transform: rotate(-2deg);
       }
       /* O gargalo do pote. */
       .pote::before {
         content: ''; position: absolute; top: 6px; left: 8px; right: 8px; height: 0; z-index: 1;
-        border-top: 2.5px solid var(--ink); border-radius: 50%;
+        border-top: 3px solid var(--ink); border-radius: 50%;
       }
       .pote-tinta {
         position: absolute; left: -10px; right: -10px; bottom: 0; height: var(--nivel);
@@ -176,7 +197,7 @@
       @media (max-width: 760px) {
         body { grid-template-columns: 1fr; }
         #game { height: 60vh; }
-        aside { height: auto; border-left: 0; border-top: 2px solid var(--ink); }
+        aside { height: auto; border-left: 0; border-top: 3px solid var(--ink); }
       }
     </style>
   </head>

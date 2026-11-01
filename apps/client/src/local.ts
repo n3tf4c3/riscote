@@ -37,7 +37,7 @@ export function bootLocal(input: InputSource): void {
     parent: 'tela',
     width: arenaWidth(currentArena()),
     height: arenaHeight(currentArena()),
-    backgroundColor: '#e7dfcc',
+    backgroundColor: '#f6f1e7',
     audio: { noAudio: true },
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     scene,

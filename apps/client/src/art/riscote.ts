@@ -1,14 +1,12 @@
-import { INK, PAPER, gradient, shade, stroke, strokeEnd, svgDoc } from './svg';
+import { INK, PALETTE, WHITE, blush, capsule, eye, line, openMouth, outlined, oval, shade, shine, svgDoc } from './svg';
 
-// Versão do jogo dos riscotes: figuras de pincel seco com o traço engrossado para não sumir
-// no tamanho da tela, cabeça com rosto e expressão, tronco com volume, mãos e pés de mancha.
-// O corpo é sempre de nanquim (separa jogador de monstro); a cor do jogador vira um degradê vivo,
-// como as pinceladas de docs/texturas, no acessório, na faixa, nas mãos e numa pincelada no tronco.
+// Riscotes em cartum (direção de 2026-10-31): crianças de cabeção, traço marinho grosso e cor chapada,
+// moletom na cor do jogador, calça cinza, tênis branco e crachá no peito. Cada vaga tem tom de pele,
+// cabelo e acessório próprios (silhuetas diferentes: chapéu de festa, cachecol, antena, capuz de gato,
+// boina), e cada pose tem uma expressão. Gente, e não bicho: nunca se confunde com um monstro.
 
-/** Segunda tinta do degradê de cada jogador (a primeira é a cor dele, PLAYER_COLORS). */
-export const PLAYER_GLOWS = ['#ffb02e', '#4fe0f0', '#ffe14a', '#a6e35a', '#f048b0'] as const;
-/** Preenchimento com o degradê do jogador, definido em cada desenho como `cor`. */
-const PAINT = 'url(#cor)';
+/** Tom claro da cor de cada jogador (brilho do acessório e da faixa da proteção). */
+export const PLAYER_GLOWS = ['#ffb08f', '#a6e6fa', '#ffe08a', '#7fdccb', '#cdb0f5'] as const;
 
 export const RUN_FRAMES = 6;
 const RUN = Array.from({ length: RUN_FRAMES }, (_, i) => `corre${i}` as const);
@@ -19,252 +17,325 @@ export function runPose(frame: number): Pose {
   return RUN[((frame % RUN_FRAMES) + RUN_FRAMES) % RUN_FRAMES] ?? 'corre0';
 }
 
-const LEG = 2.9;
-const ARM = 2.3;
+/** Folga em cima para os acessórios que passam da cabeça. */
+export const VIEWBOX = '0 -40 200 340';
 
-/** [x, y, rotação, comprimento] e, se dobra, [rotação, comprimento] do segundo trecho (joelho, cotovelo). */
-type Limb = [number, number, number, number] | [number, number, number, number, number, number];
-type Eyes = 'calmo' | 'firme' | 'susto' | 'piscando';
-type Mouth = 'calmo' | 'firme' | 'susto' | 'grito';
+const LW = 6.5;
+const PANTS = '#7e8597';
+const SHOE = WHITE;
+const THIGH = 38;
+const SHIN = 37;
+const UPPER = 30;
+const FORE = 27;
 
+interface Look {
+  skin: string;
+  hair: string;
+}
+const LOOKS: readonly Look[] = [
+  { skin: '#f6cfa8', hair: '#2b2230' },
+  { skin: '#8a5a3c', hair: '#1f1a22' },
+  { skin: '#e9b48a', hair: '#5a3a28' },
+  { skin: '#c88b5e', hair: '#2b2230' },
+  { skin: '#f8dcc6', hair: '#c45a2a' },
+];
+
+type Face = 'feliz' | 'piscando' | 'garra' | 'uau' | 'susto' | 'grito' | 'tonto';
+
+/**
+ * Ângulos em graus a partir da vertical para baixo; positivo gira para a frente (+x).
+ * Perna: [coxa, canela]; braço: [braço, antebraço].
+ */
 interface Skeleton {
-  /** De trás e da frente (a da frente ganha um halo de papel para se separar do corpo). */
-  legs: [Limb, Limb];
-  arms: [Limb, Limb];
-  neck: [number, number, number];
-  hip: [number, number, number];
-  head: [number, number, number];
-  face: [Eyes, Mouth];
-  /** Quanto o vento do movimento ergue cachecol e antena (graus; negativo derruba). */
+  hip: [number, number];
+  /** Inclinação do tronco (positivo = para a frente). */
+  lean: number;
+  legs: [[number, number], [number, number]];
+  arms: [[number, number], [number, number]];
+  /** Inclinação extra da cabeça. */
+  tilt: number;
+  face: Face;
+  /** Quanto o vento ergue cachecol e antena (graus; negativo derruba). */
   flow: number;
 }
 
 const STILL: Skeleton = {
-  legs: [[97, 152, 7, 1.32], [103, 152, -7, 1.32]],
-  arms: [[93, 82, 12, 0.7], [107, 82, -14, 0.7]],
-  neck: [100, 72, 1],
-  hip: [100, 150, 1],
-  head: [104, 40, -3],
-  face: ['calmo', 'calmo'],
+  hip: [100, 210],
+  lean: 0,
+  legs: [[-5, -3], [6, 4]],
+  arms: [[-10, -4], [14, 30]],
+  tilt: 0,
+  face: 'feliz',
   flow: 0,
 };
 
 const SKELETONS: Record<'parado' | 'piscando' | 'pulando' | 'caindo' | 'atirando', Skeleton> = {
   parado: STILL,
-  piscando: { ...STILL, face: ['piscando', 'calmo'] },
+  piscando: { ...STILL, face: 'piscando' },
   pulando: {
-    legs: [[97, 146, 28, 0.6, -28, 0.5], [103, 146, -38, 0.55, 18, 0.47]],
-    arms: [[94, 74, 150, 0.7], [106, 74, -152, 0.72]],
-    neck: [100, 64, 0],
-    hip: [100, 144, 0],
-    head: [103, 30, -4],
-    face: ['susto', 'grito'],
+    hip: [100, 196],
+    lean: 4,
+    legs: [[-30, 20], [62, -18]],
+    arms: [[208, 196], [152, 162]],
+    tilt: -6,
+    face: 'uau',
     flow: -25,
   },
   caindo: {
-    legs: [[97, 160, 22, 1.05], [103, 160, -24, 1.05]],
-    arms: [[94, 92, 118, 0.62], [106, 92, -122, 0.62]],
-    neck: [100, 82, 0],
-    hip: [100, 158, 0],
-    head: [102, 48, 0],
-    face: ['susto', 'susto'],
+    hip: [100, 206],
+    lean: -4,
+    legs: [[-14, 2], [18, -6]],
+    arms: [[235, 200], [125, 165]],
+    tilt: 4,
+    face: 'susto',
     flow: 35,
   },
   atirando: {
-    legs: [[96, 152, 15, 1.36], [102, 152, -17, 1.36]],
-    arms: [[94, 82, 22, 0.66], [106, 82, -92, 0.72]],
-    neck: [99, 72, 2],
-    hip: [99, 150, 1],
-    head: [103, 40, 0],
-    face: ['firme', 'grito'],
+    hip: [98, 210],
+    lean: 6,
+    legs: [[-16, -8], [18, 10]],
+    arms: [[-28, 20], [88, 92]],
+    tilt: 2,
+    face: 'grito',
     flow: 0,
   },
 };
 
-/** Quadro `i` do ciclo de corrida: coxa e braço oscilam em oposição; o quadril desce no apoio. */
+const rad = (deg: number) => (deg * Math.PI) / 180;
+const along = ([x, y]: readonly [number, number], deg: number, len: number): [number, number] => [x + len * Math.sin(rad(deg)), y + len * Math.cos(rad(deg))];
+/** Gira um deslocamento (dx, dy) em `deg` graus no sentido horário da tela e soma a (x, y). */
+const offset = ([x, y]: readonly [number, number], deg: number, dx: number, dy: number): [number, number] => {
+  const a = rad(deg);
+  return [x + dx * Math.cos(a) - dy * Math.sin(a), y + dx * Math.sin(a) + dy * Math.cos(a)];
+};
+
+/** Quadro `i` da corrida: coxas e braços em oposição; o quadril desce no apoio. */
 function runSkeleton(i: number): Skeleton {
-  const lean = 9;
-  const leg = (phi: number): Limb => {
-    const thigh = 34 * Math.sin(phi);
-    const bend = 12 + 62 * Math.max(0, -Math.cos(phi));
-    return [0, 0, thigh, 0.66, thigh + bend, 0.64];
-  };
   const phi = (i / RUN_FRAMES) * Math.PI * 2 + Math.PI / 6;
-  const legs = [leg(phi), leg(phi + Math.PI)] as const;
-  // O pé mais baixo encosta no chão (y ≈ 283): define a altura do quadril neste quadro.
-  const foot = (l: Limb) => {
-    const [kx, ky] = strokeEnd(0, 0, l[2], l[3]);
-    return strokeEnd(kx, ky, l[4] ?? l[2], l[5] ?? 0)[1];
+  const leg = (p: number): [number, number] => {
+    const thigh = 36 * Math.sin(p);
+    return [thigh, thigh - (8 + 70 * Math.max(0, -Math.cos(p)))];
   };
-  const hy = 283 - Math.max(foot(legs[0]), foot(legs[1]));
-  const hx = 102;
-  const [nx, ny] = strokeEnd(hx, hy, 180 + lean, 0.79);
-  const arm = (phi: number): Limb => {
-    const upper = -46 * Math.sin(phi);
-    return [0, 0, upper, 0.4, upper - 70, 0.34];
+  const legs: [[number, number], [number, number]] = [leg(phi + Math.PI), leg(phi)];
+  const footY = ([a, b]: [number, number]) => THIGH * Math.cos(rad(a)) + SHIN * Math.cos(rad(b));
+  const hy = 284 - Math.max(footY(legs[0]), footY(legs[1]));
+  const arm = (p: number): [number, number] => {
+    const upper = -42 * Math.sin(p);
+    return [upper, upper + 80];
   };
-  const place = (l: Limb, x: number, y: number): Limb => [x, y, l[2], l[3], l[4] ?? l[2], l[5] ?? 0];
-  const [sx, sy] = strokeEnd(nx, ny, lean, 0.1);
-  const [cx, cy] = strokeEnd(nx, ny, 180 + lean, 0.33);
   return {
-    legs: [place(legs[0], hx - 2, hy), place(legs[1], hx + 2, hy)],
-    arms: [place(arm(phi + Math.PI), sx - 4, sy), place(arm(phi), sx + 4, sy)],
-    neck: [nx, ny, lean],
-    hip: [hx, hy - 2, lean * 0.7],
-    head: [cx + 4, cy, lean],
-    face: ['firme', 'firme'],
+    hip: [102, hy],
+    lean: 10,
+    legs,
+    arms: [arm(phi + Math.PI), arm(phi)],
+    tilt: 2,
+    face: 'garra',
     flow: 22 + 6 * Math.sin(phi * 2),
   };
 }
 
-/** Folga em cima para os acessórios que passam da cabeça. */
-export const VIEWBOX = '0 -40 200 340';
-
-const TORSO = 'M-17 4 Q0 -11 18 2 Q22 40 13 80 Q0 88 -13 80 Q-22 40 -17 4 Z';
-const BELT = 'M-13 -4 Q1 -9 14 -3 L13 6 Q0 1 -12 6 Z M-9 2 Q-24 11 -35 30 L-29 32 Q-19 15 -5 5 Z M-6 4 Q-13 20 -14 37 L-9 37 Q-8 22 -2 6 Z';
-const HEAD = `<ellipse rx="25" ry="28" transform="rotate(-6)" fill="${INK}" filter="url(#tinta)"/>`;
-/** Três riscos de brilho no alto da nuca. */
-const SHINE = `<path d="M-19 -9 L-14 -17 M-21 0 L-17 -5 M-12 -21 L-6 -24" stroke="${PAPER}" stroke-width="2.6" stroke-linecap="round" opacity="0.8"/>`;
-
-const EYES: Record<Eyes, string> = {
-  calmo:
-    `<ellipse cx="12" cy="-3" rx="7.5" ry="9.5" fill="${PAPER}"/><ellipse cx="-3" cy="-2" rx="6" ry="9" fill="${PAPER}"/>` +
-    `<circle cx="14.5" cy="-1" r="4.2" fill="${INK}"/><circle cx="-0.5" cy="0" r="3.8" fill="${INK}"/><circle cx="16" cy="-3" r="1.4" fill="${PAPER}"/>`,
-  firme:
-    `<path d="M5 -8 L20 -11 L19 2 Q12 5 5 1 Z" fill="${PAPER}"/><path d="M-9 -7 L2 -8 L2 2 Q-3 4 -9 1 Z" fill="${PAPER}"/>` +
-    `<circle cx="15" cy="-3" r="4" fill="${INK}"/><circle cx="0" cy="-2" r="3.6" fill="${INK}"/>`,
-  susto:
-    `<circle cx="12" cy="-4" r="9.5" fill="${PAPER}"/><circle cx="-4" cy="-3" r="8" fill="${PAPER}"/>` +
-    `<circle cx="13" cy="-4" r="3" fill="${INK}"/><circle cx="-3" cy="-3" r="2.6" fill="${INK}"/>`,
-  piscando: `<path d="M5 -1 Q12 3 20 -1 M-9 0 Q-3 3 2 0" stroke="${PAPER}" stroke-width="3.2" fill="none" stroke-linecap="round"/>`,
-};
-
-const MOUTHS: Record<Mouth, string> = {
-  calmo: `<path d="M6 14 Q12 18 18 12" stroke="${PAPER}" stroke-width="2.8" fill="none" stroke-linecap="round"/>`,
-  firme: `<path d="M7 15 L17 13" stroke="${PAPER}" stroke-width="2.8" stroke-linecap="round"/>`,
-  susto: `<ellipse cx="11" cy="16" rx="4" ry="5" fill="${PAPER}"/>`,
-  grito: `<path d="M4 11 Q12 9 20 10 Q17 22 9 21 Q4 18 4 11 Z" fill="${PAPER}"/>`,
-};
-
-/** Forma colorida com tecido, hachura na metade de trás e contorno de nanquim. */
-function colored(d: string, color: string, outline = 2.2): string {
-  return (
-    `<path d="${d}" fill="${color}" filter="url(#tecido)"/>` +
-    `<path d="${d}" fill="url(#hachura-fina)" opacity="0.4" clip-path="url(#tras)"/>` +
-    `<path d="${d}" fill="none" stroke="${INK}" stroke-width="${outline}" stroke-linejoin="round" filter="url(#tinta)"/>`
-  );
+/** Olhos, sobrancelhas, boca e bochechas, em coordenadas da cabeça (olhando para a direita). */
+function faceArt(face: Face, small = false): string {
+  const [ex1, ex2, ey] = [6, 27, 0];
+  let eyes: string;
+  let brows: string;
+  let mouth: string;
+  switch (face) {
+    case 'piscando':
+      eyes = line(`M${ex1 - 8} ${ey + 2} Q${ex1} ${ey - 7} ${ex1 + 8} ${ey + 2} M${ex2 - 7} ${ey + 1} Q${ex2} ${ey - 7} ${ex2 + 7} ${ey + 1}`, 4.5);
+      brows = line(`M${ex1 - 7} -17 Q${ex1} -21 ${ex1 + 7} -18 M${ex2 - 6} -18 Q${ex2} -21 ${ex2 + 6} -18`, 4);
+      mouth = line('M12 18 Q22 27 33 17', 4.5);
+      break;
+    case 'garra':
+      eyes = eye(ex1, ey, 8.5, 10, [0.6, 0.1]) + eye(ex2, ey - 1, 7.5, 9.5, [0.6, 0.1]);
+      brows = line(`M${ex1 - 9} -16 L${ex1 + 7} -11 M${ex2 - 6} -12 L${ex2 + 8} -17`, 5);
+      mouth = outlined('M11 16 Q23 15 35 13 Q33 27 22 27 Q13 26 11 16 Z', WHITE, 3.5) + line('M12 20 Q23 19 34 17', 2);
+      break;
+    case 'uau':
+      eyes = eye(ex1, ey - 1, 9.5, 12, [0.4, -0.4]) + eye(ex2, ey - 2, 8.5, 11.5, [0.4, -0.4]);
+      brows = line(`M${ex1 - 8} -22 Q${ex1} -27 ${ex1 + 8} -23 M${ex2 - 6} -23 Q${ex2} -28 ${ex2 + 7} -24`, 4.5);
+      mouth = openMouth('M12 15 Q24 13 35 14 Q33 32 23 32 Q13 31 12 15 Z', [24, 30, 8]);
+      break;
+    case 'susto':
+      eyes = eye(ex1, ey - 1, 9.5, 12, [0.1, 0], 0.36) + eye(ex2, ey - 2, 8.5, 11.5, [0.1, 0], 0.36);
+      brows = line(`M${ex1 - 8} -21 Q${ex1 + 2} -26 ${ex1 + 8} -20 M${ex2 - 6} -20 Q${ex2 - 1} -27 ${ex2 + 7} -22`, 4.5);
+      mouth = openMouth('M18 18 Q24 13 30 18 Q31 28 24 29 Q17 28 18 18 Z', [24, 29, 5]);
+      break;
+    case 'grito':
+      eyes = eye(ex1, ey + 1, 8.5, 8, [0.7, 0.2]) + eye(ex2, ey, 7.5, 7.5, [0.7, 0.2]);
+      brows = line(`M${ex1 - 9} -14 L${ex1 + 8} -8 M${ex2 - 6} -9 L${ex2 + 9} -14`, 5.5);
+      mouth = openMouth('M12 14 Q26 10 38 13 Q36 31 24 30 Q14 28 12 14 Z', [26, 29, 8]);
+      break;
+    case 'tonto':
+      eyes =
+        line(`M${ex1 - 7} -6 L${ex1 + 7} 6 M${ex1 + 7} -6 L${ex1 - 7} 6`, 4.5) +
+        line(`M${ex2 - 6} -6 L${ex2 + 6} 6 M${ex2 + 6} -6 L${ex2 - 6} 6`, 4.5);
+      brows = '';
+      mouth = line('M10 20 Q16 15 22 20 Q28 25 34 19', 4) + outlined('M24 22 Q25 32 30 31 Q34 29 31 21 Z', PALETTE.lingua, 3);
+      break;
+    default:
+      eyes = eye(ex1, ey, 8.5, 10.5) + eye(ex2, ey - 1, 7.5, 10);
+      brows = line(`M${ex1 - 7} -17 Q${ex1} -21 ${ex1 + 7} -18 M${ex2 - 6} -18 Q${ex2} -21 ${ex2 + 6} -18`, 4);
+      mouth = line('M13 17 Q23 26 33 16', 4.5);
+  }
+  const cheeks = blush(-6, 14, 7) + blush(38, 12, 5);
+  return small ? `<g transform="translate(6 2) scale(0.88)">${cheeks + eyes + brows + mouth}</g>` : cheeks + eyes + brows + mouth;
 }
 
-/**
- * Acessório de cada jogador (na ordem dos slots), em coordenadas da cabeça.
- * `face` desenha o rosto; o capuz o põe menor, dentro da abertura.
- */
-function headArt(slot: number, base: string, face: string, flow: number): string {
-  const dark = shade(base, 0.6);
-  const color = PAINT;
-  const head = HEAD + SHINE + face;
+const HEAD_RX = 40;
+const HEAD_RY = 38;
+
+/** Cabeça, cabelo e acessório de cada vaga, em coordenadas da cabeça (centro em 0, 0). */
+function headArt(slot: number, color: string, glow: string, face: Face, flow: number): string {
+  const { skin, hair } = LOOKS[slot] ?? LOOKS[0]!;
+  const dark = shade(color, 0.75);
+  const ear = oval(-22, 6, 8, 10, skin, 5) + line('M-24 2 Q-20 6 -23 10', 3, shade(skin, 0.7));
+  const head = oval(0, 0, HEAD_RX, HEAD_RY, skin, LW);
+  const faceSvg = faceArt(face);
   switch (slot) {
-    case 0:
-      return (
-        head +
-        `<g transform="translate(0 -7) scale(1.25)">${colored('M-17 -11 Q-1 -18 16 -13 L3 -42 Z', color)}` +
-        `<path d="M-19 -10 Q-1 -18 18 -12" stroke="${INK}" stroke-width="3.4" fill="none" stroke-linecap="round"/></g>`
-      );
-    case 1:
-      return (
-        head +
-        `<g transform="scale(1.25)">${colored('M-13 21 Q-1 28 11 20 L13 29 Q-1 37 -14 30 Z', color, 1.8)}` +
-        `<g transform="rotate(${flow * 0.8} -11 27)">${colored('M-11 26 Q-37 22 -67 40 Q-47 36 -37 38 Q-55 50 -67 70 Q-41 50 -8 32 Z', color, 1.8)}</g>` +
-        `<path d="M-12 30 Q-1 35 12 28" stroke="${dark}" stroke-width="2.4" fill="none"/></g>`
-      );
-    case 2:
-      return (
-        head +
-        `<g transform="scale(1.25) rotate(${-flow * 0.5} -2 -21)"><path d="M-2 -21 L-2 -25 Q-9 -27 -2 -30 Q5 -33 -2 -36" stroke="${INK}" stroke-width="3.2" fill="none" stroke-linecap="round"/>` +
-        `${colored('M-10 -41 a8 8 0 1 0 16 0 a8 8 0 1 0 -16 0 Z', color, 2)}<circle cx="0.5" cy="-44" r="2" fill="${PAPER}"/></g>`
-      );
-    case 3:
-      return (
-        `<g transform="scale(1.25)">${colored('M-21 4 Q-26 -28 0 -30 Q26 -28 23 4 Q21 24 1 24 Q-16 23 -21 4 Z M-16 -21 L-24 -46 L-5 -28 Z M16 -21 L25 -46 L6 -28 Z', color, 2)}` +
-        `<path d="M-19 -36 L-11 -27 M20 -36 L12 -27" stroke="${dark}" stroke-width="3" stroke-linecap="round"/>` +
-        `<ellipse cx="5" cy="4" rx="13" ry="16" transform="rotate(-8 5 4)" fill="${INK}" filter="url(#tinta)"/></g>` +
-        `<g transform="translate(4 6) scale(0.82)">${face}</g>`
-      );
-    default:
-      return (
-        head +
-        `<g transform="scale(1.25)"><path d="M-36 -42 L2 -10" stroke="${INK}" stroke-width="3.8" stroke-linecap="round"/>` +
-        `<path d="M-38 -44 L-32 -38" stroke="${dark}" stroke-width="5" stroke-linecap="round"/>` +
-        `${colored('M-25 -21 a11 11 0 1 0 22 0 a11 11 0 1 0 -22 0 Z', color, 2)}` +
-        `<path d="M-20 -26 Q-14 -30 -8 -26" stroke="${dark}" stroke-width="2" fill="none"/></g>`
-      );
+    case 0: {
+      // Topete curto e chapéu de festa com listras e pompom.
+      const hairSvg = outlined('M-38 -6 Q-42 -36 -8 -40 Q22 -42 34 -22 Q18 -28 2 -22 Q-14 -24 -22 -10 Q-30 -12 -38 -6 Z', hair, 5);
+      const hat =
+        `<g transform="rotate(${12 - flow * 0.15} 0 -34)">` +
+        outlined('M-24 -30 L2 -98 L26 -30 Q1 -22 -24 -30 Z', color, LW) +
+        line('M-14 -56 L16 -50 M-6 -78 L10 -74', 5, glow) +
+        oval(2, -102, 10, 10, PALETTE.amarelo, 5) +
+        '</g>';
+      return head + ear + hairSvg + faceSvg + hat;
+    }
+    case 1: {
+      // Cabelo cacheado volumoso e cachecol que voa com o vento.
+      const curls = [[-30, -22, 15], [-12, -34, 16], [8, -36, 15], [26, -26, 13], [-38, -4, 12]] as const;
+      const hairSvg = curls.map(([x, y, r]) => oval(x, y, r, r, hair, 5)).join('');
+      const tail =
+        `<g transform="rotate(${-flow * 0.9} -20 40)">` +
+        outlined('M-18 36 Q-46 34 -78 48 L-74 58 Q-60 52 -50 54 L-70 72 Q-40 64 -16 48 Z', color, 5) +
+        line('M-40 44 L-44 58 M-56 48 L-60 60', 3, dark) +
+        '</g>';
+      const wrap = outlined('M-26 30 Q2 44 30 30 L32 42 Q2 58 -28 42 Z', color, 5) + line('M-22 38 Q2 48 26 38', 3, glow);
+      return tail + head + hairSvg + ear + faceSvg + wrap;
+    }
+    case 2: {
+      // Rabo de cavalo e tiara com antena de bolinha (balança no vento).
+      const tail = outlined('M-34 -16 Q-66 -12 -62 26 Q-56 10 -40 4 Z', hair, 5);
+      const hairSvg = outlined('M-38 -2 Q-40 -38 0 -40 Q32 -40 38 -14 Q20 -26 -2 -26 Q-24 -24 -30 0 Z', hair, 5);
+      const band = line('M-36 -16 Q0 -44 34 -18', 9, INK) + line('M-36 -16 Q0 -44 34 -18', 4.5, color);
+      const antenna =
+        `<g transform="rotate(${-flow * 0.6} 0 -36)">` +
+        line('M0 -36 Q-6 -56 4 -74', 5) +
+        oval(5, -80, 11, 11, color, 5) +
+        shine('M0 -84 Q3 -88 8 -88', 3) +
+        '</g>';
+      return tail + head + hairSvg + ear + band + antenna + faceSvg;
+    }
+    case 3: {
+      // Capuz de gato na cor do jogador, com o rosto na abertura.
+      const hood =
+        outlined('M-30 -24 L-38 -66 L-6 -40 Z', color, LW) +
+        outlined('M14 -40 L38 -66 L36 -22 Z', color, LW) +
+        line('M-31 -34 L-33 -52 L-17 -40 M22 -38 L33 -52 L32 -36', 4, glow) +
+        outlined('M-44 4 Q-46 -42 0 -44 Q44 -44 44 2 Q44 40 2 42 Q-42 42 -44 4 Z', color, LW);
+      const opening = oval(8, 4, 32, 30, skin, 5);
+      return hood + opening + faceArt(face, true) + line('M-30 34 Q-22 40 -14 38', 4, dark);
+    }
+    default: {
+      // Cabelo ruivo com franja e boina de pintor.
+      const hairSvg =
+        outlined('M-40 4 Q-46 -30 -10 -38 Q24 -42 38 -16 Q24 -22 10 -18 Q2 -8 -8 -18 Q-20 -10 -26 4 Q-34 14 -40 4 Z', hair, 5);
+      const beret =
+        `<g transform="rotate(${-8 - flow * 0.1} 0 -36)">` +
+        outlined('M-44 -30 Q-46 -58 -2 -60 Q42 -60 44 -34 Q20 -24 -44 -30 Z', color, LW) +
+        line('M-2 -60 L2 -72', 6) +
+        shine('M-30 -46 Q-18 -54 -4 -54', 4, 0.6) +
+        '</g>';
+      return head + hairSvg + ear + faceSvg + beret;
+    }
   }
 }
 
-/** Membro de pincelada única (ou dois trechos), com mancha na ponta; devolve o SVG e a ponta. */
-function limb(l: Limb, w: number, halo: boolean): { svg: string; tip: [number, number] } {
-  const [x, y, r, len] = l;
-  const parts: Array<[number, number, number, number]> = [[x, y, r, len]];
-  if (l.length === 6) parts.push([...strokeEnd(x, y, r, len), l[4], l[5]]);
-  let svg = '';
-  if (halo) for (const [px, py, pr, pl] of parts) svg += stroke(px, py, pr, w + 1.3, pl + 0.04, PAPER);
-  for (const [px, py, pr, pl] of parts) svg += stroke(px, py, pr, w, pl);
-  const [lx, ly, lr, ll] = parts[parts.length - 1] ?? parts[0]!;
-  return { svg, tip: strokeEnd(lx, ly, lr, ll) };
-}
-
-const foot = (tip: [number, number], dx: number) =>
-  `<ellipse cx="${tip[0] + dx}" cy="${tip[1] + 3}" rx="13" ry="6.5" fill="${INK}" filter="url(#tinta)"/>`;
-
-function figure(slot: number, color: string, s: Skeleton): string {
-  const backLeg = limb(s.legs[0], LEG, false);
-  const backArm = limb(s.arms[0], ARM, false);
-  const frontLeg = limb(s.legs[1], LEG, true);
-  const frontArm = limb(s.arms[1], ARM, true);
-  const [nx, ny, nr] = s.neck;
-  const [bx, by, br] = s.hip;
-  const [hx, hy, hr] = s.head;
-  const torso =
-    `<g transform="translate(${nx} ${ny}) rotate(${nr})"><path d="${TORSO}" fill="${INK}" filter="url(#tinta)"/>` +
-    stroke(10, 10, 4, 0.75, 0.55, PAPER, 'seco', 0.5) +
-    // Pincelada seca da cor do jogador atravessando o peito.
-    stroke(-14, 12, -58, 1.9, 0.4, PAINT, 'tecido') +
-    `<path d="M-14 30 l8 -6 M-15 42 l9 -7 M-15 54 l9 -7 M-13 66 l8 -6" stroke="${PAPER}" stroke-width="2.6" stroke-linecap="round" opacity="0.4"/></g>`;
-  const belt =
-    `<g transform="translate(${bx} ${by}) rotate(${br}) scale(1.35)"><path d="${BELT}" fill="${PAINT}" filter="url(#tecido)"/>` +
-    `<path d="M-12 1 Q0 -3 13 2 L13 6 Q0 1 -12 6 Z" fill="${shade(color, 0.62)}" opacity="0.85"/>` +
-    `<path d="M-13 -4 Q1 -9 14 -3" stroke="${INK}" stroke-width="1.6" fill="none"/></g>`;
-  const face = EYES[s.face[0]] + MOUTHS[s.face[1]];
-  const head =
-    `<g transform="translate(${hx} ${hy}) rotate(${hr})"><clipPath id="tras"><rect x="-90" y="-90" width="88" height="200"/></clipPath>` +
-    `${headArt(slot, color, face, s.flow)}</g>`;
+/** Tênis em `foot`, apontando para a frente, inclinado com a canela. */
+function shoe([x, y]: readonly [number, number], shin: number): string {
   return (
-    backLeg.svg + foot(backLeg.tip, 5) +
-    backArm.svg + `<circle cx="${backArm.tip[0]}" cy="${backArm.tip[1]}" r="7" fill="${PAINT}" stroke="${INK}" stroke-width="2.6" filter="url(#tinta)"/>` +
-    torso + belt +
-    frontLeg.svg + foot(frontLeg.tip, 6) +
-    frontArm.svg +
-    `<circle cx="${frontArm.tip[0]}" cy="${frontArm.tip[1]}" r="8.5" fill="${PAPER}"/><circle cx="${frontArm.tip[0]}" cy="${frontArm.tip[1]}" r="7" fill="${PAINT}" stroke="${INK}" stroke-width="2.6" filter="url(#tinta)"/>` +
-    head
+    `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${(-shin * 0.5).toFixed(1)})">` +
+    outlined('M-11 -6 Q-13 9 -3 9 L18 9 Q25 8 23 1 Q20 -6 8 -6 Z', SHOE, 5) +
+    line('M-10 5 L22 5', 3, PALETTE.cinzaClaro) +
+    '</g>'
   );
 }
 
-/** Derrubado: poça de nanquim com respingos, olhos em X e a faixa na cor do jogador à vista. */
-function knockedDown(color: string): string {
+function leg(hip: readonly [number, number], [a, b]: readonly [number, number], dark: boolean): string {
+  const knee = along(hip, a, THIGH);
+  const foot = along(knee, b, SHIN);
+  return capsule([hip, knee, foot], 19, dark ? shade(PANTS, 0.82) : PANTS, LW) + shoe(foot, b);
+}
+
+function arm(shoulder: readonly [number, number], [a, b]: readonly [number, number], color: string, skin: string): string {
+  const elbow = along(shoulder, a, UPPER);
+  const hand = along(elbow, b, FORE);
+  return capsule([shoulder, elbow, hand], 16, color, LW) + oval(hand[0], hand[1], 9, 9, skin, 5);
+}
+
+/** Moletom com bolso, punho e crachá, em coordenadas do quadril (centro do quadril em 0, 0). */
+function torsoArt(color: string, glow: string): string {
+  const dark = shade(color, 0.75);
   return (
-    `<ellipse cx="100" cy="282" rx="66" ry="12" fill="${INK}" filter="url(#tinta)"/>` +
-    stroke(36, 279, -90, 2.2, 1.25) +
-    `<path d="M58 283 Q100 273 142 281 L141 289 Q100 282 59 291 Z" fill="${PAINT}" filter="url(#tecido)"/>` +
-    `<path d="M58 286 Q100 279 141 285 L141 289 Q100 282 59 291 Z" fill="${shade(color, 0.6)}"/>` +
-    `<path d="M76 272 L84 280 M84 272 L76 280 M94 272 L102 280 M102 272 L94 280" stroke="${PAPER}" stroke-width="3" stroke-linecap="round"/>` +
-    `<circle cx="28" cy="270" r="4" fill="${INK}"/><circle cx="170" cy="274" r="5" fill="${INK}"/><circle cx="182" cy="284" r="2.6" fill="${INK}"/><circle cx="18" cy="284" r="2" fill="${INK}"/>`
+    outlined('M-27 -70 Q0 -82 27 -70 L34 -6 Q2 6 -32 -6 Z', color, LW) +
+    line('M-30 -14 Q2 -4 33 -14', 4, dark) +
+    line('M-10 -34 Q4 -28 18 -34', 3.5, dark) +
+    // Cordão do crachá e o crachá branco.
+    line('M-12 -72 L4 -48 L16 -72', 3, glow) +
+    outlined('M-3 -50 L13 -50 L13 -34 L-3 -34 Z', WHITE, 3.5) +
+    line('M0 -42 L10 -42', 2.4, PALETTE.laranja) +
+    shine('M-18 -66 Q-22 -48 -22 -30', 4, 0.35)
+  );
+}
+
+function figure(slot: number, color: string, s: Skeleton, ground = true): string {
+  const glow = PLAYER_GLOWS[slot] ?? color;
+  const { skin } = LOOKS[slot] ?? LOOKS[0]!;
+  const back = shade(color, 0.82);
+  const hip = s.hip;
+  const shoulderBack = offset(hip, s.lean, -20, -64);
+  const shoulderFront = offset(hip, s.lean, 20, -64);
+  const head = offset(hip, s.lean, 4, -120);
+  const shadow = ground ? `<ellipse cx="100" cy="292" rx="40" ry="7" fill="${INK}" opacity="0.16"/>` : '';
+  return (
+    shadow +
+    arm(shoulderBack, s.arms[0], back, shade(skin, 0.9)) +
+    leg(offset(hip, s.lean, -9, -2), s.legs[0], true) +
+    leg(offset(hip, s.lean, 9, -2), s.legs[1], false) +
+    `<g transform="translate(${hip[0]} ${hip[1]}) rotate(${s.lean})">${torsoArt(color, glow)}</g>` +
+    arm(shoulderFront, s.arms[1], color, skin) +
+    `<g transform="translate(${head[0].toFixed(1)} ${head[1].toFixed(1)}) rotate(${s.lean + s.tilt}) scale(1.1)">${headArt(slot, color, glow, s.face, s.flow)}</g>`
+  );
+}
+
+/** Estrelinha amarela de tontura. */
+function star(x: number, y: number, r: number): string {
+  const pts = Array.from({ length: 10 }, (_, i) => {
+    const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
+    const rr = i % 2 === 0 ? r : r * 0.45;
+    return `${(x + Math.cos(a) * rr).toFixed(1)} ${(y + Math.sin(a) * rr).toFixed(1)}`;
+  });
+  return outlined(`M${pts.join(' L')} Z`, PALETTE.amarelo, 3.5);
+}
+
+/** Derrubado: deitado de costas, olhos em X, língua de fora e estrelinhas girando. */
+function knockedDown(slot: number, color: string): string {
+  const lying: Skeleton = { hip: [100, 210], lean: 0, legs: [[-8, 4], [12, 24]], arms: [[-40, -10], [50, 80]], tilt: -10, face: 'tonto', flow: 0 };
+  return (
+    `<ellipse cx="100" cy="292" rx="86" ry="8" fill="${INK}" opacity="0.16"/>` +
+    `<g transform="translate(196 262) rotate(-90) scale(0.56) translate(-100 -290)">${figure(slot, color, lying, false)}</g>` +
+    star(36, 196, 11) +
+    star(64, 182, 8) +
+    star(14, 214, 7)
   );
 }
 
 /** SVG de um riscote numa pose (viewBox 200 × 340; pés em y ≈ 290; olhando para a direita). */
 export function riscoteSvg(slot: number, color: string, pose: Pose, variant = 0): string {
-  const paint = gradient('cor', color, PLAYER_GLOWS[slot] ?? color, 35);
-  if (pose === 'derrubado') return svgDoc(VIEWBOX, paint + knockedDown(color), variant);
+  if (pose === 'derrubado') return svgDoc(VIEWBOX, knockedDown(slot, color), variant);
   const s = pose.startsWith('corre') ? runSkeleton(Number(pose.slice(5))) : SKELETONS[pose as keyof typeof SKELETONS];
-  return svgDoc(VIEWBOX, paint + figure(slot, color, s), variant);
+  return svgDoc(VIEWBOX, figure(slot, color, s, pose !== 'pulando' && pose !== 'caindo'), variant);
 }

@@ -52,7 +52,7 @@ export class Effects {
 
   private add(p: Partial<Particle> & Pick<Particle, 'x' | 'y' | 'life'>): void {
     if (this.parts.length >= MAX_PARTICLES) this.parts.shift();
-    this.parts.push({ front: false, vx: 0, vy: 0, gravity: 0, age: 0, size: 1, grow: 0, color: 0x141414, alpha: 1, angle: 0, ...p });
+    this.parts.push({ front: false, vx: 0, vy: 0, gravity: 0, age: 0, size: 1, grow: 0, color: 0x1f2433, alpha: 1, angle: 0, ...p });
   }
 
   shake(ms: number, intensity: number): void {
@@ -89,7 +89,7 @@ export class Effects {
   streaks(x: number, y: number, dir: number, count: number): void {
     for (let i = 0; i < count; i++) {
       const a = (dir > 0 ? Math.PI : 0) + (rnd() - 0.5) * 0.7;
-      this.add({ line: true, front: true, x: x + (rnd() - 0.5) * 6, y: y + (rnd() - 0.5) * 12, vx: Math.cos(a) * 140, vy: Math.sin(a) * 140, life: 0.18 + rnd() * 0.1, size: 6 + rnd() * 6, color: 0x141414, alpha: 0.85 });
+      this.add({ line: true, front: true, x: x + (rnd() - 0.5) * 6, y: y + (rnd() - 0.5) * 12, vx: Math.cos(a) * 140, vy: Math.sin(a) * 140, life: 0.18 + rnd() * 0.1, size: 6 + rnd() * 6, color: 0x1f2433, alpha: 0.85 });
     }
   }
 
@@ -117,7 +117,7 @@ export class Effects {
       w.age += dt;
       for (const side of [-1, 1]) {
         const px = this.waveFront(w, side);
-        if (px !== null && rnd() < 0.7) this.droplets(px, w.y - 2, 0x141414, 1, 90, side > 0 ? -1.1 : -2, 0.5, true);
+        if (px !== null && rnd() < 0.7) this.droplets(px, w.y - 2, 0x1f2433, 1, 90, side > 0 ? -1.1 : -2, 0.5, true);
       }
     }
     this.waves = this.waves.filter((w) => w.age < w.life + 0.15);
@@ -156,8 +156,8 @@ export class Effects {
         const px = this.waveFront(w, side);
         if (px === null) continue;
         // Rastro raso atrás da crista e a crista em pé, inclinada para fora.
-        front.fillStyle(0x141414, 0.3 * fade).fillRect(Math.min(w.x, px), w.y - 3, Math.abs(px - w.x), 3);
-        front.fillStyle(0x141414, 0.9 * fade).fillTriangle(px - side * 18, w.y, px - side * 4, w.y - 15, px + side * 3, w.y);
+        front.fillStyle(0x1f2433, 0.3 * fade).fillRect(Math.min(w.x, px), w.y - 3, Math.abs(px - w.x), 3);
+        front.fillStyle(0x1f2433, 0.9 * fade).fillTriangle(px - side * 18, w.y, px - side * 4, w.y - 15, px + side * 3, w.y);
         front.lineStyle(1.6, 0x2f6fd6, 0.8 * fade).lineBetween(px - side * 15, w.y - 1, px - side * 4, w.y - 13);
       }
     }

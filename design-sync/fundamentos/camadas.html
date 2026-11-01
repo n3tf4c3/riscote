@@ -3,29 +3,37 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<title>Camadas de leitura</title>
+<title>Camadas</title>
 <style>
-  body { margin: 0; padding: 20px; background: #f1ead9; color: #1f1d1a; font: 13px/1.4 system-ui, sans-serif; }
-  h1 { font-size: 15px; margin: 0 0 4px; }
-  p { margin: 0 0 12px; color: #6d665a; }
-  ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
-  li { display: grid; grid-template-columns: 34px 160px 1fr; gap: 10px; align-items: center; background: #f6f1e6; border: 1.5px solid #1f1d1a; border-radius: 4px; padding: 6px 10px; }
-  .n { font: 700 18px system-ui; text-align: center; }
-  b { font-size: 13px; }
-  .rule { color: #6d665a; }
-  .sample { height: 26px; border-radius: 3px; }
+  body { margin: 0; padding: 22px; color: #1f2433; font: 14px/1.45 "Nunito", "Arial Rounded MT Bold", "Segoe UI", system-ui, sans-serif;
+    background: #f6f1e7 repeating-linear-gradient(to bottom, transparent 0 27px, #e3dbca 27px 28px); }
+  h1 { display: inline-block; margin: 0 0 10px; padding: 6px 16px; border-radius: 12px; background: #1f2433; color: #ffc234;
+    font-size: 20px; font-weight: 900; box-shadow: 4px 5px 0 rgba(31,36,51,.25); }
+  h2 { display: inline-block; margin: 16px 0 8px; padding: 3px 12px; border: 2.5px solid #1f2433; border-radius: 10px; background: #fff;
+    font-size: 13px; font-weight: 900; box-shadow: 3px 4px 0 rgba(31,36,51,.2); }
+  p, li { color: #3c4256; } p { margin: 0 0 10px; max-width: 70em; } ul { margin: 0 0 10px; padding-left: 20px; }
+  .grid { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+  figure { margin: 0; background: #fff; border: 2.5px solid #1f2433; border-radius: 14px; box-shadow: 4px 5px 0 rgba(31,36,51,.22);
+    padding: 8px 10px 6px; text-align: center; }
+  figure > svg { display: block; margin: 0 auto; } .grid > svg { display: inline-block !important; margin: 0 !important; }
+  figcaption { font-size: 12px; color: #3c4256; margin-top: 4px; } figcaption b { display: block; color: #1f2433; font-size: 13px; }
+  code { font: 12px ui-monospace, monospace; }
+  .chip { width: 120px; } .chip i { display: block; height: 52px; border-radius: 9px; border: 2.5px solid #1f2433; margin-bottom: 4px; }
+  .hand { font-family: "Segoe Print", "Comic Sans MS", cursive; color: #15a08c; }
 </style>
 </head>
 <body>
-<h1>Seis camadas — do fundo para a frente (plano, seção 3)</h1>
-<p>Regra de ouro: tudo o que é jogável tem contorno de nanquim e contraste alto; o decorativo é claro e sem contorno. Efeitos nunca escondem plataformas nem perigos.</p>
+
+<h1>Seis camadas, do fundo para a frente</h1>
+<p>Tudo o que é jogável tem contorno marinho e contraste alto; o decorativo é bege apagado e sem contorno. Efeitos nunca escondem plataformas nem perigos.</p>
 <ol>
-  <li><span class="n">1</span><b>Fundo decorativo</b><span class="rule">papel com textura discreta e aguadas sépia/cinza; <b>sem contorno preto</b>, pouco contraste</span></li>
-  <li><span class="n">2</span><b>Plataformas e paredes</b><span class="rule">traço de nanquim grosso, preenchimento chapado; silhueta contínua lida de imediato</span></li>
-  <li><span class="n">3</span><b>Itens e interativos</b><span class="rule">contorno grosso + cor de destaque reservada (tinta azul nos tubos)</span></li>
-  <li><span class="n">4</span><b>Inimigos</b><span class="rule">contorno grosso, cor de família por tipo, forma reconhecível em preto e branco</span></li>
-  <li><span class="n">5</span><b>Jogadores</b><span class="rule">cor + padrão + acessório; seta acima do próprio boneco; contorno mais grosso no jogador local</span></li>
-  <li><span class="n">6</span><b>Efeitos</b><span class="rule">semitransparentes e curtos (respingo &lt; 1 s), <b>atrás</b> do contorno de plataformas e perigos, com limite de partículas</span></li>
+  <li><b>Fundo decorativo</b>: papel pautado e rabiscos do tema em bege claro, sem contorno escuro.</li>
+  <li><b>Plataformas e paredes</b>: etiquetas coloridas e blocos marinho, com contorno e sombra dura.</li>
+  <li><b>Itens e interativos</b>: potes com rótulo e símbolo; tubo azul no difícil.</li>
+  <li><b>Inimigos</b>: dupla de cores própria, contorno marinho, rosto expressivo.</li>
+  <li><b>Jogadores</b>: moletom na cor do jogador, acessório, crachá; marcador acima do próprio boneco.</li>
+  <li><b>Efeitos</b>: respingos, poeira e brilhos curtos, entre o fundo e as plataformas ou por cima, sempre breves.</li>
 </ol>
+
 </body>
 </html>

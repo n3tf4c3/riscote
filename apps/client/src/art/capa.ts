@@ -1,25 +1,47 @@
-import { INK, PAPER, hash, stroke, svgDoc } from './svg';
+import { INK, PALETTE, WHITE, eye, line, outlined, oval, shadowFilter, shine, svgDoc } from './svg';
 
-// Arte da capa (tela de entrada): logotipo, palco com plataformas e o pincel dos botões.
-// Mesma linguagem da arena: pincelada seca, hachura e pingos de nanquim.
+// Arte da capa (tela de entrada) em cartum: logotipo num chip marinho com sombra dura, palco com
+// plataformas de cor chapada e contorno marinho, e o fundo liso dos botões. Mesma linguagem da arena.
 
-const AZUL = '#2f6fd6';
+const AZUL = PALETTE.azul;
+/** Pilha de fontes pesadas e arredondadas, só do sistema (nada de fonte remota). */
+export const ROUNDED = "ui-rounded, 'Arial Rounded MT Bold', 'Nunito', 'Segoe UI Black', 'Segoe UI', system-ui, sans-serif";
 
-/** Logotipo: a palavra em nanquim com falhas de pincel seco, sobre um risco azul de tinta. Fica no DOM (usa a fonte da página). */
+/** Gotinha de tinta azul com carinha marota, espiando por cima do logotipo. */
+function inkBuddy(x: number, y: number, s: number): string {
+  return (
+    `<g transform="translate(${x} ${y}) scale(${s}) rotate(14)">` +
+    outlined('M0 -46 Q20 -18 28 2 A28 28 0 1 1 -28 2 Q-20 -18 0 -46 Z', AZUL, 6) +
+    shine('M-16 -2 Q-16 -14 -8 -22', 5, 0.7) +
+    eye(-8, 6, 7, 9, [0.5, 0.1]) +
+    eye(10, 6, 7, 9, [0.5, 0.1]) +
+    line('M-6 20 Q2 28 12 19', 4.5) +
+    `<ellipse cx="-17" cy="18" rx="5" ry="3" fill="${PALETTE.rosa}" opacity="0.7"/><ellipse cx="20" cy="17" rx="5" ry="3" fill="${PALETTE.rosa}" opacity="0.7"/>` +
+    '</g>'
+  );
+}
+
+/** Logotipo: RISCOTE em amarelo pesado num chip marinho inclinado, com sombra dura e respingos de tinta. Fica no DOM. */
 export function logoSvg(): string {
-  const word = `<text x="500" y="236" text-anchor="middle" font-family="'Bebas Neue', Impact, 'Arial Narrow', sans-serif" font-size="250" textLength="720" lengthAdjust="spacingAndGlyphs">RISCOTE</text>`;
+  const word = `<text x="500" y="196" text-anchor="middle" font-family="${ROUNDED.replace(/'/g, '&apos;')}" font-weight="900" font-size="150" letter-spacing="6" textLength="660" lengthAdjust="spacingAndGlyphs">RISCOTE</text>`;
   return svgDoc(
     '0 0 1000 300',
-    `<filter id="logo-tinta" x="-5%" y="-10%" width="110%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="4" result="r"/><feDisplacementMap in="SourceGraphic" in2="r" scale="8"/></filter>` +
-      `<filter id="logo-falhas" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="0.005 0.22" numOctaves="2" seed="11" result="f"/><feColorMatrix in="f" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  10 0 0 0 -6.3" result="m"/><feComposite in="SourceGraphic" in2="m" operator="in"/></filter>` +
-      stroke(118, 222, -91.5, 7, 7.7, AZUL, 'seco', 0.92) +
-      stroke(150, 262, -89, 1.6, 6.6, AZUL, 'seco', 0.6) +
-      `<g fill="${INK}" filter="url(#logo-tinta)">${word}</g>` +
-      `<g fill="${PAPER}" filter="url(#logo-falhas)" opacity="0.85">${word}</g>` +
-      // Pingo escorrendo do pé do E e respingos em volta.
-      `<path d="M836 228 Q840 262 842 270 Q845 262 848 228 Z" fill="${INK}" filter="url(#tinta)"/><circle cx="842" cy="272" r="7" fill="${INK}" filter="url(#tinta)"/>` +
-      `<g fill="${INK}"><circle cx="122" cy="52" r="9"/><circle cx="102" cy="74" r="4"/><circle cx="146" cy="36" r="3"/><circle cx="884" cy="70" r="6"/><circle cx="902" cy="92" r="3"/><circle cx="870" cy="46" r="2.5"/></g>` +
-      `<g fill="${AZUL}"><circle cx="90" cy="250" r="5"/><circle cx="72" cy="238" r="2.6"/><circle cx="930" cy="260" r="4"/></g>`,
+    shadowFilter('chip', 12, 14, 0.28) +
+      `<g filter="url(#chip)" transform="rotate(-2 500 150)">` +
+      outlined('M150 62 Q150 44 168 44 L832 40 Q852 40 852 60 L856 230 Q856 250 836 250 L170 254 Q150 254 150 234 Z', INK, 6) +
+      '</g>' +
+      // Faixa azul de tinta passando por baixo do chip, com um pingo.
+      outlined('M96 236 Q300 214 520 232 Q700 246 900 228 L904 258 Q700 276 520 262 Q300 246 100 266 Z', AZUL, 6) +
+      outlined('M612 262 Q614 286 620 290 Q626 286 628 262 Z', AZUL, 4) +
+      `<g transform="rotate(-2 500 150)">` +
+      `<g fill="${PALETTE.amarelo}" stroke="${INK}" stroke-width="5" stroke-linejoin="round" paint-order="stroke">${word}</g>` +
+      line('M190 72 Q260 64 330 66', 8, '#3a4258') +
+      '</g>' +
+      inkBuddy(878, 104, 1.55) +
+      oval(110, 70, 12, 12, PALETTE.laranja, 5) +
+      oval(84, 104, 6, 6, PALETTE.amarelo, 4) +
+      oval(944, 206, 8, 8, PALETTE.verdeAgua, 4) +
+      oval(72, 214, 7, 7, AZUL, 4),
   );
 }
 
@@ -28,19 +50,18 @@ export const STAGE_W = 1000;
 export const STAGE_H = 420;
 export const GROUND = 372;
 
-/** Plataforma atravessável no estilo da arena: aguada, hachura, pincelada seca e um pingo. */
+const LEDGE_COLORS = [AZUL, PALETTE.laranja, PALETTE.verdeAgua] as const;
+
+/** Plataforma atravessável: barra arredondada de cor chapada, contorno marinho, brilho e sombra dura. */
 function ledge(x0: number, x1: number, y: number, i: number): string {
-  const w = x1 - x0;
-  const len = (w + 12) / 100;
-  const drip = x0 + 24 + hash(i + 2) * (w - 48);
+  const color = LEDGE_COLORS[i % LEDGE_COLORS.length] ?? AZUL;
+  const h = 30;
   return (
-    `<rect x="${x0 + 8}" y="${y + 14}" width="${w - 8}" height="36" fill="#6d665a" opacity="0.14" filter="url(#borra)"/>` +
-    `<path d="M${x0 + 6} ${y + 13} L${x1 - 6} ${y + 12} L${x1 - 14} ${y + 31} Q${x0 + w / 2} ${y + 37} ${x0 + 14} ${y + 31} Z" fill="url(#hachura)" opacity="0.55" filter="url(#tecido)"/>` +
-    `<path d="M${x0 + 3} ${y + 29} Q${x0 + w / 2} ${y + 38} ${x1 - 3} ${y + 28}" stroke="${INK}" stroke-width="2.6" fill="none" opacity="0.6" filter="url(#tinta)"/>` +
-    (i % 2 === 0 ? stroke(x0 - 6, y + 5, -90, 2.4, len, INK, 'seco') : stroke(x1 + 6, y + 5, 90, 2.4, len, INK, 'seco')) +
-    stroke(x0 + 4, y + 4, -90, 1.5, len * 0.97) +
-    `<path d="M${drip - 4} ${y + 16} Q${drip - 1} ${y + 36} ${drip} ${y + 40} Q${drip + 1} ${y + 36} ${drip + 4} ${y + 16} Z" fill="${INK}"/><circle cx="${drip}" cy="${y + 41}" r="4.5" fill="${INK}"/>` +
-    `<circle cx="${x1 + 14}" cy="${y + 2}" r="3" fill="${INK}"/><circle cx="${x0 - 12}" cy="${y + 10}" r="2.2" fill="${INK}"/>`
+    `<g filter="url(#sombra-palco)">` +
+    `<rect x="${x0}" y="${y}" width="${x1 - x0}" height="${h}" rx="${h / 2}" fill="${color}" stroke="${INK}" stroke-width="6"/>` +
+    '</g>' +
+    shine(`M${x0 + 16} ${y + 7} L${x0 + Math.min(120, (x1 - x0) * 0.4)} ${y + 7}`, 4.5, 0.6) +
+    line(`M${x1 - 36} ${y + 7} L${x1 - 22} ${y + 7}`, 4.5, WHITE)
   );
 }
 
@@ -51,26 +72,24 @@ export const LEDGES = {
   direita: { x0: 680, x1: 960, y: 236 },
 } as const;
 
-/** Palco da capa: chão de nanquim e três plataformas, fundo transparente (o papel é da página). */
+/** Palco da capa: chão marinho e três plataformas, fundo transparente (o papel é da página). */
 export function palcoSvg(): string {
   const ground =
-    `<rect x="-20" y="${GROUND + 8}" width="${STAGE_W + 40}" height="40" fill="url(#hachura)" opacity="0.3" filter="url(#tecido)"/>` +
-    stroke(-20, GROUND + 6, -90, 2.6, (STAGE_W + 40) / 100, INK, 'seco') +
-    stroke(-20, GROUND + 4, -90, 1.4, (STAGE_W + 40) / 100) +
-    stroke(40, GROUND + 22, -90, 0.5, 3.2, '#6d665a', 'seco', 0.6) +
-    stroke(560, GROUND + 26, -90, 0.5, 2.6, '#6d665a', 'seco', 0.6);
+    `<g filter="url(#sombra-palco)">` +
+    `<rect x="-20" y="${GROUND + 2}" width="${STAGE_W + 40}" height="44" rx="14" fill="${INK}"/>` +
+    '</g>' +
+    line(`M-20 ${GROUND + 12} L${STAGE_W + 20} ${GROUND + 12}`, 3, '#3a4258') +
+    // Tufos de grama de papel: tracinhos em cima do chão.
+    [70, 260, 540, 820, 940]
+      .map((x) => line(`M${x} ${GROUND + 2} L${x - 6} ${GROUND - 10} M${x + 8} ${GROUND + 2} L${x + 9} ${GROUND - 13} M${x + 16} ${GROUND + 2} L${x + 22} ${GROUND - 9}`, 4, PALETTE.verdeAgua))
+      .join('');
   const ledges = Object.values(LEDGES)
     .map((l, i) => ledge(l.x0, l.x1, l.y, i))
     .join('');
-  return svgDoc(`0 0 ${STAGE_W} ${STAGE_H}`, ground + ledges);
+  return svgDoc(`0 0 ${STAGE_W} ${STAGE_H}`, shadowFilter('sombra-palco', 7, 9, 0.22) + ground + ledges);
 }
 
-/** Mancha de pincel para o fundo dos botões cheios (esticada pelo CSS). */
+/** Fundo chapado arredondado para botões cheios (esticado pelo CSS). */
 export function pincelSvg(color: string): string {
-  return svgDoc(
-    '0 0 300 64',
-    `<path d="M8 12 Q90 4 292 9 Q297 30 293 52 Q150 61 6 55 Q2 32 8 12 Z" fill="${color}" filter="url(#tinta)"/>` +
-      stroke(14, 20, -90, 0.5, 2.6, PAPER, 'seco', 0.18) +
-      stroke(20, 46, -90, 0.4, 2.2, PAPER, 'seco', 0.14),
-  );
+  return svgDoc('0 0 300 64', `<rect x="3" y="3" width="294" height="58" rx="14" fill="${color}" stroke="${INK}" stroke-width="4"/>`);
 }

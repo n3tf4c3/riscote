@@ -1,66 +1,64 @@
-import { PAPER, gradient, stroke, svgDoc } from './svg';
+import { INK, PALETTE, WHITE, svgDoc } from './svg';
 
-// Auras do riscote, desenhadas atrás do boneco (o corpo de nanquim fica sempre na frente):
-// a invencibilidade do item é um halo dourado de pincel seco; a proteção do modo fácil, uma bolha
-// esboçada na cor do jogador. Centro do quadro em (0, 0) = centro do corpo.
+// Auras do riscote em cartum, desenhadas atrás do boneco: a invencibilidade do item é um halo dourado
+// chapado com contorno, raios e estrelinhas; a proteção do modo fácil, uma bolha na cor do jogador
+// com reflexo branco. Centro do quadro em (0, 0) = centro do corpo.
 
 const VB = '-62 -82 124 164';
-const GOLD = '#f6c23a';
-const GOLD_DARK = '#c47a10';
+const GOLD = PALETTE.amarelo;
+const GOLD_LIGHT = '#fff1b8';
+const LW = 2.6;
 
-/** Estrela de quatro pontas em (x, y), de raio `r`. */
+/** Estrela de quatro pontas em (x, y), de raio `r`, com contorno. */
 function star(x: number, y: number, r: number): string {
-  const s = r * 0.32;
+  const s = r * 0.3;
   return (
     `<path d="M${x} ${y - r} Q${x + s} ${y - s} ${x + r} ${y} Q${x + s} ${y + s} ${x} ${y + r} Q${x - s} ${y + s} ${x - r} ${y} Q${x - s} ${y - s} ${x} ${y - r} Z" ` +
-    `fill="#fff4c0" stroke="${GOLD_DARK}" stroke-width="1.6" stroke-linejoin="round" filter="url(#tinta)"/>`
+    `fill="${GOLD_LIGHT}" stroke="${INK}" stroke-width="${LW * 0.8}" stroke-linejoin="round"/>`
   );
 }
 
-/**
- * Invencível: aguada dourada clara, anel de pincel seco em degradê de amarelo a laranja-ouro,
- * um segundo traço tracejado por fora, raios curtos em volta e estrelinhas no anel.
- */
+/** Anel de elipse com contorno dos dois lados: marinho por baixo, cor por cima. */
+function ring(rx: number, ry: number, color: string, width: number, extra = ''): string {
+  return (
+    `<ellipse rx="${rx}" ry="${ry}" fill="none" stroke="${INK}" stroke-width="${width + LW * 2}"${extra}/>` +
+    `<ellipse rx="${rx}" ry="${ry}" fill="none" stroke="${color}" stroke-width="${width}"${extra}/>`
+  );
+}
+
+/** Invencível: brilho dourado claro, anel amarelo grosso com contorno, raios curtos e estrelinhas. */
 export function auraEstrelaSvg(variant = 0): string {
   let rays = '';
   for (let i = 0; i < 10; i++) {
     const a = (i / 10) * Math.PI * 2 + 0.2;
-    const x = Math.cos(a) * 50;
-    const y = Math.sin(a) * 70;
-    // A pincelada aponta para fora do anel (rotação 0 = para baixo).
-    const rot = (Math.atan2(y, x) * 180) / Math.PI - 90;
-    rays += stroke(x, y, rot, 0.9, 0.1 + (i % 3) * 0.03, 'url(#ouro)', 'seco');
+    const [c, s] = [Math.cos(a), Math.sin(a)];
+    const r0 = 1.08;
+    const r1 = 1.2 + (i % 2) * 0.08;
+    const d = `M${(c * 46 * r0).toFixed(1)} ${(s * 66 * r0).toFixed(1)} L${(c * 46 * r1).toFixed(1)} ${(s * 66 * r1).toFixed(1)}`;
+    rays += `<path d="${d}" stroke="${INK}" stroke-width="${5 + LW * 2}" stroke-linecap="round"/><path d="${d}" stroke="${GOLD}" stroke-width="5" stroke-linecap="round"/>`;
   }
   return svgDoc(
     VB,
-    gradient('ouro', '#fff07a', '#f59a1a', 60) +
-      `<ellipse rx="40" ry="60" fill="#ffe58a" opacity="0.32" filter="url(#borra)"/>` +
-      `<ellipse rx="44" ry="64" fill="none" stroke="url(#ouro)" stroke-width="8" filter="url(#seco)"/>` +
-      `<ellipse rx="44" ry="64" fill="none" stroke="url(#ouro)" stroke-width="3" filter="url(#tinta)" opacity="0.9"/>` +
-      `<ellipse rx="49" ry="69" fill="none" stroke="${GOLD}" stroke-width="2" stroke-dasharray="14 9" stroke-linecap="round" filter="url(#tinta)" opacity="0.8"/>` +
+    `<ellipse rx="44" ry="64" fill="${GOLD_LIGHT}" opacity="0.4"/>` +
       rays +
-      `<path d="M-30 -48 Q-40 -30 -41 -8" stroke="${PAPER}" stroke-width="3.5" fill="none" stroke-linecap="round" opacity="0.7"/>` +
-      star(-38, -50, 9) +
-      star(42, -26, 7) +
-      star(36, 52, 8) +
-      star(-44, 34, 6),
+      ring(44, 64, GOLD, 6) +
+      `<path d="M-30 -46 Q-40 -30 -41 -10" stroke="${WHITE}" stroke-width="3.5" fill="none" stroke-linecap="round" opacity="0.9"/>` +
+      star(-38, -50, 10) +
+      star(42, -24, 8) +
+      star(36, 54, 9) +
+      star(-44, 34, 7),
     variant,
   );
 }
 
-/**
- * Proteção do modo fácil: bolha de dois traços esboçados no degradê do jogador (`from` → `to`),
- * com uma aguada leve da mesma cor e o reflexo de papel no alto. Some no primeiro toque.
- */
+/** Proteção do modo fácil: bolha na cor do jogador (`from`), com miolo claro (`to`) e reflexo branco. */
 export function auraProtecaoSvg(from: string, to: string, variant = 0): string {
   return svgDoc(
     VB,
-    gradient('cor', from, to, 60) +
-      `<ellipse rx="40" ry="60" fill="url(#cor)" opacity="0.16" filter="url(#borra)"/>` +
-      `<ellipse rx="42" ry="62" fill="none" stroke="url(#cor)" stroke-width="4.5" filter="url(#tinta)"/>` +
-      `<ellipse rx="45" ry="64" fill="none" stroke="url(#cor)" stroke-width="2" filter="url(#seco)" opacity="0.8" transform="rotate(5)"/>` +
-      `<path d="M-28 -50 Q-38 -36 -40 -16" stroke="${PAPER}" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.85"/>` +
-      `<path d="M-20 -57 Q-14 -60 -8 -61" stroke="${PAPER}" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.7"/>`,
+    `<ellipse rx="44" ry="64" fill="${to}" opacity="0.3"/>` +
+      ring(44, 64, from, 4, ' opacity="0.95"') +
+      `<path d="M-28 -50 Q-38 -36 -40 -16" stroke="${WHITE}" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.95"/>` +
+      `<circle cx="-24" cy="-58" r="3" fill="${WHITE}" opacity="0.9"/>`,
     variant,
   );
 }

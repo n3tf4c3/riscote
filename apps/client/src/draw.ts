@@ -21,9 +21,9 @@ import {
 } from '@riscote/shared';
 
 // Greybox: cores só para separar o que é jogável (escuro, contorno) do fundo (claro).
-const PAPER = 0xf1ead9;
-const GRID = 0xe2d9c4;
-export const INK = 0x1f1d1a;
+const PAPER = 0xf6f1e7;
+const GRID = 0xe3dbca;
+export const INK = 0x1f2433;
 const ONE_WAY_FILL = 0x8a8478;
 /** Azul da tinta dos jogadores: tubos, gotas, medidores e inimigos encharcados. */
 export const INK_BLUE = 0x2f6fd6;
@@ -45,8 +45,8 @@ const STAR_GOLD = 0xe8b400;
 /** Cor do líquido de cada item, na ordem ITEM_FORCA..ITEM_INVENCIVEL. */
 const ITEM_COLORS = [0xc8402a, 0xd99a1e, 0x2f6fd6, 0x1f9e89, STAR_GOLD];
 
-/** Cores dos 5 jogadores (plano, seção 3): vermelhão, azul, ocre, verde-azulado, púrpura. */
-export const PLAYER_COLORS = [0xe0502e, 0x3f8fd8, 0xd99a1e, 0x1f9e89, 0x9b4f96] as const;
+/** Cores dos 5 jogadores (plano, seção 3), avivadas no cartum de 2026-10-31: laranja, azul-céu, amarelo, verde-água, roxo. */
+export const PLAYER_COLORS = [0xff6b3d, 0x33b8e8, 0xffbf2e, 0x15a08c, 0x9b5de5] as const;
 
 /** `showTubes`: os tubos de tinta só aparecem no modo difícil (nos outros a tinta é infinita). */
 export function drawArena(scene: Phaser.Scene, a: Arena, showTubes = true): Phaser.GameObjects.Graphics {
