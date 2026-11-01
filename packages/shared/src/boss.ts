@@ -4,6 +4,9 @@ import { TILE } from './params.ts';
 // O chefe: o Mata-Borrão, um mata-borrão de mesa que ganhou vida e quer secar a página.
 // Luta numa página própria do capítulo. A vida só cai com bolas chutadas nele; a tinta
 // direta enche o medidor de encharcado, e cheio ele fica pesado (parado, levando o dobro).
+// Cada capítulo tem o seu chefe (decisão do usuário em 2026-11-01): a mesma estrutura do
+// Mata-Borrão (vida, fases, avisos, encharcado, fiapos) e um golpe próprio, sempre avisado antes.
+// O tipo vem da página (`bossKind`); o desenho de cada um fica no cliente.
 
 /** Valores iniciais, a ajustar em playtest. Índices [fase 1, fase 2, fase 3] onde há três. */
 export const BOSS_RULES = {
@@ -37,6 +40,21 @@ export const BOSS_RULES = {
   soakDecay: 2, // gotas/s
   heavyTime: 3,
   heavyMult: 2,
+  /** Apara-bumerangue (o Apontador): marca a altura, atira a apara rente a essa altura e ela volta. */
+  shavingWindup: 0.9,
+  shavingSpeed: 11, // células/s
+  shavingRise: 16, // células/s até a altura marcada, saindo da boca dele
+  shavingWidth: 1.4,
+  shavingHeight: 0.9,
+  /**
+   * Virada de página (o Calhamaço): uma página gigante varre a arena de uma parede à outra, com uma
+   * fresta na altura de quem está mais perto da parede de onde ela sai; só passa quem está na fresta.
+   */
+  pageWindup: 1.2,
+  pageSpeed: 7, // células/s
+  pageWidth: 0.7,
+  pageGapAbove: 2.2, // células acima do centro do alvo
+  pageGapBelow: 1.2, // células abaixo
   minionEvery: [6, 6, 4.5], // s entre fiapos (traças)
   minionsAtStart: 2,
   phase2At: 0.6, // fração da vida
@@ -62,9 +80,40 @@ export const ATTACK_STAMP = 1;
 export const ATTACK_WAVE = 2;
 /** Chuva de borrões: marcas no teto e, depois, gotas grandes caindo nessas colunas. */
 export const ATTACK_RAIN = 3;
+/** Apara-bumerangue (o Apontador): marca uma altura, atira uma apara por ela até a parede e ela volta. */
+export const ATTACK_SHAVING = 4;
+/** Virada de página (o Calhamaço): marca a fresta e uma página gigante varre a arena. */
+export const ATTACK_PAGE = 5;
 
 export const HAZARD_WAVE = 0;
 export const HAZARD_BLOT = 1;
+export const HAZARD_SHAVING = 2;
+/** Um pedaço da página da virada (acima ou abaixo da fresta); os dois correm juntos. */
+export const HAZARD_PAGE = 3;
+
+/** Os chefes: o Mata-Borrão fecha o capítulo 1; cada capítulo novo traz o seu. */
+export const BOSS_MATA_BORRAO = 0;
+export const BOSS_APONTADOR = 1;
+export const BOSS_CALHAMACO = 2;
+
+/** Golpes que cada chefe sorteia em cada fase (1, 2 e 3). */
+const BOSS_ATTACKS: Record<number, readonly (readonly number[])[]> = {
+  [BOSS_MATA_BORRAO]: [
+    [ATTACK_STAMP, ATTACK_WAVE],
+    [ATTACK_STAMP, ATTACK_WAVE, ATTACK_RAIN],
+    [ATTACK_STAMP, ATTACK_WAVE, ATTACK_RAIN],
+  ],
+  [BOSS_APONTADOR]: [
+    [ATTACK_STAMP, ATTACK_SHAVING],
+    [ATTACK_STAMP, ATTACK_WAVE, ATTACK_SHAVING, ATTACK_RAIN],
+    [ATTACK_STAMP, ATTACK_WAVE, ATTACK_SHAVING, ATTACK_RAIN],
+  ],
+  [BOSS_CALHAMACO]: [
+    [ATTACK_STAMP, ATTACK_PAGE],
+    [ATTACK_STAMP, ATTACK_WAVE, ATTACK_PAGE, ATTACK_RAIN],
+    [ATTACK_STAMP, ATTACK_WAVE, ATTACK_PAGE, ATTACK_RAIN],
+  ],
+};
 
 export interface Rect {
   x: number;
@@ -87,6 +136,9 @@ export interface Hazard {
   vx: number;
   /** Segundos de aviso antes de valer (só os borrões da chuva esperam). */
   wait: number;
+  /** Apara: a altura (y do topo) da faixa marcada e se já está voltando. */
+  laneY?: number;
+  back?: boolean;
 }
 
 /** O que o chefe precisa do mundo: tudo determinístico, sem relógio nem Math.random. */
@@ -121,6 +173,9 @@ export class Boss {
   timer: number = BOSS_RULES.introTime;
   /** Onde a carimbada vai cair (x do canto esquerdo). */
   targetX = 0;
+  /** Altura (centro) da faixa da apara-bumerangue. */
+  targetY = 0;
+  readonly kind: number;
   soak = 0;
   hurt = 0;
   /** Contadores para o cliente reagir: batidas no chão (chacoalhar) e golpes levados. */
@@ -143,6 +198,7 @@ export class Boss {
   constructor(arena: Arena, players: number, host: BossHost) {
     this.arena = arena;
     this.host = host;
+    this.kind = bossKind(arena);
     this.maxHp = bossMaxHp(players);
     this.hp = this.maxHp;
     this.soakMax = BOSS_RULES.soakBase + BOSS_RULES.soakPerPlayer * Math.max(1, players);
@@ -311,7 +367,9 @@ export class Boss {
   }
 
   private windup(): void {
-    const options = this.phase === 1 ? [ATTACK_STAMP, ATTACK_WAVE] : [ATTACK_STAMP, ATTACK_WAVE, ATTACK_RAIN];
+    // Com uma página ainda varrendo a arena, não vem outra (seriam duas frestas ao mesmo tempo).
+    const paging = [...this.hazards.values()].some((z) => z.kind === HAZARD_PAGE);
+    const options = BOSS_ATTACKS[this.kind]![this.phase - 1]!.filter((a) => !paging || a !== ATTACK_PAGE);
     this.attack = options[Math.floor(this.host.rng() * options.length)]!;
     this.state = BOSS_WINDUP;
     if (this.attack === ATTACK_STAMP) {
@@ -322,6 +380,27 @@ export class Boss {
       this.dir = this.targetX >= this.x ? 1 : -1;
     } else if (this.attack === ATTACK_WAVE) {
       this.timer = BOSS_RULES.waveWindup;
+    } else if (this.attack === ATTACK_SHAVING) {
+      // Marca a altura de quem está mais perto e vira para ele.
+      this.timer = BOSS_RULES.shavingWindup;
+      const target = this.host.nearestTarget(this.x + this.w / 2, this.y + this.h / 2);
+      const half = (BOSS_RULES.shavingHeight * TILE) / 2;
+      const y = target ? target.y : this.y + this.h / 2;
+      this.targetY = Math.min(this.floorY + this.h - half, Math.max(TILE + half, y));
+      if (target) this.dir = target.x >= this.x + this.w / 2 ? 1 : -1;
+    } else if (this.attack === ATTACK_PAGE) {
+      // A página sai da parede do outro lado de quem está mais perto dele e varre na direção desse
+      // alguém; a fresta fica na altura de quem está mais perto daquela parede (o que tem menos tempo).
+      this.timer = BOSS_RULES.pageWindup;
+      const cy = this.y + this.h / 2;
+      const near = this.host.nearestTarget(this.x + this.w / 2, cy);
+      const fromLeft = near ? near.x >= this.x + this.w / 2 : this.dir > 0;
+      const w = BOSS_RULES.pageWidth * TILE;
+      this.targetX = fromLeft ? TILE : (this.arena.cols - 1) * TILE - w;
+      const first = this.host.nearestTarget(this.targetX, cy);
+      const y = first ? first.y : cy;
+      this.targetY = Math.min(this.floorY + this.h - BOSS_RULES.pageGapBelow * TILE, Math.max(TILE + BOSS_RULES.pageGapAbove * TILE, y));
+      this.dir = fromLeft ? 1 : -1;
     } else {
       this.timer = BOSS_RULES.rainWindup;
       this.rain();
@@ -339,7 +418,24 @@ export class Boss {
       this.impacts++;
       this.waves();
     }
+    if (this.attack === ATTACK_SHAVING) this.shaving();
+    if (this.attack === ATTACK_PAGE) this.turnPage();
     this.recover();
+  }
+
+  /** A página: um pedaço acima da fresta e outro abaixo (se houver espaço), correndo juntos. */
+  private turnPage(): void {
+    const w = BOSS_RULES.pageWidth * TILE;
+    const top = TILE;
+    const bottom = (this.arena.rows - 1) * TILE;
+    const gapTop = this.targetY - BOSS_RULES.pageGapAbove * TILE;
+    const gapBottom = this.targetY + BOSS_RULES.pageGapBelow * TILE;
+    const vx = this.dir * BOSS_RULES.pageSpeed * TILE;
+    for (const [y, h] of [[top, gapTop - top], [gapBottom, bottom - gapBottom]] as const) {
+      if (h <= 0) continue;
+      const id = this.host.nextId();
+      this.hazards.set(id, { id, kind: HAZARD_PAGE, x: this.targetX, y, w, h, vx, wait: 0 });
+    }
   }
 
   /** Duas ondas saindo dos lados do chefe, rente ao chão. */
@@ -352,6 +448,16 @@ export class Boss {
       const x = dir < 0 ? this.x - w : this.x + this.w;
       this.hazards.set(id, { id, kind: HAZARD_WAVE, x, y, w, h, vx: dir * BOSS_RULES.waveSpeed * TILE, wait: 0 });
     }
+  }
+
+  /** A apara sai da boca, sobe ou desce até a faixa marcada e corre até a parede; de lá, volta. */
+  private shaving(): void {
+    const w = BOSS_RULES.shavingWidth * TILE;
+    const h = BOSS_RULES.shavingHeight * TILE;
+    const id = this.host.nextId();
+    const x = this.dir > 0 ? this.x + this.w - w / 2 : this.x - w / 2;
+    const y = this.y + this.h * 0.45 - h / 2;
+    this.hazards.set(id, { id, kind: HAZARD_SHAVING, x, y, w, h, vx: this.dir * BOSS_RULES.shavingSpeed * TILE, wait: 0, laneY: this.targetY - h / 2, back: false });
   }
 
   /** Marca colunas no teto: uma sobre quem está mais perto, as outras sorteadas. */
@@ -378,6 +484,29 @@ export class Boss {
       if (z.kind === HAZARD_WAVE) {
         z.x += z.vx * dt;
         if (z.x < left || z.x + z.w > right) this.hazards.delete(z.id);
+        continue;
+      }
+      if (z.kind === HAZARD_PAGE) {
+        // Corre até encostar na parede do outro lado.
+        z.x += z.vx * dt;
+        if ((z.vx > 0 && z.x + z.w >= right) || (z.vx < 0 && z.x <= left)) this.hazards.delete(z.id);
+        continue;
+      }
+      if (z.kind === HAZARD_SHAVING) {
+        const lane = z.laneY ?? z.y;
+        const rise = BOSS_RULES.shavingRise * TILE * dt;
+        z.y = z.y < lane ? Math.min(lane, z.y + rise) : Math.max(lane, z.y - rise);
+        z.x += z.vx * dt;
+        const out = z.x < left || z.x + z.w > right;
+        if (out && !z.back) {
+          // Bateu na parede: volta pela mesma faixa.
+          z.x = Math.min(right - z.w, Math.max(left, z.x));
+          z.vx = -z.vx;
+          z.back = true;
+        } else if (out || (z.back && Math.abs(z.x + z.w / 2 - (this.x + this.w / 2)) < this.w / 4)) {
+          // Voltou para a mão dele (ou passou da outra parede).
+          this.hazards.delete(z.id);
+        }
         continue;
       }
       if (z.wait > 0) {
@@ -423,15 +552,79 @@ const MESA = [
 
 export const BOSS_ARENA: Arena = parseArena('mesa', 'Mesa do Mata-Borrão 32×18', MESA);
 
+// O bosque do Apontador: a mesma ideia da mesa (chão largo no meio, saliências baixas nos cantos
+// para nascer longe da queda dele), com andares em mais alturas para fugir da faixa da apara.
+const BOSQUE = [
+  '#..............................#',
+  '#..............................#',
+  '#..............................#',
+  '#..............................#',
+  '#..............................#',
+  '#.......======......======.....#',
+  '#..............................#',
+  '#..............................#',
+  '#=====......========......=====#',
+  '#..............................#',
+  '#..............................#',
+  '#...=======..........=======...#',
+  '#..............................#',
+  '#.PPP.....................PP...#',
+  '#=====....................=====#',
+  '#..............................#',
+  '#T............................T#',
+  '################################',
+];
+
+export const BOSQUE_ARENA: Arena = parseArena('bosque', 'Bosque do Apontador 32×18', BOSQUE);
+
+// A sala de leitura do Calhamaço: estantes compridas em andares regulares, para dar tempo de chegar
+// à fresta da virada de página subindo ou descendo, e as saliências baixas nos cantos.
+const ATRIL = [
+  '#..............................#',
+  '#..............................#',
+  '#..............................#',
+  '#..............................#',
+  '#..............................#',
+  '#.....=========....=========...#',
+  '#..............................#',
+  '#..............................#',
+  '#==========............========#',
+  '#..............................#',
+  '#..............................#',
+  '#....===========..===========..#',
+  '#..............................#',
+  '#.PPP.....................PP...#',
+  '#=====....................=====#',
+  '#..............................#',
+  '#T............................T#',
+  '################################',
+];
+
+export const ATRIL_ARENA: Arena = parseArena('atril', 'Sala de leitura do Calhamaço 32×18', ATRIL);
+
+/** As páginas de chefe e quem luta em cada uma. */
+const BOSS_PAGES: Record<string, number> = {
+  [BOSS_ARENA.id]: BOSS_MATA_BORRAO,
+  [BOSQUE_ARENA.id]: BOSS_APONTADOR,
+  [ATRIL_ARENA.id]: BOSS_CALHAMACO,
+};
+
+export const BOSS_ARENAS: readonly Arena[] = [BOSS_ARENA, BOSQUE_ARENA, ATRIL_ARENA];
+
 export function isBossArena(arena: Arena): boolean {
-  return arena.id === BOSS_ARENA.id;
+  return BOSS_PAGES[arena.id] !== undefined;
+}
+
+/** O chefe da página (fora de uma página de chefe, o Mata-Borrão). */
+export function bossKind(arena: Arena): number {
+  return BOSS_PAGES[arena.id] ?? BOSS_MATA_BORRAO;
 }
 
 /**
  * Capítulo com a página do chefe na posição `at` (0 = antes da primeira).
  * Capítulo mais curto: o chefe fica no fim.
  */
-export function withBoss(chapter: readonly Arena[], at: number): Arena[] {
+export function withBoss(chapter: readonly Arena[], at: number, boss: Arena = BOSS_ARENA): Arena[] {
   const i = Math.min(Math.max(0, at), chapter.length);
-  return [...chapter.slice(0, i), BOSS_ARENA, ...chapter.slice(i)];
+  return [...chapter.slice(0, i), boss, ...chapter.slice(i)];
 }

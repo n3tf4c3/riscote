@@ -40,8 +40,10 @@ export class ArtLayer {
     const entry = this.specs.get(key);
     if (!entry) return;
     // A variação da linha viva entra quando a textura dela já carregou.
-    const boiled = boilKey(key, opts.still ? 0 : this.boil);
-    const texture = this.scene.textures.exists(boiled) ? boiled : key;
+    const boiled = this.specs.get(boilKey(key, opts.still ? 0 : this.boil))?.spec;
+    const tex = (s: ArtSpec | undefined) => s && (s.tex ?? s.key);
+    const variant = tex(boiled);
+    const texture = variant && this.scene.textures.exists(variant) ? variant : (tex(entry.spec) ?? key);
     let img = this.pool[this.used];
     if (!img) {
       img = this.scene.add.image(0, 0, texture);

@@ -1265,7 +1265,7 @@ describe('fases, modos e habilidades', () => {
     expect([...kinds].sort()).toEqual([ENEMY_TRACA, ENEMY_GRAMPO].sort());
   });
 
-  it.each(['andaime', 'calendario'])('%s: determinístico com os inimigos novos, o cuspe e o fio', (id) => {
+  it.each(['andaime', 'copas'])('%s: determinístico com os inimigos novos, o cuspe e o fio', (id) => {
     const arena = ARENAS.find((a) => a.id === id)!;
     const snapshot = (seed: number) => {
       const world = new World(arena, seed, { difficulty: 'dificil' });

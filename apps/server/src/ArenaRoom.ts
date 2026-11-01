@@ -17,6 +17,7 @@ import {
   ROOM_CODE_LENGTH,
   TICK_RATE,
   CHAPTERS,
+  CHAPTER_BOSSES,
   PHASE_LOBBY,
   World,
   chapterFrom,
@@ -36,7 +37,7 @@ import {
 } from '@riscote/shared';
 import { recordTick, processMetrics } from './metrics.ts';
 import { RecordBook } from './records.ts';
-import { BossSchema, DropSchema, EnemySchema, GameState, HazardSchema, ItemSchema, PlayerSchema, SpitSchema, StainSchema } from './state.ts';
+import { BossSchema, DropSchema, EnemySchema, GameState, HazardSchema, ItemSchema, PlayerSchema, SpitSchema, SproutSchema, StainSchema } from './state.ts';
 
 /** Fila acima disto descarta os comandos mais antigos: limita o atraso acumulado (~130 ms). */
 const MAX_QUEUE = 8;
@@ -99,10 +100,10 @@ export class ArenaRoom extends Room<{ state: GameState }> {
     this.maxClients = MAX_PLAYERS;
     // 60 comandos/s mais folga; acima disso o cliente é desconectado.
     this.maxMessagesPerSecond = 120;
-    // Capítulo da arena escolhida na criação da sala, sempre da 1ª fase; o chefe fecha o capítulo.
+    // Capítulo da arena escolhida na criação da sala, sempre da 1ª fase; o chefe dele fecha o capítulo.
     const arenas = chapterFrom(options.arenaId);
-    const chapter = withBoss(arenas, arenas.length);
     this.chapterIndex = Math.max(0, CHAPTERS.findIndex((c) => c[0]?.id === arenas[0]?.id));
+    const chapter = withBoss(arenas, arenas.length, CHAPTER_BOSSES[this.chapterIndex]);
     // Só `true` abre a sala: cliente antigo, sem o campo, continua com sala privada.
     this.open = options.open === true;
     const difficulty = parseDifficulty(options.difficulty);
@@ -324,6 +325,7 @@ export class ArenaRoom extends Room<{ state: GameState }> {
       net.soakMax = live.soakMax;
       net.timer = live.timer;
       net.targetX = live.targetX;
+      net.targetY = live.targetY;
       net.impacts = live.impacts;
       net.hits = live.hits;
     }
@@ -385,6 +387,8 @@ export class ArenaRoom extends Room<{ state: GameState }> {
       net.soak = e.soak;
       net.skill = e.skill;
       net.anchorY = e.anchorY;
+      net.aimX = e.aimX;
+      net.aimY = e.aimY;
     }
 
     for (const id of [...s.spits.keys()]) if (!w.spits.has(Number(id))) s.spits.delete(id);
@@ -393,10 +397,24 @@ export class ArenaRoom extends Room<{ state: GameState }> {
       let net = s.spits.get(key);
       if (!net) {
         net = new SpitSchema();
+        net.kind = spit.kind;
         s.spits.set(key, net);
       }
       net.x = spit.x;
       net.y = spit.y;
+    }
+
+    for (const id of [...s.sprouts.keys()]) if (!w.sprouts.has(Number(id))) s.sprouts.delete(id);
+    for (const sprout of w.sprouts.values()) {
+      const key = String(sprout.id);
+      let net = s.sprouts.get(key);
+      if (!net) {
+        net = new SproutSchema();
+        net.x = sprout.x;
+        net.y = sprout.y;
+        s.sprouts.set(key, net);
+      }
+      net.age = sprout.age;
     }
 
     for (const id of [...s.stains.keys()]) if (!w.stains.has(Number(id))) s.stains.delete(id);

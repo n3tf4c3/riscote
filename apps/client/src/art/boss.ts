@@ -1,6 +1,7 @@
 import { BOSS_RULES, TILE } from '@riscote/shared';
 import { BOIL, INK, PALETTE, WHITE, blush, eye, line, openMouth, outlined, oval, shine, svgDoc } from './svg';
-import { boilKey, type ArtSpec } from './textures';
+import type { PeleChefe } from './pele';
+import { boilKey, vestir, type ArtSpec } from './textures';
 
 // O Mata-Borrão em cartum: mata-borrão de mesa vivo, com o feltro verde na base que balança,
 // o bloco de madeira cereja com a cara e o puxador laranja no alto (olhando para a direita).
@@ -237,14 +238,16 @@ function at(key: string, svg: string, k: number, ax: number, ay: number): ArtSpe
   return { key, svg, k, ox: (ax - x) / w, oy: (ay - y) / h };
 }
 
-/** Desenhos do chefe, só carregados na página dele. */
-export function bossSpecs(): ArtSpec[] {
+/** Desenhos do chefe do capítulo, só carregados na página dele. */
+export function bossSpecs(chefe: PeleChefe): ArtSpec[] {
   const specs: ArtSpec[] = [];
   const k = (BOSS_RULES.width * TILE) / BOSS_UNITS;
   for (let v = 0; v < BOIL; v++) {
-    for (const pose of BOSS_POSES) specs.push(at(boilKey(`chefe-${pose}`, v), mataBorraoSvg(pose, v), k, ...BOSS_ANCHOR));
-    specs.push(at(boilKey('chefe-onda', v), ondaSvg(v), 0.5, 2, 0));
-    specs.push(at(boilKey('chefe-borrao', v), borraoGotaSvg(v), (BOSS_RULES.rainSize * TILE) / 22, 0, 0));
+    for (const pose of BOSS_POSES) specs.push(at(boilKey(`chefe-${pose}`, v), chefe.chefe(pose, v), k, ...BOSS_ANCHOR));
+    specs.push(at(boilKey('chefe-onda', v), chefe.onda(v), 0.5, 2, 0));
+    specs.push(at(boilKey('chefe-borrao', v), chefe.chuva(v), (BOSS_RULES.rainSize * TILE) / 22, 0, 0));
+    // A apara (quadro de 48 unidades) com a largura da caixa dela.
+    if (chefe.golpe) specs.push(at(boilKey('chefe-apara', v), chefe.golpe(v), (BOSS_RULES.shavingWidth * TILE) / 44, 0, 0));
   }
-  return specs;
+  return vestir(specs, chefe.id);
 }

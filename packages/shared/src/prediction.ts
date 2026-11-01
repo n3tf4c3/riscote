@@ -119,10 +119,13 @@ export class Interpolator<T extends Positioned = RemoteView> {
 
   private readonly delayMs: number;
   private readonly keepMs: number;
+  private readonly snapDist: number;
 
-  constructor(delayMs = 100, keepMs = 1000) {
+  /** `snapDist`: entre dois estados, um salto maior que isso (em pixels) não é interpolado (o marca-página some e aparece). */
+  constructor(delayMs = 100, keepMs = 1000, snapDist = Infinity) {
     this.delayMs = delayMs;
     this.keepMs = keepMs;
+    this.snapDist = snapDist;
   }
 
   push(t: number, players: T[]): void {
@@ -142,7 +145,7 @@ export class Interpolator<T extends Positioned = RemoteView> {
     const k = Math.max(0, Math.min(1, (target - a.t) / (b.t - a.t)));
     return [...b.players.values()].map((pb) => {
       const pa = a.players.get(pb.id);
-      if (!pa) return pb;
+      if (!pa || Math.hypot(pb.x - pa.x, pb.y - pa.y) > this.snapDist) return pb;
       return { ...pb, x: pa.x + (pb.x - pa.x) * k, y: pa.y + (pb.y - pa.y) * k };
     });
   }

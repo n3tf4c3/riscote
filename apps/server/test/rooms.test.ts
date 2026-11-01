@@ -109,10 +109,16 @@ async function joinError(roomId: string): Promise<string> {
 
 describe('salas', () => {
   it('cria a sala com código legível e o capítulo da arena escolhida, a partir da 1ª fase', async () => {
-    const room = await newRoom('mapa');
+    const room = await newRoom('toca');
     expect(normalizeRoomCode(room.roomId)).toBe(room.roomId);
-    expect(room.state.arenaId).toBe('partitura');
+    expect(room.state.arenaId).toBe('clareira');
+    // O capítulo da Floresta fecha com o Apontador; o do caderno, com o Mata-Borrão.
+    expect((room as any).world.chapter.map((a: { id: string }) => a.id)).toEqual(['clareira', 'raizes', 'toca', 'copas', 'bosque']);
+    const caderno = await newRoom('margem');
+    expect((caderno as any).world.chapter.at(-1).id).toBe('mesa');
     expect((await newRoom('inexistente')).state.arenaId).toBe('margem');
+    // Partituras e mapas saiu do menu: link antigo começa pelo capítulo 1.
+    expect((await newRoom('mapa')).state.arenaId).toBe('margem');
   });
 
   it('a dificuldade escolhida vale para a sala; valor desconhecido vira médio', async () => {
@@ -667,7 +673,7 @@ describe('itens na rede', () => {
   });
 
   it('a sala aberta mostra código e nomes; a privada e a de cliente antigo, só a contagem', async () => {
-    const aberta = (await t.createRoom(ROOM_NAME, { arenaId: 'partitura', difficulty: 'dificil', open: true })) as unknown as ArenaRoom;
+    const aberta = (await t.createRoom(ROOM_NAME, { arenaId: 'clareira', difficulty: 'dificil', open: true })) as unknown as ArenaRoom;
     const privada = (await t.createRoom(ROOM_NAME, { open: false })) as unknown as ArenaRoom;
     const antiga = (await t.createRoom(ROOM_NAME, {})) as unknown as ArenaRoom;
     await t.connectTo(aberta, { name: 'netface' });

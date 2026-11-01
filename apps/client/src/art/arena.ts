@@ -1,59 +1,66 @@
-import { ONE_WAY, SOLID, TILE, cellAt, type Arena } from '@riscote/shared';
+import { ONE_WAY, SOLID, cellAt, type Arena } from '@riscote/shared';
+import { C, U, rects, solidPath, solidTops, type Rect } from './celulas';
+import { BIBLIOTECA } from './biblioteca';
+import { CASTELO } from './castelo';
+import { FLORESTA } from './floresta';
+import { JARDIM } from './jardim';
+import { OFICINA } from './oficina';
 import { INK, PALETTE, PAPER, PAPER_LINE, WHITE, line, outlined, shade, shadowFilter, svgDoc } from './svg';
 
 // Arena em cartum (direção de 2026-10-31), gerada das células do mapa em duas camadas:
 // o fundo de caderno pautado e, por cima dos efeitos, as plataformas e paredes.
 // As atravessáveis são "etiquetas" de cor chapada com contorno marinho e sombra dura; os sólidos,
 // blocos marinho com a quina de cima clara. Decoração só no fundo, em traço apagado.
+// Os temas com `cenario` (fases com profundidade, 2026-11-01) trocam o caderno por um céu parado e
+// camadas que deslizam pelo parallax, e trazem a própria aparência de sólidos e atravessáveis.
 // Unidades na escala 2: uma célula = 40.
 
-const U = 2;
-const C = TILE * U;
-
-interface Rect {
-  c0: number;
-  c1: number;
-  r0: number;
-  r1: number;
-}
-
-/** Junta as células de um tipo em retângulos: trechos por linha, depois trechos iguais em linhas seguidas. */
-function rects(a: Arena, kind: number): Rect[] {
-  const done: Rect[] = [];
-  let open: Rect[] = [];
-  for (let r = 0; r < a.rows; r++) {
-    const runs: Array<[number, number]> = [];
-    for (let c = 0; c < a.cols; c++) {
-      if (cellAt(a, c, r) !== kind) continue;
-      const start = c;
-      while (c + 1 < a.cols && cellAt(a, c + 1, r) === kind) c++;
-      runs.push([start, c]);
-    }
-    const next: Rect[] = [];
-    for (const [c0, c1] of runs) {
-      const prev = open.find((o) => o.c0 === c0 && o.c1 === c1);
-      if (prev) {
-        prev.r1 = r;
-        next.push(prev);
-      } else next.push({ c0, c1, r0: r, r1: r });
-    }
-    done.push(...open.filter((o) => !next.includes(o)));
-    open = next;
-  }
-  return done.concat(open);
-}
-
 type At = (fx: number, fy: number, s?: number) => string;
+
+/**
+ * Camada de parallax. A arena não se move (a câmera é fixa), então o que dá profundidade é o
+ * deslocamento das camadas conforme a equipe anda: o que está longe acompanha mais a equipe,
+ * o que está na frente vai contra.
+ */
+export interface Camada {
+  /** Deslocamento máximo em pixels do mundo; negativo vai contra a equipe (camada da frente). */
+  amp: number;
+  /** Corpo do SVG em coordenadas da arena; pode passar das bordas até a margem `m` (unidades). */
+  desenho: (a: Arena, w: number, h: number, m: number) => string;
+}
+
+/** Cenário em camadas: céu parado, longe, meio e frente, e a aparência das células jogáveis. */
+export interface Cenario {
+  /** Opaco e parado: as faixas do céu e a lembrança do papel. */
+  ceu: (w: number, h: number) => string;
+  longe: Camada;
+  meio: Camada;
+  /**
+   * Por cima das plataformas e atrás de itens, inimigos e bonecos. É recortada nas paredes e no
+   * chão (e na faixa de cima, se ela não tiver plataformas), recuada pelo próprio deslocamento:
+   * nunca cobre onde se pisa.
+   */
+  frente: Camada;
+  /** Paredes e chão, no lugar do bloco marinho. */
+  solidos: (a: Arena) => string;
+  /** Uma plataforma atravessável, no lugar da etiqueta. */
+  plataforma: (r: Rect) => string;
+  /** Enfeite do ponto `A` (de onde a fiandeira desce); (x, y) é o meio do alto da célula. */
+  ancora: (x: number, y: number) => string;
+  /** Enfeite atrás da bisnaga de tinta (quadro '-40 -4 80 86', chão em y = 80). */
+  baseTubo?: () => string;
+}
 
 /**
  * Cada tema: a pauta do papel, os rabiscos do fundo (herdam o traço apagado do grupo), umas manchas
  * de cor pastel e a cor das etiquetas (plataformas atravessáveis).
  */
-interface Tema {
+export interface Tema {
   pauta: (w: number, h: number) => string;
   rabiscos: (at: At, w: number, h: number) => string;
   manchas: (at: At) => string;
   etiqueta: string;
+  cenario?: Cenario;
 }
 
 function linhas(w: number, h: number, passo: number, verticais = false): string {
@@ -150,17 +157,41 @@ const CALENDARIO: Tema = {
   etiqueta: '#a993f2',
 };
 
-const TEMAS: Record<string, Tema> = { quadriculada: QUADRICULADA, partitura: PARTITURA, mapa: MAPA, calendario: CALENDARIO };
+/**
+ * Temas pelo nome. Os capítulos com tema (`visualDe`) pedem o seu (`floresta`, `biblioteca`); `jardim`,
+ * `oficina` e `castelo` ainda não têm capítulo e só aparecem pedidos (`?tema=jardim`). Os de Partituras e
+ * mapas (`quadriculada`, `partitura`, `mapa`, `calendario`) também só aparecem pedidos: as páginas
+ * foram para a Biblioteca em 2026-11-01, com ids novos.
+ */
+const TEMAS: Record<string, Tema> = {
+  caderno: CADERNO,
+  quadriculada: QUADRICULADA,
+  partitura: PARTITURA,
+  mapa: MAPA,
+  calendario: CALENDARIO,
+  floresta: FLORESTA,
+  biblioteca: BIBLIOTECA,
+  jardim: JARDIM,
+  oficina: OFICINA,
+  castelo: CASTELO,
+};
 
-function tema(a: Arena): Tema {
-  return TEMAS[a.id] ?? CADERNO;
+/** Nome do tema da arena: o pedido, se existir, senão o da própria arena, senão o caderno. */
+export function temaId(a: Arena, pedido?: string | null): string {
+  if (pedido && TEMAS[pedido]) return pedido;
+  return TEMAS[a.id] ? a.id : 'caderno';
+}
+
+function tema(a: Arena, pedido?: string | null): Tema {
+  return TEMAS[temaId(a, pedido)] ?? CADERNO;
 }
 
 /** Página de caderno: papel liso, pauta do tema, margem vermelha clara, manchas pastel e rabiscos apagados. */
-export function arenaFundoSvg(a: Arena): string {
+export function arenaFundoSvg(a: Arena, pedido?: string | null): string {
   const w = a.cols * C;
   const h = a.rows * C;
-  const t = tema(a);
+  const t = tema(a, pedido);
+  if (t.cenario) return svgDoc(`0 0 ${w} ${h}`, t.cenario.ceu(w, h));
   const at: At = (fx, fy, s = 1) => `translate(${Math.round(fx * w)} ${Math.round(fy * h)}) scale(${s})`;
   return svgDoc(
     `0 0 ${w} ${h}`,
@@ -172,62 +203,15 @@ export function arenaFundoSvg(a: Arena): string {
   );
 }
 
-/** Sólidos como um só caminho: cada célula com os cantos de fora arredondados (sem emendas entre blocos). */
-function solidPath(a: Arena): string {
-  const R = 10;
-  const solid = (c: number, r: number) => cellAt(a, c, r) === SOLID;
-  let d = '';
-  for (let r = 0; r < a.rows; r++) {
-    for (let c = 0; c < a.cols; c++) {
-      if (!solid(c, r)) continue;
-      // Na borda da página o bloco passa do quadro, para não deixar fresta.
-      const x0 = c === 0 ? -8 : c * C;
-      const y0 = r === 0 ? -8 : r * C;
-      const x1 = c === a.cols - 1 ? a.cols * C + 8 : (c + 1) * C;
-      const y1 = r === a.rows - 1 ? a.rows * C + 8 : (r + 1) * C;
-      // Um canto é de fora quando as duas vizinhas daquele lado estão vazias.
-      const tl = !solid(c - 1, r) && !solid(c, r - 1) ? R : 0;
-      const tr = !solid(c + 1, r) && !solid(c, r - 1) ? R : 0;
-      const br = !solid(c + 1, r) && !solid(c, r + 1) ? R : 0;
-      const bl = !solid(c - 1, r) && !solid(c, r + 1) ? R : 0;
-      d +=
-        `M${x0 + tl} ${y0} L${x1 - tr} ${y0}` +
-        (tr ? ` Q${x1} ${y0} ${x1} ${y0 + tr}` : '') +
-        ` L${x1} ${y1 - br}` +
-        (br ? ` Q${x1} ${y1} ${x1 - br} ${y1}` : '') +
-        ` L${x0 + bl} ${y1}` +
-        (bl ? ` Q${x0} ${y1} ${x0} ${y1 - bl}` : '') +
-        ` L${x0} ${y0 + tl}` +
-        (tl ? ` Q${x0} ${y0} ${x0 + tl} ${y0}` : '') +
-        ' Z ';
-    }
-  }
-  return d;
-}
-
 /** Quina de luz nos topos expostos dos sólidos (onde dá para pisar) e um brilho fino nas paredes. */
 function solidLight(a: Arena): string {
-  const out: string[] = [];
-  for (const r of rects(a, SOLID)) {
-    if (r.r0 === 0) continue;
-    // Trechos do topo com papel em cima.
-    let c = r.c0;
-    while (c <= r.c1) {
-      if (cellAt(a, c, r.r0 - 1) === SOLID) {
-        c++;
-        continue;
-      }
-      const start = c;
-      while (c + 1 <= r.c1 && cellAt(a, c + 1, r.r0 - 1) !== SOLID) c++;
-      const x0 = start * C + (cellAt(a, start - 1, r.r0) === SOLID && start > r.c0 ? 0 : 6);
-      const x1 = (c + 1) * C - (cellAt(a, c + 1, r.r0) === SOLID && c < r.c1 ? 0 : 6);
-      const y = r.r0 * C;
-      out.push(`<rect x="${x0}" y="${y + 3}" width="${x1 - x0}" height="9" rx="4.5" fill="#39425c"/>`);
-      out.push(line(`M${x0 + 8} ${y + 6} L${x1 - 8} ${y + 6}`, 2.4, WHITE).replace('/>', ' opacity="0.28"/>'));
-      c++;
-    }
-  }
-  return out.join('');
+  return solidTops(a)
+    .map(
+      ({ x0, x1, y }) =>
+        `<rect x="${x0}" y="${y + 3}" width="${x1 - x0}" height="9" rx="4.5" fill="#39425c"/>` +
+        line(`M${x0 + 8} ${y + 6} L${x1 - 8} ${y + 6}`, 2.4, WHITE).replace('/>', ' opacity="0.28"/>'),
+    )
+    .join('');
 }
 
 /** Plataforma atravessável: etiqueta arredondada de cor chapada, faixa de sombra embaixo e brilho no alto. */
@@ -246,13 +230,81 @@ function etiqueta(r: Rect, color: string): string {
 }
 
 /** Plataformas e paredes (fundo transparente), em pixels do mundo × 2. Sem tubos nem surgimentos. */
-export function arenaSvg(a: Arena): string {
+export function arenaSvg(a: Arena, pedido?: string | null): string {
   const w = a.cols * C;
   const h = a.rows * C;
-  const color = tema(a).etiqueta;
+  const t = tema(a, pedido);
+  const defs = `<defs>${shadowFilter('sombra-plataforma', 5, 7, 0.2)}</defs>`;
+  const cenario = t.cenario;
+  if (cenario) {
+    const ancoras = a.anchors.map((p) => cenario.ancora(p.col * C + C / 2, p.row * C)).join('');
+    return svgDoc(`0 0 ${w} ${h}`, defs + cenario.solidos(a) + rects(a, ONE_WAY).map(cenario.plataforma).join('') + ancoras);
+  }
   const solids = `<g filter="url(#sombra-plataforma)"><path d="${solidPath(a)}" fill="${INK}"/></g>` + solidLight(a);
-  const ledges = rects(a, ONE_WAY).map((r) => etiqueta(r, color)).join('');
-  return svgDoc(`0 0 ${w} ${h}`, `<defs>${shadowFilter('sombra-plataforma', 5, 7, 0.2)}</defs>` + solids + ledges);
+  const ledges = rects(a, ONE_WAY).map((r) => etiqueta(r, t.etiqueta)).join('');
+  return svgDoc(`0 0 ${w} ${h}`, defs + solids + ledges);
+}
+
+/** Uma camada de parallax pronta: o SVG (com a margem em volta da arena) e como ela se move. */
+export interface CamadaSvg {
+  nome: 'longe' | 'meio' | 'frente';
+  svg: string;
+  /** Deslocamento máximo em pixels do mundo (negativo: contra a equipe). */
+  amp: number;
+  /** Quanto o desenho passa de cada borda da arena, em pixels do mundo. */
+  margem: number;
+}
+
+/** Margem de cada lado, em unidades do desenho, para o deslocamento nunca mostrar a borda da camada. */
+function margemDe(amp: number): number {
+  return Math.ceil(Math.abs(amp) * U) + 6;
+}
+
+/**
+ * Onde a camada da frente pode desenhar: paredes e chão, mais a faixa das duas linhas de cima se
+ * nela não houver plataforma, recuados pelo deslocamento da camada onde encostam no espaço de jogo.
+ */
+export function frenteRecorte(a: Arena, amp: number, m: number): string {
+  const inset = Math.ceil(Math.abs(amp) * U) + 2;
+  const w = a.cols * C;
+  const h = a.rows * C;
+  const parts: string[] = [];
+  for (const r of rects(a, SOLID)) {
+    const x0 = r.c0 === 0 ? -m : r.c0 * C + inset;
+    const x1 = r.c1 === a.cols - 1 ? w + m : (r.c1 + 1) * C - inset;
+    const y0 = r.r0 === 0 ? -m : r.r0 * C + inset;
+    const y1 = r.r1 === a.rows - 1 ? h + m : (r.r1 + 1) * C - inset;
+    if (x1 > x0 && y1 > y0) parts.push(`<rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}"/>`);
+  }
+  let faixaLivre = true;
+  for (let r = 0; r < 2; r++) for (let c = 0; c < a.cols; c++) if (cellAt(a, c, r) === ONE_WAY) faixaLivre = false;
+  if (faixaLivre) parts.push(`<rect x="${-m}" y="${-m}" width="${w + 2 * m}" height="${m + 2 * C - inset}"/>`);
+  return parts.join('');
+}
+
+/** As camadas de parallax do tema (vazio nos temas de caderno, que são uma folha só). */
+export function arenaCamadasSvg(a: Arena, pedido?: string | null): CamadaSvg[] {
+  const cenario = tema(a, pedido).cenario;
+  if (!cenario) return [];
+  const w = a.cols * C;
+  const h = a.rows * C;
+  const camadas = [
+    ['longe', cenario.longe],
+    ['meio', cenario.meio],
+    ['frente', cenario.frente],
+  ] as const;
+  return camadas.map(([nome, camada]) => {
+    const m = margemDe(camada.amp);
+    let body = camada.desenho(a, w, h, m);
+    if (nome === 'frente') body = `<clipPath id="recorte-frente">${frenteRecorte(a, camada.amp, m)}</clipPath><g clip-path="url(#recorte-frente)">${body}</g>`;
+    return { nome, svg: svgDoc(`${-m} ${-m} ${w + 2 * m} ${h + 2 * m}`, body), amp: camada.amp, margem: m / U };
+  });
+}
+
+/** Enfeite do tema atrás da bisnaga, ou null (o caderno não tem). */
+export function tuboBaseSvg(a: Arena, pedido?: string | null): string | null {
+  const base = tema(a, pedido).cenario?.baseTubo;
+  return base ? svgDoc('-40 -4 80 86', base()) : null;
 }
 
 /** Bisnaga de tinta azul (só no modo difícil); base no ponto (0, 80). */

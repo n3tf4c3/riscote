@@ -1,9 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ATRIL_ARENA,
+  ATTACK_PAGE,
   ATTACK_RAIN,
+  ATTACK_SHAVING,
   ATTACK_STAMP,
   ATTACK_WAVE,
+  BOSQUE_ARENA,
+  BOSS_APONTADOR,
   BOSS_ARENA,
+  BOSS_ARENAS,
+  BOSS_CALHAMACO,
+  BOSS_MATA_BORRAO,
   BOSS_DEFEATED,
   BOSS_HEAVY,
   BOSS_INTRO,
@@ -13,13 +21,19 @@ import {
   BOSS_WINDUP,
   Boss,
   HAZARD_BLOT,
+  HAZARD_PAGE,
+  HAZARD_SHAVING,
   HAZARD_WAVE,
+  bossKind,
   bossMaxHp,
+  isBossArena,
   withBoss,
   type BossHost,
 } from '../src/boss.ts';
 import {
   ARENAS,
+  CHAPTERS,
+  CHAPTER_BOSSES,
   BTN_DOWN,
   BTN_JUMP,
   BTN_LEFT,
@@ -80,9 +94,219 @@ function fighting(players = 1, host = fakeHost()) {
   return { boss, host };
 }
 
+describe('o Apontador, chefe da Floresta', () => {
+  /** O Apontador no bosque, já no chão, com o alvo parado num ponto. */
+  function apontador(target: { x: number; y: number }, seed = 3) {
+    const host = fakeHost(seed, target);
+    const boss = new Boss(BOSQUE_ARENA, 1, host);
+    run(boss, BOSS_RULES.introTime + TICK_DT);
+    return boss;
+  }
+
+  /** Avança até o aviso da apara-bumerangue começar. */
+  function untilShaving(boss: Boss): void {
+    run(boss, 120, () => boss.state === BOSS_WINDUP && boss.attack === ATTACK_SHAVING);
+    expect(boss.attack).toBe(ATTACK_SHAVING);
+  }
+
+  it('cada capítulo fecha com o seu chefe: a mesa com o Mata-Borrão, o bosque com o Apontador', () => {
+    expect(CHAPTER_BOSSES).toHaveLength(CHAPTERS.length);
+    expect(CHAPTER_BOSSES[0]).toBe(BOSS_ARENA);
+    expect(CHAPTER_BOSSES[1]).toBe(BOSQUE_ARENA);
+    expect(CHAPTER_BOSSES[2]).toBe(ATRIL_ARENA);
+    expect(bossKind(BOSS_ARENA)).toBe(BOSS_MATA_BORRAO);
+    expect(bossKind(ATRIL_ARENA)).toBe(BOSS_CALHAMACO);
+    expect(bossKind(BOSQUE_ARENA)).toBe(BOSS_APONTADOR);
+    for (const page of BOSS_ARENAS) expect(isBossArena(page)).toBe(true);
+    for (const stage of ARENAS) expect(isBossArena(stage)).toBe(false);
+    const ids = (arenas: { id: string }[]) => arenas.map((a) => a.id);
+    expect(ids(withBoss(CHAPTERS[1]!, 4, BOSQUE_ARENA))).toEqual([...ids([...CHAPTERS[1]!]), 'bosque']);
+  });
+
+  it('o Mata-Borrão nunca atira a apara', () => {
+    const { boss } = fighting();
+    let seen = false;
+    run(boss, 120, () => {
+      if (boss.attack === ATTACK_SHAVING || [...boss.hazards.values()].some((z) => z.kind === HAZARD_SHAVING)) seen = true;
+      return false;
+    });
+    expect(seen).toBe(false);
+  });
+
+  it('marca a faixa na altura de quem está mais perto e avisa por pelo menos 0,7 s antes de atirar', () => {
+    const target = { x: 26 * TILE, y: 12 * TILE };
+    const boss = apontador(target);
+    untilShaving(boss);
+    expect(boss.targetY).toBeCloseTo(target.y);
+    expect(boss.dir).toBe(1);
+    let warned = 0;
+    while (boss.state === BOSS_WINDUP) {
+      expect([...boss.hazards.values()].some((z) => z.kind === HAZARD_SHAVING), 'apara antes do fim do aviso').toBe(false);
+      boss.step(TICK_DT);
+      warned += TICK_DT;
+    }
+    expect(warned).toBeGreaterThanOrEqual(0.7 - 1e-9);
+    expect([...boss.hazards.values()].filter((z) => z.kind === HAZARD_SHAVING)).toHaveLength(1);
+  });
+
+  it('a apara corre pela faixa até a parede, volta pela mesma altura e some na mão dele', () => {
+    const target = { x: 26 * TILE, y: 12 * TILE };
+    const boss = apontador(target);
+    untilShaving(boss);
+    run(boss, 2, () => boss.state !== BOSS_WINDUP);
+    const z = [...boss.hazards.values()].find((h) => h.kind === HAZARD_SHAVING)!;
+    const right = (BOSQUE_ARENA.cols - 1) * TILE;
+    let turned = false;
+    let onLane = false;
+    for (let i = 0; i < ticks(10) && boss.hazards.has(z.id); i++) {
+      boss.step(TICK_DT);
+      if (Math.abs(z.y + z.h / 2 - boss.targetY) < 0.01) onLane = true;
+      if (z.back && !turned) {
+        turned = true;
+        expect(z.x + z.w).toBeGreaterThan(right - TILE);
+      }
+      expect(z.x).toBeGreaterThanOrEqual(TILE - 1);
+      expect(z.x + z.w).toBeLessThanOrEqual(right + 1);
+    }
+    expect(onLane).toBe(true);
+    expect(turned).toBe(true);
+    expect(boss.hazards.has(z.id)).toBe(false);
+  });
+
+  it('derruba quem está na faixa; quem pulou por cima passa', () => {
+    const target = { x: 26 * TILE, y: 12 * TILE };
+    const boss = apontador(target);
+    untilShaving(boss);
+    run(boss, 2, () => boss.state !== BOSS_WINDUP);
+    const z = [...boss.hazards.values()].find((h) => h.kind === HAZARD_SHAVING)!;
+    run(boss, 1, () => Math.abs(z.y + z.h / 2 - boss.targetY) < 0.01 && z.x > boss.x + boss.w + TILE);
+    expect(boss.hurts({ x: z.x + 2, y: z.y + 2, w: 8, h: 8 })).toBe(true);
+    expect(boss.hurts({ x: z.x + 2, y: z.y - 2 * TILE, w: 8, h: 8 })).toBe(false);
+  });
+
+  it('a apara some quando ele é derrotado', () => {
+    const boss = apontador({ x: 26 * TILE, y: 12 * TILE });
+    untilShaving(boss);
+    run(boss, 2, () => boss.state !== BOSS_WINDUP);
+    expect(boss.hazards.size).toBeGreaterThan(0);
+    while (boss.alive) boss.ballHit(boss.box, 10);
+    expect(boss.hazards.size).toBe(0);
+  });
+});
+
+describe('o Calhamaço, chefe da Biblioteca', () => {
+  /** O Calhamaço na sala de leitura, já no chão, com o alvo parado num ponto. */
+  function calhamaco(target: { x: number; y: number } | null, seed = 3) {
+    const host = fakeHost(seed, target);
+    const boss = new Boss(ATRIL_ARENA, 1, host);
+    run(boss, BOSS_RULES.introTime + TICK_DT);
+    return { boss, host };
+  }
+
+  /** Avança até o aviso da virada de página começar. */
+  function untilPage(boss: Boss): void {
+    run(boss, 120, () => boss.state === BOSS_WINDUP && boss.attack === ATTACK_PAGE);
+    expect(boss.attack).toBe(ATTACK_PAGE);
+  }
+
+  const pages = (boss: Boss) => [...boss.hazards.values()].filter((z) => z.kind === HAZARD_PAGE);
+  const right = (ATRIL_ARENA.cols - 1) * TILE;
+
+  it('o Mata-Borrão e o Apontador nunca viram a página', () => {
+    for (const arena of [BOSS_ARENA, BOSQUE_ARENA]) {
+      const boss = new Boss(arena, 1, fakeHost());
+      let seen = false;
+      run(boss, 120, () => {
+        if (boss.attack === ATTACK_PAGE || [...boss.hazards.values()].some((z) => z.kind === HAZARD_PAGE)) seen = true;
+        return false;
+      });
+      expect(seen, arena.id).toBe(false);
+    }
+  });
+
+  it('marca a fresta na altura do alvo e a parede de onde a página sai; avisa por pelo menos 0,7 s', () => {
+    const target = { x: 26 * TILE, y: 9.4 * TILE };
+    const { boss } = calhamaco(target);
+    untilPage(boss);
+    expect(boss.targetY).toBeCloseTo(target.y);
+    // O alvo está à direita dele: a página sai da parede da esquerda e varre para a direita.
+    expect(boss.dir).toBe(1);
+    expect(boss.targetX).toBeCloseTo(TILE);
+    let warned = 0;
+    while (boss.state === BOSS_WINDUP) {
+      expect(pages(boss), 'página antes do fim do aviso').toHaveLength(0);
+      boss.step(TICK_DT);
+      warned += TICK_DT;
+    }
+    expect(warned).toBeGreaterThanOrEqual(0.7 - 1e-9);
+    expect(pages(boss)).toHaveLength(2);
+  });
+
+  it('a página tem uma fresta em volta do alvo, varre até a outra parede e some', () => {
+    const target = { x: 6 * TILE, y: 9.4 * TILE };
+    const { boss } = calhamaco(target);
+    untilPage(boss);
+    expect(boss.dir).toBe(-1);
+    run(boss, 2, () => boss.state !== BOSS_WINDUP);
+    const [top, bottom] = pages(boss).sort((a, b) => a.y - b.y);
+    expect(top!.y).toBeCloseTo(TILE);
+    expect(top!.y + top!.h).toBeCloseTo(target.y - BOSS_RULES.pageGapAbove * TILE);
+    expect(bottom!.y).toBeCloseTo(target.y + BOSS_RULES.pageGapBelow * TILE);
+    expect(bottom!.y + bottom!.h).toBeCloseTo((ATRIL_ARENA.rows - 1) * TILE);
+    expect(top!.x + top!.w).toBeCloseTo(right, 0);
+    // Quem está de pé na fresta (1,3 célula de altura, os pés 0,65 abaixo do centro) cabe nela.
+    const body = { x: 0, y: target.y - 0.65 * TILE, w: 0.8 * TILE, h: 1.3 * TILE };
+    let crossed = false;
+    for (let i = 0; i < ticks(10) && boss.hazards.has(top!.id); i++) {
+      boss.step(TICK_DT);
+      expect(top!.x).toBe(bottom!.x);
+      body.x = top!.x;
+      if (boss.hazards.has(top!.id)) {
+        expect(boss.hurts(body), 'na fresta').toBe(false);
+        expect(boss.hurts({ ...body, y: body.y - 2 * TILE }), 'acima da fresta').toBe(true);
+        crossed = true;
+      }
+    }
+    expect(crossed).toBe(true);
+    expect(pages(boss)).toHaveLength(0);
+  });
+
+  it('com o alvo no chão, a página não tem pedaço de baixo', () => {
+    const floor = (ATRIL_ARENA.rows - 1) * TILE;
+    const { boss } = calhamaco({ x: 26 * TILE, y: floor - 0.65 * TILE });
+    untilPage(boss);
+    run(boss, 2, () => boss.state !== BOSS_WINDUP);
+    const [only] = pages(boss);
+    expect(pages(boss)).toHaveLength(1);
+    expect(only!.y).toBeCloseTo(TILE);
+  });
+
+  it('não vira outra página enquanto uma ainda varre a arena', () => {
+    const { boss } = calhamaco({ x: 26 * TILE, y: 9.4 * TILE }, 7);
+    let overlap = false;
+    let seen = 0;
+    run(boss, 120, () => {
+      if (boss.state === BOSS_WINDUP && boss.attack === ATTACK_PAGE && pages(boss).length > 0) overlap = true;
+      if (pages(boss).length > 0) seen++;
+      return false;
+    });
+    expect(seen).toBeGreaterThan(0);
+    expect(overlap).toBe(false);
+  });
+
+  it('a página some quando ele é derrotado', () => {
+    const { boss } = calhamaco({ x: 26 * TILE, y: 9.4 * TILE });
+    untilPage(boss);
+    run(boss, 2, () => boss.state !== BOSS_WINDUP);
+    expect(pages(boss).length).toBeGreaterThan(0);
+    while (boss.alive) boss.ballHit(boss.box, 10);
+    expect(boss.hazards.size).toBe(0);
+  });
+});
+
 const ballAt = (boss: Boss) => ({ x: boss.x + boss.w / 2 - 9, y: boss.y + boss.h - 18, w: 18, h: 18 });
 
-describe('a mesa do chefe segue as regras das arenas', () => {
+describe.each(BOSS_ARENAS)('a página do chefe ($name) segue as regras das arenas', (arena) => {
   it('paredes fechadas, 5 surgimentos e tubos nos dois cantos inferiores', () => {
     for (let row = 0; row < arena.rows; row++) {
       expect(cellAt(arena, 0, row)).toBe(SOLID);

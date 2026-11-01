@@ -49,14 +49,18 @@ export const EnemySchema = schema(
     skill: t.uint8(),
     /** Fiandeira: y onde o fio se prende, para o cliente desenhar o fio; -1 = solta. */
     anchorY: t.float32(),
+    /** Grilo e caracol: o ponto marcado (meio, altura dos pés), para o cliente desenhar o aviso. */
+    aimX: t.float32(),
+    aimY: t.float32(),
   },
   'Enemy',
 );
 export type EnemySchema = SchemaType<typeof EnemySchema>;
 
-/** Gota cuspida pelo tinteiro (machuca desde que sai: o aviso é o tinteiro inclinado antes). */
+/** Gota cuspida pelo tinteiro, graveto do bicho-cesto ou seiva do caracol (SPIT_*); o aviso vem antes, no inimigo. */
 export const SpitSchema = schema(
   {
+    kind: t.uint8(),
     x: t.float32(),
     y: t.float32(),
   },
@@ -74,6 +78,17 @@ export const StainSchema = schema(
   'Stain',
 );
 export type StainSchema = SchemaType<typeof StainSchema>;
+
+/** Broto de espinho da pinha; `age` abaixo do aviso ainda não machuca. */
+export const SproutSchema = schema(
+  {
+    x: t.float32(),
+    y: t.float32(),
+    age: t.float32(),
+  },
+  'Sprout',
+);
+export type SproutSchema = SchemaType<typeof SproutSchema>;
 
 export const DropSchema = schema(
   {
@@ -96,7 +111,7 @@ export const ItemSchema = schema(
 );
 export type ItemSchema = SchemaType<typeof ItemSchema>;
 
-/** O Mata-Borrão (espelha `Boss` de @riscote/shared); `maxHp` 0 = sem chefe nesta página. */
+/** O chefe do capítulo (espelha `Boss` de @riscote/shared); `maxHp` 0 = sem chefe nesta página. */
 export const BossSchema = schema(
   {
     state: t.uint8(),
@@ -111,6 +126,8 @@ export const BossSchema = schema(
     /** Segundos restantes no estado: o cliente mede o aviso por aqui. */
     timer: t.float32(),
     targetX: t.float32(),
+    /** Altura (centro) da faixa marcada pela apara-bumerangue do Apontador. */
+    targetY: t.float32(),
     /** Contadores: batidas no chão e golpes levados (o cliente reage quando sobem). */
     impacts: t.uint16(),
     hits: t.uint16(),
@@ -119,7 +136,7 @@ export const BossSchema = schema(
 );
 export type BossSchema = SchemaType<typeof BossSchema>;
 
-/** Onda ou borrão do chefe; `wait` acima de 0 é aviso e ainda não machuca. */
+/** Onda, borrão ou apara do chefe; `wait` acima de 0 é aviso e ainda não machuca. */
 export const HazardSchema = schema(
   {
     kind: t.uint8(),
@@ -162,6 +179,7 @@ export const GameState = schema(
     /** A próxima página é a do chefe: a virada ganha aviso. */
     bossNext: t.boolean(),
     spits: t.map(SpitSchema),
+    sprouts: t.map(SproutSchema),
   },
   'GameState',
 );

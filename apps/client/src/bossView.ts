@@ -1,6 +1,8 @@
 import * as Phaser from 'phaser';
 import {
+  ATTACK_PAGE,
   ATTACK_RAIN,
+  ATTACK_SHAVING,
   ATTACK_STAMP,
   ATTACK_WAVE,
   BOSS_DEFEATED,
@@ -11,12 +13,16 @@ import {
   BOSS_STAMP,
   BOSS_WINDUP,
   EMPTY,
+  HAZARD_BLOT,
+  HAZARD_PAGE,
+  HAZARD_SHAVING,
   HAZARD_WAVE,
   TILE,
   cellAt,
   type Arena,
 } from '@riscote/shared';
 import { type BossPose } from './art/boss';
+import type { PeleChefe } from './art/pele';
 import type { ArtLayer } from './art/layer';
 import { RES } from './art/textures';
 import { ROUNDED } from './art/capa';
@@ -30,6 +36,11 @@ import type { Effects } from './fx';
 const WARN = 0xc8402a;
 const PAPER = 0xf6f1e7;
 const BAR_RED = 0x8f2a1c;
+/** A página da virada do Calhamaço: a folha, a pauta, a margem e a beirada dobrada. */
+const FOLHA = 0xfffaf0;
+const PAUTA_AZUL = 0xa9c6e8;
+const MARGEM = 0xe2665a;
+const FOLHA_DOBRA = 0xe8dcc2;
 
 /** O que o servidor manda do chefe (espelha `BossSchema`). */
 export interface BossSnapshot {
@@ -44,6 +55,8 @@ export interface BossSnapshot {
   soakMax: number;
   timer: number;
   targetX: number;
+  /** Altura (centro) da faixa da apara-bumerangue. */
+  targetY: number;
   impacts: number;
   hits: number;
 }
@@ -85,12 +98,14 @@ export class BossView {
   private lastDust = 0;
   private titleShown = false;
   private hazards = new Map<string, HazardSnapshot>();
+  private lastChip = 0;
 
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly fx: Effects,
     private readonly arena: Arena,
     private readonly depths: BossDepths,
+    private readonly chefe: PeleChefe,
   ) {
     const text = (size: number, color: string, stroke = 6) =>
       scene.add
@@ -100,9 +115,9 @@ export class BossView {
         .setDepth(depths.text)
         .setVisible(false);
     const width = arena.cols * TILE;
-    this.title = text(34, '#1f2433', 8).setPosition(width / 2, arena.rows * TILE * 0.36).setText('MATA-BORRÃO');
-    this.subtitle = text(13, '#c8344a', 5).setPosition(width / 2, arena.rows * TILE * 0.36 + 28).setText('ele quer secar a página!');
-    this.label = text(9, '#1f2433', 4).setOrigin(1, 0.5).setPosition(width * 0.25 - 4, 9).setText('MATA-BORRÃO');
+    this.title = text(34, '#1f2433', 8).setPosition(width / 2, arena.rows * TILE * 0.36).setText(chefe.titulo);
+    this.subtitle = text(13, '#c8344a', 5).setPosition(width / 2, arena.rows * TILE * 0.36 + 28).setText(chefe.frase);
+    this.label = text(9, '#1f2433', 4).setOrigin(1, 0.5).setPosition(width * 0.25 - 4, 9).setText(chefe.titulo);
     this.heavyText = text(11, '#2f6fd6', 4).setText('PESADO! bolas ×2');
   }
 
@@ -191,15 +206,27 @@ export class BossView {
         this.lastDust = now;
         this.fx.droplets(z.x + z.w / 2, z.y + z.h, 0x8f8169, 1, 40, -Math.PI / 2, 1.2);
       }
-      if (z.kind !== HAZARD_WAVE && old && old.wait > 0 && z.wait <= 0) this.fx.droplets(z.x + z.w / 2, z.y, INK, 4, 60, Math.PI / 2, 0.8);
+      if (z.kind === HAZARD_BLOT && old && old.wait > 0 && z.wait <= 0) this.fx.droplets(z.x + z.w / 2, z.y, this.chefe.respingo, 4, 60, Math.PI / 2, 0.8);
+      // A apara solta lascas pelo caminho.
+      if (z.kind === HAZARD_SHAVING && now - this.lastChip > 50) {
+        this.lastChip = now;
+        this.fx.droplets(z.x + z.w / 2, z.y + z.h / 2, 0xd9a066, 1, 50, Math.PI / 2, 2.4);
+      }
+      if (z.kind === HAZARD_SHAVING && !old) som.play('chefe-aviso', { x: z.x + z.w / 2 });
+      // A página da virada: o som de folha virando ao sair (uma vez, pelo pedaço de cima) e papel picado na borda.
+      if (z.kind === HAZARD_PAGE && !old && z.y <= TILE + 1) som.play('pagina', { x: z.x + z.w / 2 });
+      if (z.kind === HAZARD_PAGE && now - this.lastChip > 45) {
+        this.lastChip = now;
+        this.fx.droplets(z.x + z.w / 2, z.y + z.h * ((now / 173) % 1), PAPER, 1, 40, Math.PI / 2, 2.4);
+      }
       this.hazards.set(z.id, z);
     }
     for (const [id, z] of this.hazards) {
       if (seen.has(id)) continue;
       this.hazards.delete(id);
-      // Borrão que chegou ao chão ou a uma plataforma: estoura em nanquim.
-      if (z.kind !== HAZARD_WAVE && z.wait <= 0 && b.state !== BOSS_DEFEATED) {
-        this.fx.splat(z.x + z.w / 2, z.y + z.h, false, 1.1, INK);
+      // Borrão (ou bolota) que chegou ao chão ou a uma plataforma: estoura.
+      if (z.kind === HAZARD_BLOT && z.wait <= 0 && b.state !== BOSS_DEFEATED) {
+        this.fx.splat(z.x + z.w / 2, z.y + z.h, false, 1.1, this.chefe.respingo);
         som.play('mancha', { x: z.x + z.w / 2 });
       }
     }
@@ -232,11 +259,62 @@ export class BossView {
         }
       }
     }
+    if (b.state === BOSS_WINDUP && b.attack === ATTACK_SHAVING) {
+      // A faixa por onde a apara vai passar: tracejada de parede a parede, enchendo a partir dele,
+      // com setas no sentido da ida.
+      const p = 1 - b.timer / BOSS_RULES.shavingWindup;
+      const left = TILE;
+      const right = (this.arena.cols - 1) * TILE;
+      const half = (BOSS_RULES.shavingHeight * TILE) / 2;
+      const y = b.targetY;
+      back.fillStyle(WARN, 0.06 + 0.12 * p).fillRect(left, y - half, right - left, half * 2);
+      const alpha = blink ? 0.95 : 0.5;
+      for (const edge of [y - half, y + half]) {
+        for (let x = left; x < right; x += 10) back.lineStyle(1.6, WARN, alpha).lineBetween(x, edge, Math.min(x + 5, right), edge);
+      }
+      const dir = b.dir;
+      const start = dir > 0 ? b.x + this.w : b.x;
+      for (let x = start + dir * 10, i = 0; dir > 0 ? x < right : x > left; x += dir * TILE * 2, i++) {
+        if (i > 1 + p * 16) break;
+        back.lineStyle(2.5, WARN, alpha).beginPath().moveTo(x - dir * 4, y - 4).lineTo(x + dir * 2, y).lineTo(x - dir * 4, y + 4).strokePath();
+      }
+    }
+    if (b.state === BOSS_WINDUP && b.attack === ATTACK_PAGE) {
+      // A página vai varrer a arena inteira: o perigo é toda a altura fora da fresta (enchendo a partir da
+      // parede de onde ela sai, com setas no sentido da varrida); a fresta fica limpa, com as bordas tracejadas.
+      const p = 1 - b.timer / BOSS_RULES.pageWindup;
+      const left = TILE;
+      const right = (this.arena.cols - 1) * TILE;
+      const top = TILE;
+      const bottom = (this.arena.rows - 1) * TILE;
+      const gapTop = b.targetY - BOSS_RULES.pageGapAbove * TILE;
+      const gapBottom = Math.min(bottom, b.targetY + BOSS_RULES.pageGapBelow * TILE);
+      const alpha = blink ? 0.95 : 0.5;
+      const reach = (right - left) * Math.min(1, 0.25 + p);
+      const x0 = b.dir > 0 ? left : right - reach;
+      for (const [y0, y1] of [[top, gapTop], [gapBottom, bottom]] as const) {
+        if (y1 - y0 < 1) continue;
+        back.fillStyle(WARN, 0.06 + 0.12 * p).fillRect(x0, y0, reach, y1 - y0);
+        for (let y = y0 + TILE; y < y1 - TILE / 2; y += TILE * 2.5) {
+          for (let x = b.dir > 0 ? left + 12 : right - 12, i = 0; b.dir > 0 ? x < left + reach : x > right - reach; x += b.dir * TILE * 2, i++) {
+            back.lineStyle(2.5, WARN, alpha).beginPath().moveTo(x - b.dir * 4, y - 4).lineTo(x + b.dir * 2, y).lineTo(x - b.dir * 4, y + 4).strokePath();
+          }
+        }
+      }
+      for (const edge of [gapTop, gapBottom]) {
+        if (edge >= bottom) continue;
+        for (let x = left; x < right; x += 10) back.lineStyle(1.6, WARN, alpha).lineBetween(x, edge, Math.min(x + 5, right), edge);
+      }
+      // A borda da página na parede, já aparecendo.
+      const edgeX = b.dir > 0 ? left + 2 : right - 2;
+      front.lineStyle(3, WARN, alpha).lineBetween(edgeX, top, edgeX, gapTop);
+      if (gapBottom < bottom) front.lineStyle(3, WARN, alpha).lineBetween(edgeX, gapBottom, edgeX, bottom);
+    }
     // Na carimbada o "!" fica sobre a sombra, onde ele vai cair.
     if (b.state === BOSS_WINDUP && b.attack !== ATTACK_STAMP) this.mark(front, b.x + this.w / 2, b.y - 26, blink);
 
     for (const z of hazards) {
-      if (z.kind === HAZARD_WAVE || z.wait <= 0) continue;
+      if (z.kind !== HAZARD_BLOT || z.wait <= 0) continue;
       const cx = z.x + z.w / 2;
       const col = Math.floor(cx / TILE);
       let row = Math.floor((z.y + z.h) / TILE);
@@ -267,12 +345,50 @@ export class BossView {
         else g.fillStyle(0xd8c39c).fillTriangle(z.x, z.y + z.h, z.x + z.w, z.y + z.h, z.x + z.w / 2, z.y);
         continue;
       }
+      if (z.kind === HAZARD_PAGE) {
+        this.drawPage(g, z);
+        continue;
+      }
+      if (z.kind === HAZARD_SHAVING) {
+        // Gira no sentido em que corre.
+        const dir = this.waveDir(z);
+        const angle = ((now * 0.9) % 360) * dir;
+        if (art) art.draw('chefe-apara', z.x + z.w / 2, z.y + z.h / 2, this.depths.hazard, { flip: dir < 0, angle });
+        else g.fillStyle(0xd9a066).fillEllipse(z.x + z.w / 2, z.y + z.h / 2, z.w, z.h);
+        continue;
+      }
       const waiting = z.wait > 0;
       const jitter = waiting ? Math.sin(now / 30) * 1.2 : 0;
       const alpha = waiting ? 0.55 : 1;
       const sy = waiting ? 1 : 1.15;
       if (art) art.draw('chefe-borrao', z.x + z.w / 2 + jitter, z.y + z.h / 2, this.depths.hazard, { alpha, sx: 1 / sy, sy });
       else g.fillStyle(INK, alpha).fillCircle(z.x + z.w / 2, z.y + z.h / 2, z.w / 2);
+    }
+  }
+
+  /**
+   * Um pedaço da página da virada (acima ou abaixo da fresta): folha pautada com sombra dura e contorno
+   * marinho, a margem vermelha do lado que vem na frente e a beirada dobrada junto da fresta.
+   */
+  private drawPage(g: Phaser.GameObjects.Graphics, z: HazardSnapshot): void {
+    const dir = this.waveDir(z);
+    const bottom = (this.arena.rows - 1) * TILE;
+    g.fillStyle(INK, 0.22).fillRect(z.x + 3, z.y + 3, z.w, z.h);
+    g.fillStyle(FOLHA, 1).fillRect(z.x, z.y, z.w, z.h);
+    for (let y = z.y + 6; y < z.y + z.h - 2; y += 7) g.lineStyle(1, PAUTA_AZUL, 0.9).lineBetween(z.x + 1, y, z.x + z.w - 1, y);
+    const margin = dir > 0 ? z.x + z.w - 3 : z.x + 3;
+    g.lineStyle(1, MARGEM, 0.9).lineBetween(margin, z.y + 1, margin, z.y + z.h - 1);
+    g.lineStyle(1.5, INK, 1).strokeRect(z.x, z.y, z.w, z.h);
+    // A borda da frente mais grossa: é ela que derruba.
+    const lead = dir > 0 ? z.x + z.w : z.x;
+    g.lineStyle(2.4, INK, 1).lineBetween(lead, z.y, lead, z.y + z.h);
+    // Beirada dobrada na fresta: no pé do pedaço de cima e no topo do de baixo.
+    const fold = 5;
+    const atGap = z.y <= TILE + 1 ? z.y + z.h : z.y + z.h >= bottom - 1 ? z.y : -1;
+    if (atGap >= 0) {
+      const up = z.y <= TILE + 1 ? -1 : 1;
+      g.fillStyle(FOLHA_DOBRA, 1).fillTriangle(lead, atGap, lead - dir * fold * 1.6, atGap, lead, atGap + up * fold);
+      g.lineStyle(1.2, INK, 1).strokeTriangle(lead, atGap, lead - dir * fold * 1.6, atGap, lead, atGap + up * fold);
     }
   }
 
@@ -305,7 +421,17 @@ export class BossView {
       case BOSS_WINDUP: {
         pose = b.attack === ATTACK_RAIN ? 'grito' : 'raiva';
         dx = Math.sin(now / 22) * 1.5;
-        const p = 1 - b.timer / (b.attack === ATTACK_STAMP ? BOSS_RULES.stampWindup : b.attack === ATTACK_WAVE ? BOSS_RULES.waveWindup : BOSS_RULES.rainWindup);
+        const windup =
+          b.attack === ATTACK_STAMP
+            ? BOSS_RULES.stampWindup
+            : b.attack === ATTACK_WAVE
+              ? BOSS_RULES.waveWindup
+              : b.attack === ATTACK_SHAVING
+                ? BOSS_RULES.shavingWindup
+                : b.attack === ATTACK_PAGE
+                  ? BOSS_RULES.pageWindup
+                  : BOSS_RULES.rainWindup;
+        const p = 1 - b.timer / windup;
         if (b.attack === ATTACK_STAMP) {
           sx = 1 + 0.14 * p;
           sy = 1 - 0.16 * p;
@@ -313,6 +439,15 @@ export class BossView {
           sy = 1 + 0.12 * p;
           sx = 1 - 0.06 * p;
           angle = -b.dir * 6 * p;
+        } else if (b.attack === ATTACK_SHAVING) {
+          // Inclina para trás, armando o arremesso.
+          angle = -b.dir * 10 * p;
+          sx = 1 - 0.05 * p;
+        } else if (b.attack === ATTACK_PAGE) {
+          // Estufa e inclina para o lado de onde a página vem, como quem vira uma folha pesada.
+          angle = -b.dir * 8 * p;
+          sx = 1 + 0.08 * p;
+          sy = 1 + 0.04 * p;
         }
         break;
       }

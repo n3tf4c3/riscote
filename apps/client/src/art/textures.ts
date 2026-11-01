@@ -1,6 +1,6 @@
 import type * as Phaser from 'phaser';
 import type { Arena } from '@riscote/shared';
-import { arenaFundoSvg, arenaSvg, tuboSvg } from './arena';
+import { arenaCamadasSvg, arenaFundoSvg, arenaSvg, temaId, tuboBaseSvg, tuboSvg, type CamadaSvg } from './arena';
 import {
   GRAMPO_FRAMES,
   TRACA_FRAMES,
@@ -24,9 +24,13 @@ import {
   tracaSoakSvg,
   tracaSvg,
 } from './enemies';
+import { borboletaSvg, brotoSvg, casuloSvg, gravetoSvg, ouricoBolaSvg, ouricoTontoSvg, seivaArcoSvg } from './floresta-poderes';
+import { letraSvg, paginaSoltaSvg, pergaminhoRoloSvg } from './biblioteca-poderes';
+import { enciclopediaAbertaSvg, morcegoMergulhoSvg } from './pele-biblioteca';
 import { itemSvg } from './items';
 import { auraEstrelaSvg, auraProtecaoSvg } from './auras';
 import { PLAYER_GLOWS, POSES, riscoteSvg, type Pose } from './riscote';
+import { PELE_CADERNO, type Pele } from './pele';
 import { BOIL, INK, hex } from './svg';
 
 /** Pixels de tela por pixel do mundo: o jogo online roda com a câmera em zoom 2 para a arte não borrar. */
@@ -35,6 +39,8 @@ export const RES = 2;
 /** Como um desenho ocupa o mundo: `k` pixels do mundo por unidade do SVG e o ponto de apoio (fração do quadro). */
 export interface ArtSpec {
   key: string;
+  /** Chave da textura, quando é diferente da chave do desenho (as peles de cada capítulo). */
+  tex?: string;
   svg: string;
   k: number;
   ox: number;
@@ -98,34 +104,83 @@ export function grampoKey(frame: number): string {
   return `grampo-${frame % GRAMPO_FRAMES}`;
 }
 
-/** Riscotes, inimigos, itens e efeitos: iguais em todas as arenas. */
-export function commonSpecs(playerColors: readonly number[]): ArtSpec[] {
+/** Chave da textura de um desenho da pele: o caderno usa a chave simples; as outras, com o prefixo. */
+export function vestir(specs: ArtSpec[], pele: string): ArtSpec[] {
+  return pele === PELE_CADERNO.id ? specs : specs.map((s) => ({ ...s, tex: `${pele}:${s.key}` }));
+}
+
+/** Os inimigos na pele do capítulo, com o tamanho e o apoio de sempre. */
+function inimigos(p: Pele): ArtSpec[] {
+  const specs: ArtSpec[] = [];
+  for (let f = 0; f < TRACA_FRAMES; f++) specs.push(...boiled(tracaKey(f), (v) => p.traca(f, v, false), 0.19, 106, 150));
+  specs.push(
+    ...boiled('traca-bote', (v) => p.traca(0, v, true), 0.19, 106, 150),
+    ...boiled('traca-tinta', (v) => p.tracaTinta(v), 0.19, 106, 150),
+    ...boiled('saltador', (v) => p.saltador(false, v, false), 0.3, 103, 134),
+    ...boiled('saltador-carga', (v) => p.saltador(false, v, true), 0.3, 103, 134),
+    ...boiled('saltador-ar', (v) => p.saltador(true, v, false), 0.3, 103, 134),
+    ...boiled('saltador-tinta', (v) => p.saltadorTinta(v), 0.3, 103, 134),
+    ...Array.from({ length: GRAMPO_FRAMES }, (_, f) => boiled(grampoKey(f), (v) => p.grampo(f, v), 0.24, 50, 89)).flat(),
+    ...boiled('grampo-tinta', (v) => p.grampoTinta(v), 0.24, 50, 89),
+    ...boiled('fiandeira-0', (v) => p.fiandeira(0, v), 0.42, 50, 54),
+    ...boiled('fiandeira-1', (v) => p.fiandeira(1, v), 0.42, 50, 54),
+    ...boiled('fiandeira-tinta', (v) => p.fiandeiraTinta(v), 0.42, 50, 54),
+    ...boiled('tinteiro-0', (v) => p.tinteiro(0, v, false), 0.25, 52, 96),
+    ...boiled('tinteiro-1', (v) => p.tinteiro(1, v, false), 0.25, 52, 96),
+    ...boiled('tinteiro-carga', (v) => p.tinteiro(0, v, true), 0.25, 52, 96),
+    ...boiled('tinteiro-tinta', (v) => p.tinteiroTinta(v), 0.25, 52, 96),
+    ...boiled('borracha', (v) => p.borracha(v), 0.23, 55, 89),
+    ...boiled('borracha-tinta', (v) => p.borrachaTinta(v), 0.23, 55, 89),
+    ...boiled('cuspe', (v) => p.cuspe(v), 0.36, 0, 0),
+  );
+  return vestir(specs, p.id);
+}
+
+/** Os poderes das criaturas da Floresta: casulo, borboleta, bola de espinhos, ouriço tonto, brotos, graveto e seiva. */
+export function poderesFlorestaSpecs(): ArtSpec[] {
+  return vestir(
+    [
+      spec('lagarta-casulo', casuloSvg(), 0.2, 50, 96),
+      spec('borboleta-0', borboletaSvg(0), 0.22, 60, 50),
+      spec('borboleta-1', borboletaSvg(1), 0.22, 60, 50),
+      spec('ourico-bola', ouricoBolaSvg(), 0.2, 0, 0),
+      spec('ourico-tonto', ouricoTontoSvg(), 0.23, 55, 89),
+      spec('broto-0', brotoSvg(0), 0.4, 0, 0),
+      spec('broto-1', brotoSvg(1), 0.4, 0, 0),
+      spec('graveto', gravetoSvg(), 0.4, 0, 0),
+      spec('seiva-arco', seivaArcoSvg(), 0.5, 0, 0),
+    ],
+    'floresta',
+  );
+}
+
+/**
+ * Os poderes das criaturas da Biblioteca: a enciclopédia aberta e o morcego mergulhando (nos quadros da
+ * borracha e da fiandeira), a página solta, as letras e a ponta do tapete do pergaminho.
+ */
+export function poderesBibliotecaSpecs(): ArtSpec[] {
+  return vestir(
+    [
+      spec('enciclopedia-aberta', enciclopediaAbertaSvg(), 0.23, 55, 89),
+      spec('morcego-mergulho', morcegoMergulhoSvg(), 0.42, 50, 54),
+      spec('pagina-solta', paginaSoltaSvg(), 0.36, 0, 0),
+      ...[0, 1, 2].map((i) => spec(`letra-${i}`, letraSvg(i as 0 | 1 | 2), 0.36, 0, 0)),
+      spec('pergaminho-rolo', pergaminhoRoloSvg(), 0.3, 0, 0),
+    ],
+    'biblioteca',
+  );
+}
+
+/** Riscotes, inimigos (na pele do capítulo), itens e efeitos. */
+export function commonSpecs(playerColors: readonly number[], pele: Pele = PELE_CADERNO): ArtSpec[] {
   const specs: ArtSpec[] = [];
   playerColors.forEach((color, slot) => {
     for (const pose of POSES) specs.push(...boiled(riscoteKey(slot, pose), (v) => riscoteSvg(slot, hex(color), pose, v), 0.11, 100, 290));
     specs.push(...boiled(protecaoKey(slot), (v) => auraProtecaoSvg(hex(color), PLAYER_GLOWS[slot] ?? hex(color), v), AURA_K, 0, 0));
   });
   specs.push(...boiled('aura-estrela', auraEstrelaSvg, AURA_K, 0, 0));
-  for (let f = 0; f < TRACA_FRAMES; f++) specs.push(...boiled(tracaKey(f), (v) => tracaSvg(f, v), 0.19, 106, 150));
+  specs.push(...inimigos(pele));
   specs.push(
-    ...boiled('traca-bote', (v) => tracaSvg(0, v, true), 0.19, 106, 150),
-    ...boiled('traca-tinta', tracaSoakSvg, 0.19, 106, 150),
-    ...boiled('saltador', (v) => saltadorSvg(false, v), 0.3, 103, 134),
-    ...boiled('saltador-carga', (v) => saltadorSvg(false, v, true), 0.3, 103, 134),
-    ...boiled('saltador-ar', (v) => saltadorSvg(true, v), 0.3, 103, 134),
-    ...boiled('saltador-tinta', saltadorSoakSvg, 0.3, 103, 134),
-    ...Array.from({ length: GRAMPO_FRAMES }, (_, f) => boiled(grampoKey(f), (v) => grampoSvg(f, v), 0.24, 50, 89)).flat(),
-    ...boiled('grampo-tinta', grampoSoakSvg, 0.24, 50, 89),
-    ...boiled('fiandeira-0', (v) => fiandeiraSvg(0, v), 0.42, 50, 54),
-    ...boiled('fiandeira-1', (v) => fiandeiraSvg(1, v), 0.42, 50, 54),
-    ...boiled('fiandeira-tinta', fiandeiraSoakSvg, 0.42, 50, 54),
-    ...boiled('tinteiro-0', (v) => tinteiroSvg(0, v), 0.25, 52, 96),
-    ...boiled('tinteiro-1', (v) => tinteiroSvg(1, v), 0.25, 52, 96),
-    ...boiled('tinteiro-carga', (v) => tinteiroSvg(0, v, true), 0.25, 52, 96),
-    ...boiled('tinteiro-tinta', tinteiroSoakSvg, 0.25, 52, 96),
-    ...boiled('borracha', borrachaSvg, 0.23, 55, 89),
-    ...boiled('borracha-tinta', borrachaSoakSvg, 0.23, 55, 89),
-    ...boiled('cuspe', cuspeSvg, 0.36, 0, 0),
     ...boiled('bola', bolaSvg, 10 / 22, 0, 0),
     ...boiled('borrao', borraoSvg, 0.3, 100, 67),
     ...boiled('mancha', manchaSvg, 0.44, 0, 0),
@@ -141,11 +196,32 @@ export function commonSpecs(playerColors: readonly number[]): ArtSpec[] {
   return specs;
 }
 
-/** O fundo de caderno e a camada de plataformas (os efeitos ficam entre as duas). */
-export function arenaSpecs(a: Arena): { fundo: ArtSpec; plataformas: ArtSpec } {
+/** Camada de parallax como textura: o desenho, quanto ela anda e quanto passa de cada borda. */
+export interface CamadaSpec {
+  spec: ArtSpec;
+  nome: CamadaSvg['nome'];
+  amp: number;
+  margem: number;
+}
+
+/**
+ * O fundo (caderno ou céu parado) e a camada de plataformas (os efeitos ficam entre as duas), mais
+ * as camadas de parallax dos temas com cenário. `tema` troca o tema da arena (`?tema=`).
+ */
+export function arenaSpecs(a: Arena, tema?: string | null): { fundo: ArtSpec; plataformas: ArtSpec; camadas: CamadaSpec[]; baseTubo: ArtSpec | null } {
+  const id = `arena-${a.id}@${temaId(a, tema)}`;
+  const base = tuboBaseSvg(a, tema);
   return {
-    fundo: { key: `arena-${a.id}-fundo`, svg: arenaFundoSvg(a), k: 0.5, ox: 0, oy: 0 },
-    plataformas: { key: `arena-${a.id}`, svg: arenaSvg(a), k: 0.5, ox: 0, oy: 0 },
+    // Atrás da bisnaga, com o mesmo apoio dela: o meio da base, no chão (quadro -40 -4 80 86).
+    baseTubo: base ? { key: `tubo-base@${temaId(a, tema)}`, svg: base, k: 0.5, ox: 0.5, oy: 84 / 86 } : null,
+    fundo: { key: `${id}-fundo`, svg: arenaFundoSvg(a, tema), k: 0.5, ox: 0, oy: 0 },
+    plataformas: { key: id, svg: arenaSvg(a, tema), k: 0.5, ox: 0, oy: 0 },
+    camadas: arenaCamadasSvg(a, tema).map((c) => ({
+      spec: { key: `${id}-${c.nome}`, svg: c.svg, k: 0.5, ox: 0, oy: 0 },
+      nome: c.nome,
+      amp: c.amp,
+      margem: c.margem,
+    })),
   };
 }
 
@@ -190,13 +266,14 @@ export function rasterSvg(svg: string, w: number, h: number): Promise<HTMLCanvas
 
 /** Rasteriza o SVG no tamanho exato em que vai aparecer na tela. */
 function raster(s: ArtSpec): Promise<HTMLCanvasElement> {
-  let done = rasters.get(s.key);
+  const key = s.tex ?? s.key;
+  let done = rasters.get(key);
   if (done) return done;
   const size = artSize(s);
   done = rasterSvg(s.svg, Math.ceil(size.w * RES), Math.ceil(size.h * RES));
-  rasters.set(s.key, done);
+  rasters.set(key, done);
   // Falhou: outra tentativa pode refazer.
-  done.catch(() => rasters.delete(s.key));
+  done.catch(() => rasters.delete(key));
   return done;
 }
 
@@ -215,9 +292,10 @@ export async function loadArt(
   onProgress?.(done, specs.length);
   await Promise.all(
     specs.map(async (s) => {
-      if (!textures.exists(s.key)) {
+      const key = s.tex ?? s.key;
+      if (!textures.exists(key)) {
         const canvas = await raster(s);
-        if (!textures.exists(s.key)) textures.addCanvas(s.key, canvas);
+        if (!textures.exists(key)) textures.addCanvas(key, canvas);
       }
       onProgress?.(++done, specs.length);
     }),

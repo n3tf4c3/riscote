@@ -22,6 +22,7 @@ import {
   TILE,
   cellAt,
   chapterFrom,
+  enemyRole,
   createPlayer,
   movementParams,
   stepPlayer,
@@ -203,20 +204,21 @@ describe('progressão do capítulo', () => {
   it.each(CHAPTERS.map((c, i) => [i + 1, c] as const))('capítulo %i: 4 fases em ordem, do simples à combinação', (_, chapter) => {
     expect(chapter.map((a) => a.stage!.step)).toEqual([1, 2, 3, 4]);
     const [s1, s2, s3, s4] = chapter.map((a) => a.stage!);
+    const roles = (kinds: readonly number[]) => kinds.map(enemyRole);
     // Fase 1: inimigos simples, sem habilidade, com as dicas de tiro, bola e chute.
-    expect(s1!.roster.every((k) => SIMPLE.includes(k))).toBe(true);
+    expect(roles(s1!.roster).every((k) => SIMPLE.includes(k))).toBe(true);
     expect(s1!.skills).toEqual([]);
     expect(s1!.hints).toBe(true);
     // Fase 2: mais variedade de inimigos simples, ainda sem habilidade.
     expect(new Set(s2!.roster).size).toBeGreaterThan(new Set(s1!.roster).size);
     expect(s2!.skills).toEqual([]);
-    // Fase 3: as primeiras habilidades e o tinteiro.
+    // Fase 3: as primeiras habilidades e o tinteiro (ou quem faz o papel dele).
     expect(s3!.skills.length).toBeGreaterThan(0);
-    expect(s3!.roster).toContain(ENEMY_TINTEIRO);
+    expect(roles(s3!.roster)).toContain(ENEMY_TINTEIRO);
     // Fase 4: junta tudo o que veio antes e traz a borracha, que pede cooperação.
     const before = new Set([...s1!.roster, ...s2!.roster, ...s3!.roster]);
     for (const k of before) expect(s4!.roster).toContain(k);
-    expect(s4!.roster).toContain(ENEMY_BORRACHA);
+    expect(roles(s4!.roster)).toContain(ENEMY_BORRACHA);
     for (const k of s3!.skills) expect(s4!.skills).toContain(k);
     expect(s4!.skills.length).toBeGreaterThan(s3!.skills.length);
   });
@@ -242,7 +244,7 @@ describe('progressão do capítulo', () => {
   });
 
   it('fase com fiandeira tem pontos de fio', () => {
-    for (const arena of ARENAS) if (arena.stage!.roster.includes(ENEMY_FIANDEIRA)) expect(arena.anchors.length, arena.id).toBeGreaterThanOrEqual(2);
+    for (const arena of ARENAS) if (arena.stage!.roster.some((k) => enemyRole(k) === ENEMY_FIANDEIRA)) expect(arena.anchors.length, arena.id).toBeGreaterThanOrEqual(2);
   });
 
   it('toda habilidade perigosa avisa com pelo menos 0,6 s; no fácil, 0,85 s', () => {
@@ -258,12 +260,16 @@ describe('capítulos', () => {
 
   it('a sala joga o capítulo da arena escolhida, sempre a partir da primeira fase', () => {
     expect(ids('andaime')).toEqual(['margem', 'escadaria', 'poco', 'andaime']);
-    expect(ids('mapa')).toEqual(['partitura', 'quadriculada', 'mapa', 'calendario']);
+    expect(ids('toca')).toEqual(['clareira', 'raizes', 'toca', 'copas']);
+    expect(ids('atlas')).toEqual(['estantes', 'fichario', 'atlas', 'arquivo']);
   });
 
   it('arena desconhecida, ou um id antigo do greybox, começa pelo capítulo 1', () => {
     expect(ids(undefined)).toEqual(['margem', 'escadaria', 'poco', 'andaime']);
     expect(ids('nanquim')).toEqual(ids('margem'));
     expect(ids('padrao')).toEqual(ids('margem'));
+    // Partituras e mapas saiu do menu (2026-11-01; as páginas foram para a Biblioteca, com ids novos):
+    // link antigo para uma página dela começa pelo capítulo 1.
+    expect(ids('mapa')).toEqual(ids('margem'));
   });
 });
