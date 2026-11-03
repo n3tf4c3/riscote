@@ -190,6 +190,7 @@ Para cada faixa, gerar 4 versões, escolher pelo ritmo e pela clareza (a melodia
 - `apps/client/src/audio/som.ts`: Web Audio com barramentos de música e efeitos sob um volume geral, e um limitador suave no fim.
   - O contexto nasce no primeiro clique, tecla ou toque (regra de autoplay dos navegadores). Até lá, nada toca e nada quebra.
   - Os efeitos são baixados e decodificados nesse momento (cerca de 680 KB em OGG); cada trilha, só quando é pedida (0,5–1,1 MB).
+  - Arquivo que não baixou é pedido de novo depois de 5 s, prazo que dobra a cada falha seguida, até 60 s. O primeiro efeito pedido depois do prazo pede de novo todos os que falharam e fica mudo (chegaria atrasado); os seguintes tocam. A trilha volta sozinha. Antes, a falha ficava guardada até recarregar a página: em 2026-11-03 a música tocava e os efeitos não.
   - Variação sorteada sem repetir a anterior, desvio de ±3% na altura dos sons repetidos, até 6 vozes por som e intervalo mínimo por jogador.
   - Sons de outros jogadores a 55%. Panorama pela posição na arena.
   - `hold` toca um som contínuo enquanto a condição vale (a recarga), e a cena solta todos ao recomeçar.
