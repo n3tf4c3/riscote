@@ -76,6 +76,15 @@ export interface Frame {
   sy: number;
 }
 
+/** O que o boneco acabou de fazer (instantes de `performance.now`) e para onde olha. */
+export interface Acts {
+  shotAt: number;
+  kickAt: number;
+  /** Comemora até este instante (item pego, arena limpa). */
+  cheerUntil: number;
+  facing: number;
+}
+
 interface RiscoteState {
   x: number;
   dist: number;
@@ -88,20 +97,49 @@ interface RiscoteState {
   nextBlink: number;
   blinkEnd: number;
   blinks: number;
+  facing: number;
+  turnAt: number;
+  /** Último instante correndo rápido no chão, para reconhecer a freada. */
+  fastAt: number;
+  skidAt: number;
+  /** Comemoração própria (voltou do resgate). */
+  cheerUntil: number;
+  /** Desde quando está parado à toa (para a espera). */
+  stillSince: number;
 }
 
 const ease = (t: number) => (t >= 1 ? 0 : (1 - t) * (1 - t));
 
-/** Quadro, compressão e esticamento de cada riscote; dispara poeira, respingos e o chacoalhar. */
+/** Tempos das ações, em ms. */
+const KICK_WINDUP = 70;
+const KICK_END = 300;
+const SHOT_RECOIL = 110;
+const SHOT_END = 230;
+const LAND_POSE = 120;
+const SKID_POSE = 150;
+const TURN_SQUASH = 120;
+/** Parado à toa por mais que isto, o boneco começa a esperar (bater o pé, olhar para cima). */
+const IDLE_WAIT = 5000;
+
+/**
+ * Quadro, compressão e esticamento de cada riscote; dispara poeira, respingos e o chacoalhar.
+ * Desde 2026-11-04 (pedido do usuário: o boneco estava robótico e o chute na bola não tinha animação):
+ * carga e chute, coice do tiro, topo do pulo, queda se debatendo, pouso agachado, freada, virada,
+ * comemoração e espera.
+ */
 export class RiscoteAnimator {
   private states = new Map<number, RiscoteState>();
 
   constructor(private readonly fx: Effects) {}
 
-  frame(slot: number, m: Motion, w: number, h: number, down: boolean, shooting: boolean, color: number, now: number): Frame {
+  frame(slot: number, m: Motion, w: number, h: number, down: boolean, acts: Acts, color: number, now: number): Frame {
     let s = this.states.get(slot);
     if (!s) {
-      s = { x: m.x, dist: 0, ground: m.onGround, down, fallVy: 0, landAt: -Infinity, landPower: 0, jumpAt: -Infinity, nextBlink: now + 1500 + slot * 400, blinkEnd: 0, blinks: slot };
+      s = {
+        x: m.x, dist: 0, ground: m.onGround, down, fallVy: 0, landAt: -Infinity, landPower: 0, jumpAt: -Infinity,
+        nextBlink: now + 1500 + slot * 400, blinkEnd: 0, blinks: slot, facing: acts.facing, turnAt: -Infinity,
+        fastAt: -Infinity, skidAt: -Infinity, cheerUntil: -Infinity, stillSince: now,
+      };
       this.states.set(slot, s);
     }
     const step = Math.abs(m.x - s.x);
@@ -118,9 +156,12 @@ export class RiscoteAnimator {
     } else if (!down && s.down) {
       this.fx.sparkle(feetX, m.y + h / 2, color, 10, 12);
       som.play('resgate', { x: feetX, slot });
+      // De pé de novo: comemora um pouquinho.
+      s.cheerUntil = now + 650;
     }
     s.down = down;
 
+    const speed = Math.abs(m.vx);
     if (!down) {
       if (!m.onGround) s.fallVy = Math.max(s.fallVy, m.vy);
       if (m.onGround && !s.ground) {
@@ -134,13 +175,30 @@ export class RiscoteAnimator {
         this.fx.dust(feetX, feetY, 0.2);
         som.play('pulo', { x: feetX, slot });
       }
+      // Virada: o corpo achata um instante; correndo, levanta poeira.
+      if (acts.facing !== s.facing) {
+        s.turnAt = now;
+        if (m.onGround && speed > 40) this.fx.dust(feetX, feetY, 0.3);
+      }
+      // Freada: vinha rápido no chão e parou (ou virou) de repente. A desaceleração é forte (uns 5
+      // quadros até parar), então é um evento, e não a velocidade de cada quadro.
+      if (m.onGround) {
+        if (speed >= 120) s.fastAt = now;
+        else if (speed < 40 && now - s.fastAt < 160) {
+          s.skidAt = now;
+          s.fastAt = -Infinity;
+          this.fx.dust(feetX + acts.facing * 5, feetY, 0.55);
+        }
+      } else s.fastAt = -Infinity;
     }
+    s.facing = acts.facing;
     s.ground = m.onGround;
 
     let sx = 1;
     let sy = 1;
     const land = ease((now - s.landAt) / 170) * s.landPower;
     const jump = ease((now - s.jumpAt) / 210);
+    const turn = ease((now - s.turnAt) / TURN_SQUASH);
     if (down) {
       sx = 1 + 0.04 * Math.sin(now / 160);
     } else if (land > 0) {
@@ -154,14 +212,49 @@ export class RiscoteAnimator {
       sx = 1 - k * 0.6;
       sy = 1 + k;
     }
+    if (!down && turn > 0) {
+      sx *= 1 - 0.22 * turn;
+      sy *= 1 + 0.05 * turn;
+    }
 
+    const kickT = now - acts.kickAt;
+    const shotT = now - acts.shotAt;
     let pose: Pose;
+    let idle = false;
     if (down) pose = 'derrubado';
-    else if (!m.onGround) pose = m.vy < 0 ? 'pulando' : 'caindo';
-    else if (shooting) pose = 'atirando';
-    else if (Math.abs(m.vx) > 20) pose = runPose(Math.floor(s.dist / STRIDE));
-    else {
-      // Parado: respira e pisca de vez em quando.
+    else if (kickT < KICK_WINDUP) {
+      pose = 'chute-carga';
+      sx *= 0.96;
+    } else if (kickT < KICK_END) {
+      pose = 'chute';
+      // Estica no golpe e volta.
+      const k = ease((kickT - KICK_WINDUP) / 140);
+      sx *= 1 + 0.08 * k;
+      sy *= 1 - 0.04 * k;
+    } else if (shotT < SHOT_RECOIL) {
+      // Coice do tiro: achata para trás e volta.
+      pose = 'atirando';
+      const k = ease(shotT / SHOT_RECOIL);
+      sx *= 1 - 0.08 * k;
+      sy *= 1 + 0.05 * k;
+    } else if (shotT < SHOT_END) pose = 'atirou';
+    else if (!m.onGround) {
+      if (m.vy < -90) pose = 'pulando';
+      else if (m.vy <= 90) pose = 'topo';
+      else pose = Math.floor(now / 110) % 2 === 0 ? 'caindo' : 'caindo1';
+    } else if (now - s.landAt < LAND_POSE && s.landPower > 0.45) pose = 'pouso';
+    else if (now - s.skidAt < SKID_POSE) pose = 'freando';
+    else if (speed > 20) pose = runPose(Math.floor(s.dist / STRIDE));
+    else if (now < Math.max(acts.cheerUntil, s.cheerUntil)) {
+      // Comemora: alterna os dois quadros com pulinhos.
+      const beat = Math.floor(now / 170) % 2;
+      pose = beat === 0 ? 'comemora0' : 'comemora1';
+      const hop = Math.abs(Math.sin(now / 108));
+      sy *= 1 + 0.07 * hop;
+      sx *= 1 - 0.04 * hop;
+    } else {
+      idle = true;
+      // Parado: respira e pisca de vez em quando; depois de um tempo à toa, bate o pé e olha para cima.
       const breath = Math.sin(now / 520 + slot * 1.7);
       sy *= 1 + 0.022 * breath;
       sx *= 1 - 0.01 * breath;
@@ -170,8 +263,11 @@ export class RiscoteAnimator {
         s.blinkEnd = now + 130;
         s.nextBlink = now + 2200 + ((s.blinks * 977) % 2600);
       }
-      pose = now < s.blinkEnd ? 'piscando' : 'parado';
+      const waiting = now - s.stillSince - IDLE_WAIT;
+      const tap = waiting > 0 && waiting % 6000 < 1500 && Math.floor(waiting / 230) % 2 === 0;
+      pose = now < s.blinkEnd ? 'piscando' : tap ? 'espera' : 'parado';
     }
+    if (!idle) s.stillSince = now;
     return { pose, sx, sy };
   }
 }
@@ -227,6 +323,8 @@ interface EnemyState {
  */
 export class EnemyAnimator {
   private states = new Map<string, EnemyState>();
+  /** Bolas que começaram a rolar neste quadro (centro e lado): a cena acha quem chutou. */
+  kicks: Array<{ x: number; y: number; dir: number }> = [];
   private primed = false;
   private lastDrip = 0;
 
@@ -492,6 +590,7 @@ export class EnemyAnimator {
   frames(enemies: EnemyLike[], now: number, dt: number, live: boolean): Map<string, EnemyFrame> {
     const out = new Map<string, EnemyFrame>();
     const half = this.size / 2;
+    this.kicks = [];
     for (const e of enemies) {
       let s = this.states.get(e.id);
       const cx = e.x + (e.kind === ENEMY_BORRAO ? this.borraoSize : this.size) / 2;
@@ -521,6 +620,7 @@ export class EnemyAnimator {
           this.fx.shake(90, 0.003);
           som.play('bola', { x: cx });
         } else if (e.mode === MODE_ROLL) {
+          this.kicks.push({ x: cx, y: cy, dir: e.facing });
           this.fx.streaks(cx, cy, e.facing, 8);
           this.fx.droplets(cx, cy, INK_BLUE, 10, 180, e.facing > 0 ? 0 : Math.PI, 1.4, true);
           this.fx.shake(150, 0.005);
