@@ -1,6 +1,7 @@
 import { BOSS_RULES, TILE } from '@riscote/shared';
 import { BOIL, INK, PALETTE, WHITE, blush, eye, line, openMouth, outlined, oval, shine, svgDoc } from './svg';
 import type { PeleChefe } from './pele';
+import { GIZ_CHEFE } from './giz';
 import { boilKey, vestir, type ArtSpec } from './textures';
 
 // O Mata-Borrão em cartum: mata-borrão de mesa vivo, com o feltro verde na base que balança,
@@ -243,7 +244,8 @@ export function bossSpecs(chefe: PeleChefe): ArtSpec[] {
   const specs: ArtSpec[] = [];
   const k = (BOSS_RULES.width * TILE) / BOSS_UNITS;
   for (let v = 0; v < BOIL; v++) {
-    for (const pose of BOSS_POSES) specs.push(at(boilKey(`chefe-${pose}`, v), chefe.chefe(pose, v), k, ...BOSS_ANCHOR));
+    // O corpo leva o giz (GIZ_CHEFE); onda, chuva e golpe ficam limpos, para o aviso ler bem.
+    for (const pose of BOSS_POSES) specs.push({ ...at(boilKey(`chefe-${pose}`, v), chefe.chefe(pose, v), k, ...BOSS_ANCHOR), giz: GIZ_CHEFE });
     specs.push(at(boilKey('chefe-onda', v), chefe.onda(v), 0.5, 2, 0));
     specs.push(at(boilKey('chefe-borrao', v), chefe.chuva(v), (BOSS_RULES.rainSize * TILE) / 22, 0, 0));
     // A apara (quadro de 48 unidades) com a largura da caixa dela.

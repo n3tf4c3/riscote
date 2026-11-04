@@ -847,7 +847,7 @@ describe('habilidades dos inimigos', () => {
       run(world, 1);
       fastest = Math.max(fastest, Math.abs(e.body.vx));
     }
-    expect(fastest).toBeGreaterThan(3.5 * TILE * (RULES.dashSpeedMult - 0.2));
+    expect(fastest).toBeGreaterThan(3.5 * RULES.enemySpeedMult * TILE * (RULES.dashSpeedMult - 0.2));
 
     run(world, ticks(RULES.dashRest) + 10);
     expect(e.skill).toBe(SKILL_NONE);

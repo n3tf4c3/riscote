@@ -18,6 +18,8 @@ export const RULES = {
   soakToBall: 3,
   soakToBallBigTeam: 4, // com 4 ou 5 jogadores
   soakDecay: 2.2, // s para perder um nível de encharcado
+  // 2026-11-04: o usuário achou o jogo rápido; multiplica o andar, o bote e o salto de todos os inimigos.
+  enemySpeedMult: 0.88,
   ballTime: 5, // s até a bola se desfazer sozinha
   rollSpeed: 12, // células/s
   rollMaxBounces: 3,
@@ -542,11 +544,11 @@ const ENEMY_BASE: Record<number, MovementParams> = {
 // As criaturas da Floresta andam como o inimigo do caderno de quem fazem o papel.
 for (const [kind, role] of Object.entries(ENEMY_ROLE)) ENEMY_BASE[Number(kind)] = ENEMY_BASE[role]!;
 
-/** Encharcado anda mais devagar: um parâmetro por nível de tinta. */
+/** Encharcado anda mais devagar: um parâmetro por nível de tinta (todos já com RULES.enemySpeedMult). */
 function bySoak(base: MovementParams): MovementParams[] {
   return Array.from({ length: RULES.soakToBallBigTeam + 1 }, (_, soak) => ({
     ...base,
-    runSpeed: base.runSpeed * Math.max(0.4, 1 - 0.15 * soak),
+    runSpeed: base.runSpeed * RULES.enemySpeedMult * Math.max(0.4, 1 - 0.15 * soak),
   }));
 }
 

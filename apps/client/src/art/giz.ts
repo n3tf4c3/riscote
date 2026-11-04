@@ -34,6 +34,11 @@ export const GIZ_FRENTE: Giz = { angulo: -42, risco: [22, 6], escuro: 0.5, claro
 export const GIZ_JOGAVEL: Giz = { angulo: -38, risco: [20, 5], escuro: 0.45, claro: 0.4, grao: 0.16 };
 /** Peças pequenas do cenário (o enfeite atrás da bisnaga): riscos miúdos. */
 export const GIZ_PECA: Giz = { angulo: -38, risco: [9, 3], escuro: 0.35, claro: 0.35, grao: 0.14 };
+/**
+ * Corpo dos chefes (pedido do usuário em 2026-11-04): riscos miúdos e mais leves que os do cenário,
+ * para o rosto e as poses continuarem legíveis. Os golpes deles ficam sem giz.
+ */
+export const GIZ_CHEFE: Giz = { angulo: -38, risco: [11, 3.5], escuro: 0.3, claro: 0.32, grao: 0.12 };
 /** Papel da página (fundo do CSS, atrás da capa e do jogo): bem leve. */
 export const GIZ_PAPEL: Giz = { angulo: -36, risco: [22, 5], escuro: 0.1, claro: 0.45, grao: 0.3 };
 /** Caderno: papel, manchas e rabiscos de giz. */
