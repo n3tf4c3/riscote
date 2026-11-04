@@ -28,8 +28,8 @@ export function runPose(frame: number): Pose {
   return RUN[((frame % RUN_FRAMES) + RUN_FRAMES) % RUN_FRAMES] ?? 'corre0';
 }
 
-/** Folga em cima para os acessórios que passam da cabeça. */
-export const VIEWBOX = '0 -40 200 340';
+/** Folga em cima para os acessórios que passam da cabeça e dos lados para o pincel esticado (centro em x = 100). */
+export const VIEWBOX = '-70 -40 340 340';
 
 const LW = 6.5;
 const PANTS = '#7e8597';
@@ -68,6 +68,8 @@ interface Skeleton {
   face: Face;
   /** Quanto o vento ergue cachecol e antena (graus; negativo derruba). */
   flow: number;
+  /** Faíscas na ponta do pincel: 2 no tiro, 1 logo depois. */
+  magic?: 1 | 2;
 }
 
 const STILL: Skeleton = {
@@ -109,6 +111,7 @@ const SKELETONS: Record<Exclude<Pose, 'derrubado' | `corre${number}`>, Skeleton>
     tilt: 2,
     face: 'grito',
     flow: 0,
+    magic: 2,
   },
   // Depois do tiro: o braço ainda à frente, descendo, e o corpo voltando do coice.
   atirou: {
@@ -119,6 +122,7 @@ const SKELETONS: Record<Exclude<Pose, 'derrubado' | `corre${number}`>, Skeleton>
     tilt: 0,
     face: 'garra',
     flow: 0,
+    magic: 1,
   },
   // Chute: a perna da frente recua dobrada, o corpo vai para trás e os braços se abrem para o equilíbrio.
   'chute-carga': {
@@ -381,10 +385,43 @@ function leg(hip: readonly [number, number], [a, b]: readonly [number, number], 
   return capsule([hip, knee, foot], 19, dark ? shade(PANTS, 0.82) : PANTS, LW) + shoe(foot, b);
 }
 
-function arm(shoulder: readonly [number, number], [a, b]: readonly [number, number], color: string, skin: string): string {
+/** Estrelinha de quatro pontas (faísca do pincel). */
+function glint(x: number, y: number, r: number, fill: string): string {
+  const k = r * 0.32;
+  return outlined(`M${x} ${y - r} L${x + k} ${y - k} L${x + r} ${y} L${x + k} ${y + k} L${x} ${y + r} L${x - k} ${y + k} L${x - r} ${y} L${x - k} ${y - k} Z`, fill, 2.5);
+}
+
+const WOOD = '#b9773f';
+const FERRULE = PALETTE.cinzaClaro;
+
+/**
+ * Pincel-varinha (pedido do usuário em 2026-11-04): o riscote atira a tinta pela ponta de um pincel,
+ * como mágica. Desenhado ao longo do antebraço (ângulo `b`), saindo da mão: em coordenadas locais ele
+ * aponta para +y, com o cabo atrás da mão, a virola e as cerdas molhadas de tinta azul na ponta.
+ * `magic`: faíscas na ponta (2 no tiro, 1 logo depois).
+ */
+function brush(hand: readonly [number, number], b: number, magic = 0): string {
+  const body =
+    outlined('M-4.5 -12 Q-4.5 -16 0 -16 Q4.5 -16 4.5 -12 L5.5 26 L-5.5 26 Z', WOOD, 3.5) +
+    line('M-1.5 -10 L-1 22', 2, shade(WOOD, 1.35)) +
+    outlined('M-6.5 26 L6.5 26 L6.5 34 L-6.5 34 Z', FERRULE, 3.5) +
+    line('M-6 30 L6 30', 1.6, PALETTE.cinza) +
+    outlined('M-6.5 34 Q-8 45 0 56 Q8 45 6.5 34 Z', PALETTE.azul, 3.5) +
+    line('M-2.5 38 Q-2.5 46 0 51', 2, WHITE).replace('/>', ' opacity="0.6"/>');
+  const sparks =
+    magic >= 2
+      ? `<circle cx="0" cy="64" r="11" fill="${PALETTE.amarelo}" opacity="0.35"/>` + glint(0, 66, 11, PALETTE.amarelo) + glint(-12, 56, 6, WHITE) + glint(12, 58, 7, WHITE) + glint(4, 80, 5, PALETTE.amarelo)
+      : magic === 1
+        ? glint(-6, 66, 6, PALETTE.amarelo) + glint(8, 72, 4, WHITE)
+        : '';
+  return `<g transform="translate(${hand[0].toFixed(1)} ${hand[1].toFixed(1)}) rotate(${(-b).toFixed(1)})">${body}${sparks}</g>`;
+}
+
+function arm(shoulder: readonly [number, number], [a, b]: readonly [number, number], color: string, skin: string, holding = false, magic = 0): string {
   const elbow = along(shoulder, a, UPPER);
   const hand = along(elbow, b, FORE);
-  return capsule([shoulder, elbow, hand], 16, color, LW) + oval(hand[0], hand[1], 9, 9, skin, 5);
+  // A mão vem por cima do cabo, segurando o pincel.
+  return capsule([shoulder, elbow, hand], 16, color, LW) + (holding ? brush(hand, b, magic) : '') + oval(hand[0], hand[1], 9, 9, skin, 5);
 }
 
 /** Moletom com bolso, punho e crachá, em coordenadas do quadril (centro do quadril em 0, 0). */
@@ -417,7 +454,7 @@ function figure(slot: number, color: string, s: Skeleton, ground = true): string
     leg(offset(hip, s.lean, -9, -2), s.legs[0], true) +
     leg(offset(hip, s.lean, 9, -2), s.legs[1], false) +
     `<g transform="translate(${hip[0]} ${hip[1]}) rotate(${s.lean})">${torsoArt(color, glow)}</g>` +
-    arm(shoulderFront, s.arms[1], color, skin) +
+    arm(shoulderFront, s.arms[1], color, skin, true, s.magic ?? 0) +
     `<g transform="translate(${head[0].toFixed(1)} ${head[1].toFixed(1)}) rotate(${s.lean + s.tilt}) scale(1.1)">${headArt(slot, color, glow, s.face, s.flow)}</g>`
   );
 }
