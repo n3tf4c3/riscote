@@ -123,6 +123,8 @@ export interface PlayerLook {
   hp?: number;
   /** Segundos de invencibilidade (item): aura dourada pulsando. */
   star?: number;
+  /** Segundos segurando o ataque (tiro carregado): o brilho da carga em volta do boneco. */
+  charge?: number;
 }
 
 /** Jogador com medidor de tinta ao lado; derrubado vira mancha com o anel de resgate; invulnerável pisca. */
