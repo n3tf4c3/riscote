@@ -160,6 +160,11 @@ body.inicio #panel-online > p.keys a { color: var(--muted); text-decoration-styl
 #lobby .escolhas.duas { grid-template-columns: repeat(2, 1fr); }
 #lobby .escolhas.cinco { grid-template-columns: repeat(5, 1fr); }
 #lobby .escolhas button:disabled { opacity: .35; cursor: default; }
+/* Personagem: os cinco riscotes lado a lado, o boneco em cima e o nome do acessório embaixo. */
+#lobby .personagens { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 14px; }
+#lobby .personagens button { padding: 4px 2px 5px; }
+#lobby .personagens img { display: block; width: 100%; height: 58px; object-fit: contain; }
+#lobby .personagens button small { font-size: 10px; line-height: 1.1; }
 #visibility-hint { min-height: 1.4em; margin: 6px 0 0; }
 #seats-hint { min-height: 2.8em; margin: 6px 0 0; }
 

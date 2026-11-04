@@ -21,6 +21,7 @@ import {
   arenaWidth,
   describeJoinError,
   normalizeRoomCode,
+  parseCharacter,
   parseDifficulty,
   parseRecordName,
   placeholderName,
@@ -42,6 +43,8 @@ import { OnlineScene } from './OnlineScene';
 import { bindRecords, bindRecordsBoard } from './records';
 import { RES, commonSpecs, prepareArt } from './art/textures';
 import { PLAYER_COLORS } from './draw';
+import { CHARACTER_NAMES, riscoteSvg } from './art/riscote';
+import { hex } from './art/svg';
 import { setCover } from './capa';
 import { som } from './audio/som';
 import { watchNewVersion } from './versao';
@@ -83,6 +86,25 @@ function loadName(): string {
     return localStorage.getItem(NAME_KEY) ?? '';
   } catch {
     return '';
+  }
+}
+
+/** Personagem escolhido na capa (a vaga preferida), lembrado por navegador como o nome. */
+const CHARACTER_KEY = 'riscote.personagem.v1';
+
+function loadCharacter(): number {
+  try {
+    return parseCharacter(Number(localStorage.getItem(CHARACTER_KEY) ?? '0')) ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+function saveCharacter(character: number): void {
+  try {
+    localStorage.setItem(CHARACTER_KEY, String(character));
+  } catch {
+    // Sem armazenamento: a escolha só não fica lembrada.
   }
 }
 
@@ -359,12 +381,35 @@ export function bootOnline(input: InputSource): void {
 
   const nameInput = el<HTMLInputElement>('player-name');
   nameInput.value = loadName();
+
+  // Personagem (pedido do usuário em 2026-11-04): cada um dos cinco riscotes é uma vaga da sala, com a
+  // cor, o rosto e o acessório dela. Ocupado por alguém da sala, a pessoa fica com o primeiro livre.
+  let character = loadCharacter();
+  const characterButtons = el('personagens');
+  PLAYER_COLORS.forEach((color, i) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    const img = document.createElement('img');
+    img.alt = '';
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(riscoteSvg(i, hex(color), 'parado'))}`;
+    button.append(img, Object.assign(document.createElement('small'), { textContent: CHARACTER_NAMES[i] ?? '' }));
+    button.title = CHARACTER_NAMES[i] ?? '';
+    button.setAttribute('aria-pressed', 'false');
+    button.addEventListener('click', () => {
+      character = i;
+      saveCharacter(i);
+      choose(characterButtons, button);
+    });
+    characterButtons.append(button);
+    if (i === character) choose(characterButtons, button);
+  });
+
   /** Opções de entrada com o nome do campo; null se o nome não vale (a mensagem já foi para a tela). */
   function joinOptions(): JoinOptions | null {
     const raw = nameInput.value.trim();
     if (!raw) {
       saveName('');
-      return {};
+      return { character };
     }
     const name = parseRecordName(raw);
     if (!name) {
@@ -373,12 +418,12 @@ export function bootOnline(input: InputSource): void {
       return null;
     }
     saveName(name);
-    return { name };
+    return { name, character };
   }
 
   function joinRoom(code: string): void {
     const options = joinOptions();
-    if (options) void enter(sdk.joinById(code, options));
+    if (options) void enter(sdk.joinById(code, options), undefined, null, options.character ?? null);
   }
 
   function setBusy(busy: boolean): void {
@@ -463,8 +508,11 @@ export function bootOnline(input: InputSource): void {
   // Quem entra, sai, cai ou volta: bilhete no canto da arena.
   const notices = el('avisos');
   function notify(p: Presence): void {
+    notice(p.slot, `${p.name} ${PRESENCE_TEXT[p.event]}`);
+  }
+  function notice(slot: number, text: string): void {
     const note = document.createElement('p');
-    note.append(colorDot(p.slot), `${p.name} ${PRESENCE_TEXT[p.event]}`);
+    note.append(colorDot(slot), text);
     notices.append(note);
     while (notices.childElementCount > MAX_NOTICES) notices.firstElementChild!.remove();
     setTimeout(() => note.remove(), NOTICE_MS);
@@ -512,7 +560,8 @@ export function bootOnline(input: InputSource): void {
   /** Vagas locais da sala atual, se foi este navegador que a criou. */
   let localPlan: LocalPlan | null = null;
 
-  async function enter(joining: Promise<Room>, failure?: string, plan: LocalPlan | null = null): Promise<void> {
+  /** `wanted`: o personagem escolhido na capa; se a sala deu outro (já estava em uso), um aviso conta qual. */
+  async function enter(joining: Promise<Room>, failure?: string, plan: LocalPlan | null = null, wanted: number | null = null): Promise<void> {
     setBusy(true);
     statusOut.textContent = 'Conectando…';
     try {
@@ -550,6 +599,9 @@ export function bootOnline(input: InputSource): void {
       setCover(false);
       el('room-code').textContent = current.code;
       statusOut.textContent = '';
+      if (wanted !== null && current.slot !== wanted) {
+        notice(current.slot, `Alguém já estava com ${CHARACTER_NAMES[wanted] ?? 'esse personagem'}: você ficou com ${CHARACTER_NAMES[current.slot] ?? 'outro'}.`);
+      }
       // Jogadores deste computador escolhidos na capa: o painel já espera o controle do próximo.
       waitNextLocal();
     } catch (error) {
@@ -565,7 +617,7 @@ export function bootOnline(input: InputSource): void {
   // Também espera quem digitou ou escolheu algo na capa e ainda não usou: a recarga apagaria tudo.
   lobby.addEventListener('input', () => (lobbyTouched = true));
   lobby.addEventListener('click', (e) => {
-    if (e.target instanceof Element && e.target.closest('#online-arenas, #online-difficulty, #online-visibility, #online-local, #online-remote')) lobbyTouched = true;
+    if (e.target instanceof Element && e.target.closest('#personagens, #online-arenas, #online-difficulty, #online-visibility, #online-local, #online-remote')) lobbyTouched = true;
   });
   const version = watchNewVersion(
     () =>
@@ -581,7 +633,7 @@ export function bootOnline(input: InputSource): void {
     if (!join) return;
     const plan: LocalPlan = { key: newLocalKey(), wanted: localCount };
     const options: CreateRoomOptions = { ...join, arenaId, difficulty, open, local: localCount, online: remoteCount, localKey: plan.key };
-    void enter(sdk.create(ROOM_NAME, options), undefined, plan);
+    void enter(sdk.create(ROOM_NAME, options), undefined, plan, join.character ?? null);
   });
 
   el('join-form').addEventListener('submit', (e) => {
@@ -753,7 +805,7 @@ export function bootOnline(input: InputSource): void {
     codeInput.value = invited;
     // Pelo convite entra direto; um nome guardado que não valha mais fica de fora.
     const name = parseRecordName(nameInput.value);
-    void enter(sdk.joinById(invited, name ? { name } : {}));
+    void enter(sdk.joinById(invited, name ? { name, character } : { character }), undefined, null, character);
   } else if (saved) {
     // Página recarregada: volta ao mesmo boneco se a vaga ainda estiver reservada.
     codeInput.value = saved.code;

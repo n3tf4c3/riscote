@@ -155,6 +155,22 @@ describe('salas', () => {
     expect(room.state.players.get(replacement.sessionId)?.slot).toBe(2);
   });
 
+  it('o personagem escolhido na capa vira a vaga, se estiver livre; ocupado ou inválido, a primeira livre', async () => {
+    const room = await newRoom();
+    const a = await t.connectTo(room, { character: 3 });
+    const b = await t.connectTo(room, { character: 3 });
+    const c = await t.connectTo(room, { character: 9 });
+    const d = await t.connectTo(room, { character: 4 });
+    const slot = (id: string) => room.state.players.get(id)?.slot;
+    expect(slot(a.sessionId)).toBe(3);
+    // O 3 já estava com alguém: o primeiro livre.
+    expect(slot(b.sessionId)).toBe(0);
+    expect(slot(c.sessionId)).toBe(1);
+    expect(slot(d.sessionId)).toBe(4);
+    // A vaga decide o nome provisório também.
+    expect(room.state.players.get(a.sessionId)?.name).toBe('Jogador 4');
+  });
+
   it('código inexistente recebe mensagem clara', async () => {
     expect(await joinError('ZZZZZZ')).toBe('Nenhuma sala com esse código.');
   });

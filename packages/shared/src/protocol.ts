@@ -77,6 +77,12 @@ export function parseDifficulty(raw: unknown): Difficulty {
 /** Opções de quem entra (ao criar ou ao entrar pelo código). O nome passa por `parseRecordName`. */
 export interface JoinOptions {
   name?: string;
+  /**
+   * Personagem escolhido na capa (pedido do usuário em 2026-11-04): a vaga que a pessoa prefere, de 0 a
+   * MAX_PLAYERS − 1. A vaga decide o boneco inteiro (cor, rosto, cabelo e acessório); ocupada, a pessoa
+   * fica com a primeira livre. Validado por `parseCharacter`.
+   */
+  character?: number;
   /** Chave das vagas do computador que criou a sala (ver `CreateRoomOptions.localKey`). */
   localKey?: string;
 }
@@ -111,6 +117,11 @@ export function parseSeats(local: unknown, online: unknown): Seats {
 }
 
 const LOCAL_KEY = /^[A-Za-z0-9_-]{16,64}$/;
+
+/** Valida o personagem escolhido (a vaga preferida); qualquer outra coisa vira null (a primeira livre). */
+export function parseCharacter(raw: unknown): number | null {
+  return typeof raw === 'number' && Number.isInteger(raw) && raw >= 0 && raw < MAX_PLAYERS ? raw : null;
+}
 
 /** Valida a chave das vagas locais; qualquer outra coisa vira null (entra pelas vagas da internet). */
 export function parseLocalKey(raw: unknown): string | null {

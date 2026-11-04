@@ -24,6 +24,7 @@ import {
   isBossArena,
   parseDifficulty,
   parseInput,
+  parseCharacter,
   parseLocalKey,
   parseRecordName,
   parseSeats,
@@ -207,7 +208,9 @@ export class ArenaRoom extends Room<{ state: GameState }> {
 
   onJoin(client: Client, options: JoinOptions = {}): void {
     const used = new Set([...this.world.players.values()].map((p) => p.slot));
-    let slot = 0;
+    // O personagem escolhido na capa, se ninguém da sala já estiver com ele; senão, o primeiro livre.
+    const wanted = parseCharacter(options?.character);
+    let slot = wanted !== null && !used.has(wanted) ? wanted : 0;
     while (used.has(slot)) slot++;
 
     const player = this.world.addPlayer(client.sessionId, slot);

@@ -8,6 +8,9 @@ import { INK, PALETTE, WHITE, blush, capsule, eye, line, openMouth, outlined, ov
 /** Tom claro da cor de cada jogador (brilho do acessório e da faixa da proteção). */
 export const PLAYER_GLOWS = ['#ffb08f', '#a6e6fa', '#ffe08a', '#7fdccb', '#cdb0f5'] as const;
 
+/** Nome de cada personagem (um por vaga), pelo acessório: aparece na escolha da capa. */
+export const CHARACTER_NAMES = ['Chapéu de festa', 'Cachecol', 'Antena', 'Capuz de gato', 'Boina'] as const;
+
 export const RUN_FRAMES = 6;
 const RUN = Array.from({ length: RUN_FRAMES }, (_, i) => `corre${i}` as const);
 /**
