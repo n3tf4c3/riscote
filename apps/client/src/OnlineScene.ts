@@ -121,6 +121,10 @@ const MAX_FRAME = 0.25;
 const GREY = 0x888888;
 /** Quanto tempo a pose de tiro fica na tela depois do disparo. */
 const SHOT_POSE_MS = 160;
+/** Dourado das faíscas do pincel-varinha. */
+const MAGIC_GOLD = 0xffd54a;
+/** Intervalo entre os brilhinhos do rastro de uma gota. */
+const DROP_TRAIL_MS = 45;
 /** Centro das auras acima dos pés: o meio do desenho do riscote, que é mais alto que a caixa. */
 const AURA_CENTER = 22;
 const STAR_GOLD = 0xe8b400;
@@ -222,6 +226,8 @@ export class OnlineScene extends Phaser.Scene {
   private generation = 0;
   /** Último disparo visto de cada jogador (por slot), para a pose de tiro. */
   private shotAt: number[] = [];
+  /** Último brilhinho do rastro de cada gota. */
+  private dropTrail = new Map<string, number>();
   /** Último chute na bola de cada jogador (por slot) e até quando ele comemora (item pego). */
   private kickAt: number[] = [];
   private cheerUntil: number[] = [];
@@ -317,6 +323,7 @@ export class OnlineScene extends Phaser.Scene {
     this.prevY = session.local.y;
     this.lastFrame = performance.now();
     this.shotAt = [];
+    this.dropTrail.clear();
     this.kickAt = [];
     this.cheerUntil = [];
     this.cheerAll = false;
@@ -502,6 +509,7 @@ export class OnlineScene extends Phaser.Scene {
       .filter((e) => enemyRole(e.kind) === ENEMY_BORRACHA && e.kind !== ENEMY_ENCICLOPEDIA && e.kind !== ENEMY_SOMBRINHA && e.kind !== ENEMY_MARTELO && e.kind !== ENEMY_TORREAO && e.mode === MODE_WALK && (e.kind === ENEMY_OURICO ? e.skill === SKILL_NONE : e.skill !== SKILL_WARN))
       .map((e) => ({ x: e.x + size / 2 + (e.facing * size) / 2, y: e.y + size / 2 }));
     const dropDirs = this.dropWatch.dirs(drops, now, erasers);
+    for (const id of this.dropTrail.keys()) if (!drops.some((d) => d.id === id)) this.dropTrail.delete(id);
     const spits = session.spitViews(now);
     const spitDirs = this.watchSpits(spits, live);
     this.updateHint(state.phase, enemies);
@@ -592,6 +600,11 @@ export class OnlineScene extends Phaser.Scene {
       const dropSize = RULES.dropSize * TILE;
       for (const d of drops) {
         const dir = dropDirs.get(d.id) ?? 1;
+        // Rastro de brilhinhos na cor de quem atirou: a gota é um feitiço de tinta.
+        if (now - (this.dropTrail.get(d.id) ?? -Infinity) > DROP_TRAIL_MS) {
+          this.dropTrail.set(d.id, now);
+          this.fx.sparkle(d.x + dropSize / 2 - dir * 3, d.y + dropSize / 2, PLAYER_COLORS[d.slot] ?? MAGIC_GOLD, 1, 2);
+        }
         art.draw('gota', d.x + dropSize / 2, d.y + dropSize / 2, DEPTH_ENEMY + 0.5, { flip: dir < 0 });
         g.lineStyle(1.2, PLAYER_COLORS[d.slot] ?? INK, 0.9).strokeCircle(d.x + dropSize / 2 + dir * 1.5, d.y + dropSize / 2, 4);
       }
@@ -695,9 +708,13 @@ export class OnlineScene extends Phaser.Scene {
     if (!params) return;
     const w = params.playerWidth * TILE;
     const h = params.playerHeight * TILE;
-    const hx = x + w / 2 + facing * w * 0.95;
-    const hy = y + h * 0.35;
-    this.fx.droplets(hx, hy, 0x2f6fd6, 5, 120, facing > 0 ? -0.2 : Math.PI + 0.2, 0.9, true);
+    // A ponta do pincel-varinha, com o braço esticado à frente (pose `atirando`).
+    const hx = x + w / 2 + facing * w * 1.05;
+    const hy = y + h * 0.4;
+    // A tinta sai como mágica: faíscas amarelas e brancas na ponta, um respingo azul e um pouco da cor de quem atirou.
+    this.fx.sparkle(hx, hy, MAGIC_GOLD, 6, 7);
+    this.fx.sparkle(hx, hy, 0xffffff, 3, 5);
+    this.fx.droplets(hx, hy, 0x2f6fd6, 4, 120, facing > 0 ? -0.2 : Math.PI + 0.2, 0.9, true);
     this.fx.droplets(hx, hy, PLAYER_COLORS[slot] ?? INK, 2, 80, facing > 0 ? 0 : Math.PI, 0.8, true);
   }
 
