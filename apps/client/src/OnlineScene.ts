@@ -62,6 +62,7 @@ import {
   ENEMY_SALTADOR,
   ENEMY_SIZE,
   ENEMY_TINTEIRO,
+  MODE_BALL,
   MODE_ROLL,
   MODE_WALK,
   SKILL_ACT,
@@ -219,6 +220,11 @@ export class OnlineScene extends Phaser.Scene {
   private generation = 0;
   /** Último disparo visto de cada jogador (por slot), para a pose de tiro. */
   private shotAt: number[] = [];
+  /** Último chute na bola de cada jogador (por slot) e até quando ele comemora (item pego). */
+  private kickAt: number[] = [];
+  private cheerUntil: number[] = [];
+  /** Arena limpa: todo mundo comemora. */
+  private cheerAll = false;
   /** Último brilho da aura dourada de cada jogador (por slot). */
   private sparkAt: number[] = [];
   private fx = new Effects();
@@ -309,6 +315,9 @@ export class OnlineScene extends Phaser.Scene {
     this.prevY = session.local.y;
     this.lastFrame = performance.now();
     this.shotAt = [];
+    this.kickAt = [];
+    this.cheerUntil = [];
+    this.cheerAll = false;
     this.fx = new Effects();
     this.riscotes = new RiscoteAnimator(this.fx);
     this.warn = warnTimes(session.difficulty);
@@ -461,10 +470,19 @@ export class OnlineScene extends Phaser.Scene {
       ? { facing: local.facing, ink: me.ink, down: me.down, rescue: me.rescue, invuln: me.invuln, inkGauge, hp: me.hp, star: me.star }
       : null;
     if (pressed && localLook && !localLook.down) {
-      this.shotSplash(session.slot, localX, localY, localLook.facing);
-      // Sem tinta no difícil o tiro não sai: no lugar do jato, a caneta seca.
-      som.play(!inkGauge || localLook.ink >= 1 ? 'tiro' : 'tinta-vazia', { x: localX, slot: session.slot });
+      if (this.reachesBall(enemies, localX, localY)) {
+        // Chute: perto de uma bola parada o ataque chuta em vez de atirar (o som vem quando ela rola).
+        this.kickAt[session.slot] = now;
+        this.shotAt[session.slot] = -Infinity;
+      } else {
+        this.shotSplash(session.slot, localX, localY, localLook.facing);
+        // Sem tinta no difícil o tiro não sai: no lugar do jato, a caneta seca.
+        som.play(!inkGauge || localLook.ink >= 1 ? 'tiro' : 'tinta-vazia', { x: localX, slot: session.slot });
+      }
     }
+    this.cheerAll = state.phase === PHASE_CLEAR;
+    const bodies = remotes.map((r) => ({ slot: r.slot, x: r.x, y: r.y, down: r.down }));
+    if (localLook) bodies.push({ slot: session.slot, x: localX, y: localY, down: localLook.down });
     const turn = state.phase === PHASE_TURN ? Phaser.Math.Clamp(1 - state.phaseTime / RULES.turnDelay, 0, 1) : 0;
     this.moveParallax(session, remotes, me && !me.away ? { x: localX, y: localY } : null, dt, turn);
     this.watchPhase(state, session.bossView(now));
@@ -472,9 +490,10 @@ export class OnlineScene extends Phaser.Scene {
 
     this.fx.step(dt);
     this.ambiente?.step(dt, now);
-    this.watchItems(state, live);
+    this.watchItems(state, live, bodies, now);
     this.watchStains(state, live);
     const enemyFrames = this.enemyAnim.frames(enemies, now, dt, live);
+    this.noteKicks(bodies, now);
     const size = ENEMY_SIZE * TILE;
     // A frente das borrachas que estão apagando (girando, não apagam): a gota que some ali vira farelo.
     const erasers: EraserFront[] = enemies
@@ -629,8 +648,13 @@ export class OnlineScene extends Phaser.Scene {
     const w = params.playerWidth * TILE;
     const h = params.playerHeight * TILE;
     const color = PLAYER_COLORS[slot] ?? GREY;
-    const shooting = now - (this.shotAt[slot] ?? -Infinity) < SHOT_POSE_MS;
-    const f = this.riscotes.frame(slot, motion, w, h, look.down, shooting, color, now);
+    const acts = {
+      shotAt: this.shotAt[slot] ?? -Infinity,
+      kickAt: this.kickAt[slot] ?? -Infinity,
+      cheerUntil: this.cheerAll ? now + 1 : (this.cheerUntil[slot] ?? -Infinity),
+      facing: look.facing,
+    };
+    const f = this.riscotes.frame(slot, motion, w, h, look.down, acts, color, now);
     if (!look.away) {
       // Sombra de aguada no chão: ancora o boneco e encolhe no ar.
       const lift = motion.onGround || look.down ? 1 : 0.6;
@@ -689,7 +713,7 @@ export class OnlineScene extends Phaser.Scene {
   }
 
   /** Item que sumiu antes de vencer foi pego: brilho na cor do líquido. */
-  private watchItems(state: OnlineSession['state'], live: boolean): void {
+  private watchItems(state: OnlineSession['state'], live: boolean, bodies: ReadonlyArray<{ slot: number; x: number; y: number; down: boolean }>, now: number): void {
     const seen = new Set<string>();
     const s = RULES.itemSize * TILE;
     state.items.forEach((item, id) => {
@@ -704,6 +728,53 @@ export class OnlineScene extends Phaser.Scene {
       this.fx.sparkle(item.x + s / 2, item.y + s / 2, color, 12, 12);
       this.fx.droplets(item.x + s / 2, item.y + s / 2, color, 8, 120);
       som.play('item', { x: item.x + s / 2 });
+      // Quem pegou (o mais perto) comemora um pouquinho.
+      const who = this.nearest(bodies, item.x + s / 2, item.y + s / 2, TILE * 1.6, TILE * 1.6);
+      if (who !== null) this.cheerUntil[who] = now + 520;
+    }
+  }
+
+  /** Jogador de pé mais perto de (x, y), a até `rx` e `ry` do meio dele; null se ninguém. */
+  private nearest(bodies: ReadonlyArray<{ slot: number; x: number; y: number; down: boolean }>, x: number, y: number, rx: number, ry: number, dir = 0): number | null {
+    const params = this.ctx.session()?.params;
+    if (!params) return null;
+    const w = params.playerWidth * TILE;
+    const h = params.playerHeight * TILE;
+    let best: number | null = null;
+    let bestD = Infinity;
+    for (const b of bodies) {
+      if (b.down) continue;
+      const dx = x - (b.x + w / 2);
+      const dy = y - (b.y + h / 2);
+      if (Math.abs(dx) > rx || Math.abs(dy) > ry) continue;
+      // No chute, quem está do lado de onde a bola saiu conta mais perto.
+      const d = Math.abs(dx) + Math.abs(dy) + (dir !== 0 && Math.sign(dx) !== dir ? TILE : 0);
+      if (d < bestD) {
+        bestD = d;
+        best = b.slot;
+      }
+    }
+    return best;
+  }
+
+  /** Bola parada ao alcance do jogador local: o ataque vira chute (a caixa do servidor, com folga). */
+  private reachesBall(enemies: ReadonlyArray<{ mode: number; x: number; y: number }>, x: number, y: number): boolean {
+    const params = this.ctx.session()?.params;
+    if (!params) return false;
+    const grow = 4;
+    const w = params.playerWidth * TILE;
+    const h = params.playerHeight * TILE;
+    const size = ENEMY_SIZE * TILE;
+    return enemies.some((e) => e.mode === MODE_BALL && e.x < x + w + grow && e.x + size > x - grow && e.y < y + h + grow && e.y + size > y - grow);
+  }
+
+  /** Bola que começou a rolar: quem estava encostado nela chutou (os outros jogadores, que não temos o botão). */
+  private noteKicks(bodies: ReadonlyArray<{ slot: number; x: number; y: number; down: boolean }>, now: number): void {
+    for (const k of this.enemyAnim.kicks) {
+      // A bola sai para o lado de quem chutou: o chutador fica atrás dela.
+      const who = this.nearest(bodies, k.x, k.y, TILE * 1.8, TILE * 1.3, k.dir);
+      if (who === null || now - (this.kickAt[who] ?? -Infinity) < 400) continue;
+      this.kickAt[who] = now;
     }
   }
 

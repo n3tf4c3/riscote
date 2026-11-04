@@ -10,7 +10,15 @@ export const PLAYER_GLOWS = ['#ffb08f', '#a6e6fa', '#ffe08a', '#7fdccb', '#cdb0f
 
 export const RUN_FRAMES = 6;
 const RUN = Array.from({ length: RUN_FRAMES }, (_, i) => `corre${i}` as const);
-export const POSES = ['parado', 'piscando', ...RUN, 'pulando', 'caindo', 'atirando', 'derrubado'] as const;
+/**
+ * Poses do boneco. Desde 2026-11-04 (pedido do usuário: "muito robótico"), além das de sempre: carga e
+ * chute da bola, o tiro com o braço voltando, freada, pouso agachado, topo do pulo, um segundo quadro da
+ * queda, comemoração e a espera (parado há muito tempo).
+ */
+export const POSES = [
+  'parado', 'piscando', ...RUN, 'pulando', 'caindo', 'atirando', 'derrubado',
+  'chute-carga', 'chute', 'atirou', 'freando', 'pouso', 'topo', 'caindo1', 'comemora0', 'comemora1', 'espera',
+] as const;
 export type Pose = (typeof POSES)[number];
 
 export function runPose(frame: number): Pose {
@@ -69,7 +77,7 @@ const STILL: Skeleton = {
   flow: 0,
 };
 
-const SKELETONS: Record<'parado' | 'piscando' | 'pulando' | 'caindo' | 'atirando', Skeleton> = {
+const SKELETONS: Record<Exclude<Pose, 'derrubado' | `corre${number}`>, Skeleton> = {
   parado: STILL,
   piscando: { ...STILL, face: 'piscando' },
   pulando: {
@@ -97,6 +105,106 @@ const SKELETONS: Record<'parado' | 'piscando' | 'pulando' | 'caindo' | 'atirando
     arms: [[-28, 20], [88, 92]],
     tilt: 2,
     face: 'grito',
+    flow: 0,
+  },
+  // Depois do tiro: o braço ainda à frente, descendo, e o corpo voltando do coice.
+  atirou: {
+    hip: [99, 210],
+    lean: 2,
+    legs: [[-12, -6], [14, 8]],
+    arms: [[-18, 4], [66, 54]],
+    tilt: 0,
+    face: 'garra',
+    flow: 0,
+  },
+  // Chute: a perna da frente recua dobrada, o corpo vai para trás e os braços se abrem para o equilíbrio.
+  'chute-carga': {
+    hip: [96, 210],
+    lean: -10,
+    legs: [[4, 2], [-40, -92]],
+    arms: [[42, 74], [-46, -20]],
+    tilt: -6,
+    face: 'garra',
+    flow: 12,
+  },
+  // ... e varre para a frente, alta, com o braço da frente indo para trás.
+  chute: {
+    hip: [92, 210],
+    lean: -14,
+    legs: [[-4, -2], [58, 72]],
+    arms: [[-34, 10], [-72, -50]],
+    tilt: -4,
+    face: 'grito',
+    flow: 28,
+  },
+  // Freada: a perna da frente fincada à frente, o corpo jogado para trás, os braços para trás.
+  freando: {
+    hip: [96, 218],
+    lean: -16,
+    legs: [[-22, -44], [34, 22]],
+    arms: [[-62, -34], [-36, 8]],
+    tilt: -6,
+    face: 'susto',
+    flow: 30,
+  },
+  // Pouso: agachado, joelhos dobrados e mãos à frente.
+  pouso: {
+    hip: [100, 226],
+    lean: 10,
+    legs: [[-34, 20], [38, -16]],
+    arms: [[22, 46], [36, 64]],
+    tilt: 4,
+    face: 'feliz',
+    flow: 8,
+  },
+  // Topo do pulo: pernas encolhidas e braços abertos.
+  topo: {
+    hip: [100, 198],
+    lean: 2,
+    legs: [[-22, 34], [46, -12]],
+    arms: [[-118, -142], [116, 138]],
+    tilt: -4,
+    face: 'uau',
+    flow: -8,
+  },
+  // Segundo quadro da queda: os braços trocam, como quem se debate.
+  caindo1: {
+    hip: [100, 206],
+    lean: -2,
+    legs: [[12, -4], [-10, 6]],
+    arms: [[205, 232], [150, 128]],
+    tilt: -3,
+    face: 'susto',
+    flow: 40,
+  },
+  // Comemoração: braços abertos em V, para fora da cabeça (curtos, não passam dela por cima), um
+  // pulinho e os olhos fechados de alegria; depois o "uau".
+  comemora0: {
+    hip: [100, 208],
+    lean: 0,
+    legs: [[-6, -3], [7, 4]],
+    arms: [[-112, -148], [112, 148]],
+    tilt: -5,
+    face: 'piscando',
+    flow: 0,
+  },
+  comemora1: {
+    hip: [100, 202],
+    lean: 2,
+    legs: [[-14, 6], [16, -4]],
+    arms: [[-96, -126], [96, 126]],
+    tilt: 5,
+    face: 'uau',
+    flow: -10,
+  },
+  // Espera: parado há muito tempo, bate o pé e olha para cima.
+  espera: {
+    hip: [100, 210],
+    lean: -2,
+    legs: [[-5, -3], [14, -18]],
+    arms: [[-16, 30], [10, 40]],
+    tilt: -10,
+    face: 'feliz',
     flow: 0,
   },
 };
@@ -337,5 +445,6 @@ function knockedDown(slot: number, color: string): string {
 export function riscoteSvg(slot: number, color: string, pose: Pose, variant = 0): string {
   if (pose === 'derrubado') return svgDoc(VIEWBOX, knockedDown(slot, color), variant);
   const s = pose.startsWith('corre') ? runSkeleton(Number(pose.slice(5))) : SKELETONS[pose as keyof typeof SKELETONS];
-  return svgDoc(VIEWBOX, figure(slot, color, s, pose !== 'pulando' && pose !== 'caindo'), variant);
+  const air = pose === 'pulando' || pose === 'caindo' || pose === 'caindo1' || pose === 'topo';
+  return svgDoc(VIEWBOX, figure(slot, color, s, !air), variant);
 }
