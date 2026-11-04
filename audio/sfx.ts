@@ -645,9 +645,86 @@ const comecar: Sfx = {
   },
 };
 
+// Tiro carregado (pedido do usuário em 2026-11-04): o zumbido que sobe enquanto o pincel carrega, o
+// pulso da carga cheia (em loop), o "pronto!" e o disparo da tinta concentrada. Som próprio, feito aqui:
+// a referência é só a ideia de "energia subindo" dos jogos de ação, sem copiar nenhum.
+
+/** Segundos da subida: do brilho aparecer (0,35 s) até a carga encher (3 s). */
+const CARGA_SUBIDA = 2.65;
+
+const carga: Sfx = {
+  name: 'carga',
+  variations: 1,
+  volume: 0.2,
+  gapMs: 0,
+  build: (r) => {
+    // Zumbido de energia subindo de tom, com um vibrato que acelera e faíscas de papel por cima.
+    const len = CARGA_SUBIDA;
+    const x = buffer(len);
+    const f0 = curve([[0, 220], [len, 1180]], true);
+    const vib = (t: number) => 1 + 0.012 * Math.sin(2 * Math.PI * (5 + 9 * (t / len)) * t);
+    const body = osc(len, (t) => f0(t) * vib(t), 'saw');
+    mix(x, applyEnv(filter(body, 'lowpass', curve([[0, 900], [len, 4200]], true), 1.4), curve([[0, 0], [0.18, 0.55], [len, 0.85]])), 0, 0.55);
+    mix(x, applyEnv(osc(len, (t) => f0(t) * 2 * vib(t)), curve([[0, 0], [0.3, 0.12], [len, 0.3]])), 0, 0.5);
+    mix(x, applyEnv(shimmer(r, len, 60), curve([[0, 0.2], [len, 1]])), 0, 0.35);
+    return x;
+  },
+};
+
+const cargaCheia: Sfx = {
+  name: 'carga-cheia',
+  variations: 1,
+  volume: 0.26,
+  gapMs: 0,
+  loopSeconds: 0.4,
+  build: (r) => {
+    // Carga cheia: zumbido agudo estável que pulsa, com faíscas.
+    const len = 0.6;
+    const x = buffer(len);
+    const pulse = (t: number) => 0.55 + 0.45 * Math.sin(2 * Math.PI * 10 * t);
+    mix(x, applyEnv(filter(osc(len, 1180, 'saw'), 'lowpass', 3800, 1.2), pulse), 0, 0.45);
+    mix(x, applyEnv(osc(len, 2365), pulse), 0, 0.18);
+    mix(x, applyEnv(osc(len, 1192), pulse), 0, 0.2);
+    mix(x, shimmer(r, len, 90), 0, 0.25);
+    return x;
+  },
+};
+
+const cargaPronta: Sfx = {
+  name: 'carga-pronta',
+  variations: 1,
+  volume: 0.5,
+  gapMs: 200,
+  build: () => {
+    // "Pronto!": três sininhos subindo bem rápido.
+    const x = buffer(0.5);
+    [88, 92, 95].forEach((m, i) => mix(x, fmBell(midiHz(m), 0.35, { ratio: 3.5, index: 2, tau: 0.12 }), i * 0.045, 0.45));
+    return room(x, 0.12);
+  },
+};
+
+const tiroCarregado: Sfx = {
+  name: 'tiro-carregado',
+  variations: 1,
+  volume: 0.75,
+  gapMs: 80,
+  build: (r) => {
+    // A tinta concentrada saindo: estalo de energia descendo de tom, o "vuuump" grave e o respingo grosso.
+    const x = buffer(0.8);
+    const zap = osc(0.35, curve([[0, 1700], [0.3, 180]], true), 'saw');
+    mix(x, applyEnv(filter(zap, 'lowpass', curve([[0, 5000], [0.3, 700]], true), 1.6), decay(0.002, 0.12)), 0, 0.6);
+    mix(x, thump(0.4, 160, 55, 0.12), 0, 0.9);
+    mix(x, applyEnv(filter(noise(0.3, r), 'bandpass', curve([[0, 2600], [0.25, 500]], true), 0.9), decay(0.003, 0.08)), 0, 0.8);
+    mix(x, splat(r, 0.4, 2400, 1), 0.04, 0.6);
+    mix(x, shimmer(r, 0.4, 160), 0, 0.3);
+    return room(x, 0.12, 0.35);
+  },
+};
+
 export const SFX: Sfx[] = [
   tiro, encharcar, bola, chute, estouro, pulo, pouso, item, derrubado, resgate, pagina, arenaLimpa,
   tintaVazia, recarga, protecao, escapou, chegada, aviso, pancada, cuspe, apagar, borrao, mancha,
   chefeEntrada, chefeCarimbo, chefeAviso, chefeGolpe, chefePesado, chefeDerrota, capitulo, fimDeJogo, comecar,
+  carga, cargaCheia, cargaPronta, tiroCarregado,
 ];
 

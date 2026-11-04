@@ -99,7 +99,7 @@ function pin(e: Enemy) {
   pinned.set(e, e.body.x);
 }
 
-/** Aperta e solta um botão (o ataque reage à borda do aperto). */
+/** Aperta e solta um botão (o chute reage ao aperto; o tiro, a soltar). */
 function tap(world: World, id: string, button: number) {
   run(world, 1, { [id]: button });
   run(world, 1);
@@ -126,15 +126,18 @@ describe('tinta', () => {
     expect(world.drops.size).toBe(0);
   });
 
-  it('segurar o botão não dispara de novo; a cadência limita os tiros', () => {
+  it('o tiro sai ao soltar: segurar não gasta tinta, soltar atira uma vez e a cadência limita os tiros', () => {
     const world = setup();
     const p = world.players.get('p0')!;
     run(world, 30, { p0: BTN_ATTACK });
-    expect(p.ink).toBe(RULES.tankSize - 1);
+    expect(p.ink).toBe(RULES.tankSize);
+    expect(world.drops.size).toBe(0);
     run(world, 1);
-    tap(world, 'p0', BTN_ATTACK);
-    expect(p.ink).toBe(RULES.tankSize - 2);
+    expect(p.ink).toBe(RULES.tankSize - 1);
     tap(world, 'p0', BTN_ATTACK); // ainda na cadência
+    expect(p.ink).toBe(RULES.tankSize - 1);
+    run(world, ticks(RULES.shotCooldown) + 1);
+    tap(world, 'p0', BTN_ATTACK);
     expect(p.ink).toBe(RULES.tankSize - 2);
   });
 
@@ -809,13 +812,14 @@ describe('itens que fortalecem o boneco', () => {
     give(world, ITEM_TIRO_AGIL);
     const p = world.players.get('p0')!;
     tap(world, 'p0', BTN_ATTACK);
-    expect(p.cooldown).toBeCloseTo(RULES.shotCooldown * RULES.ratePerLevel - 2 * TICK_DT, 6);
+    // O tiro sai no tick em que o botão é solto; o passo daquele tick já desconta um.
+    expect(p.cooldown).toBeCloseTo(RULES.shotCooldown * RULES.ratePerLevel - TICK_DT, 6);
   });
 
   it('alcance: a gota vive 35% mais por nível', () => {
     const world = setup();
     give(world, ITEM_ALCANCE);
-    run(world, 1, { p0: BTN_ATTACK });
+    tap(world, 'p0', BTN_ATTACK);
     const drop = [...world.drops.values()][0]!;
     expect(drop.life).toBeCloseTo(RULES.dropLife * (1 + RULES.rangePerLevel) - TICK_DT, 6);
   });
@@ -1230,7 +1234,8 @@ describe('inimigos das fases', () => {
 
     back.body.facing = -1;
     tap(world, 'p1', BTN_ATTACK);
-    run(world, 12);
+    // A gota sai ao soltar: dois ticks a mais até chegar.
+    run(world, 14);
     expect(e.soak).toBe(1);
   });
 

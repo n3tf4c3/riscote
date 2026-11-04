@@ -5,6 +5,7 @@ import {
   ENEMY_BORRACHA,
   ENEMY_TRACA,
   MODE_BALL,
+  MODE_ROLL,
   MODE_WALK,
   RULES,
   TICK_DT,
@@ -51,11 +52,36 @@ function release(world: World, ticks = 1) {
 const bigDrops = (world: World) => [...world.drops.values()].filter((d) => d.big);
 
 describe('tiro carregado', () => {
-  it('soltar antes da carga cheia só deixa o tiro normal do aperto', () => {
+  it('soltar antes da carga cheia dispara só a gota normal', () => {
     const { world } = setup();
     hold(world, CHARGE_TICKS - 1);
+    expect(world.drops.size).toBe(0);
     release(world);
     expect(bigDrops(world)).toEqual([]);
+    expect(world.drops.size).toBe(1);
+  });
+
+  it('segurar para carregar não gasta uma gota antes: só a tinta concentrada sai, ao soltar', () => {
+    const { world, p } = setup('dificil');
+    hold(world, CHARGE_TICKS + 20);
+    expect(world.drops.size).toBe(0);
+    expect(p.ink).toBe(RULES.tankSize);
+    release(world);
+    expect(world.drops.size).toBe(1);
+    expect(bigDrops(world).length).toBe(1);
+    expect(p.ink).toBe(RULES.tankSize - RULES.chargeInk);
+  });
+
+  it('o aperto que chuta a bola não atira ao soltar', () => {
+    const { world, p } = setup();
+    const bola = world.spawnEnemy(ENEMY_TRACA, { col: 3, row: 6 }, false);
+    bola.mode = MODE_BALL;
+    bola.ballTime = RULES.ballTime;
+    bola.body.x = p.body.x + 4;
+    hold(world, 1);
+    expect(bola.mode).toBe(MODE_ROLL);
+    release(world);
+    expect(world.drops.size).toBe(0);
   });
 
   it('carga cheia: soltar dispara a tinta concentrada para o lado em que o boneco olha', () => {
