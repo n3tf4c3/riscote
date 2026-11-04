@@ -233,6 +233,8 @@ export class OnlineScene extends Phaser.Scene {
   private shotAt: number[] = [];
   /** Quando o jogador local apertou o ataque (−1 = solto), para o brilho da carga. */
   private holdStart = -1;
+  /** O aperto atual do jogador local chutou: soltar não atira. */
+  private kickedHold = false;
   /** Carga cheia de cada jogador no quadro anterior (o "pronto!" toca uma vez). */
   private chargeFull: boolean[] = [];
   /** Último brilhinho do rastro de cada gota. */
@@ -240,6 +242,8 @@ export class OnlineScene extends Phaser.Scene {
   /** Tintas concentradas de outros jogadores já anunciadas; faíscas da carga de cada um. */
   private seenBig = new Set<string>();
   private chargeSparkAt: number[] = [];
+  /** Jogadores com o brilho da carga desenhado neste quadro; os outros têm os sons da carga desligados. */
+  private chargeSeen = new Set<number>();
   /** Último chute na bola de cada jogador (por slot) e até quando ele comemora (item pego). */
   private kickAt: number[] = [];
   private cheerUntil: number[] = [];
@@ -336,6 +340,7 @@ export class OnlineScene extends Phaser.Scene {
     this.lastFrame = performance.now();
     this.shotAt = [];
     this.holdStart = -1;
+    this.kickedHold = false;
     this.chargeFull = [];
     this.dropTrail.clear();
     this.kickAt = [];
@@ -452,9 +457,9 @@ export class OnlineScene extends Phaser.Scene {
     this.acc = Math.min(this.acc + deltaMs / 1000, MAX_FRAME);
     const buttons = this.ctx.input.buttons();
     const pressed = buttons & BTN_ATTACK && !(this.prevButtons & BTN_ATTACK);
-    if (pressed) this.shotAt[session.slot] = now;
-    // Tiro carregado do jogador local: conta desde o aperto (sem esperar o servidor) e, ao soltar com a carga
-    // cheia, mostra o disparo na hora; quem decide se ele sai é o servidor, com a mesma conta.
+    // O chute sai no aperto e o tiro, ao soltar (como no servidor, desde 2026-11-04). A carga do jogador local
+    // conta desde o aperto (sem esperar o servidor) e, ao soltar, o disparo aparece na hora: a tinta
+    // concentrada com a carga cheia, senão a gota normal. Quem decide se ele sai é o servidor, com a mesma conta.
     const holding = (buttons & BTN_ATTACK) !== 0;
     if (pressed) this.holdStart = now;
     const released = !holding && this.prevButtons & BTN_ATTACK;
@@ -501,21 +506,21 @@ export class OnlineScene extends Phaser.Scene {
     const localLook: PlayerLook | null = me
       ? { facing: local.facing, ink: me.ink, down: me.down, rescue: me.rescue, invuln: me.invuln, inkGauge, hp: me.hp, star: me.star, charge: localCharge }
       : null;
-    if (released && charged && localLook && !localLook.down && (!inkGauge || localLook.ink >= RULES.chargeInk)) {
-      this.shotAt[session.slot] = now;
-      this.chargedSplash(session.slot, localX, localY, localLook.facing);
+    if (pressed && localLook && !localLook.down && this.reachesBall(enemies, localX, localY)) {
+      // Chute: perto de uma bola parada o aperto chuta (o som vem quando ela rola) e soltar não atira.
+      this.kickAt[session.slot] = now;
+      this.kickedHold = true;
     }
-    if (pressed && localLook && !localLook.down) {
-      if (this.reachesBall(enemies, localX, localY)) {
-        // Chute: perto de uma bola parada o ataque chuta em vez de atirar (o som vem quando ela rola).
-        this.kickAt[session.slot] = now;
-        this.shotAt[session.slot] = -Infinity;
-      } else {
+    if (released && localLook && !localLook.down && !this.kickedHold) {
+      this.shotAt[session.slot] = now;
+      if (charged && (!inkGauge || localLook.ink >= RULES.chargeInk)) this.chargedSplash(session.slot, localX, localY, localLook.facing);
+      else {
         this.shotSplash(session.slot, localX, localY, localLook.facing);
         // Sem tinta no difícil o tiro não sai: no lugar do jato, a caneta seca.
         som.play(!inkGauge || localLook.ink >= 1 ? 'tiro' : 'tinta-vazia', { x: localX, slot: session.slot });
       }
     }
+    if (released) this.kickedHold = false;
     this.cheerAll = state.phase === PHASE_CLEAR;
     const bodies = remotes.map((r) => ({ slot: r.slot, x: r.x, y: r.y, down: r.down }));
     if (localLook) bodies.push({ slot: session.slot, x: localX, y: localY, down: localLook.down });
@@ -654,6 +659,14 @@ export class OnlineScene extends Phaser.Scene {
       if (localLook) {
         this.drawRiscote(art, session.slot, localX, localY, localLook, { x: localX, y: localY, vx: local.vx, vy: local.vy, onGround: local.onGround }, now, DEPTH_PLAYER + 0.5, true);
       }
+      // Quem não foi desenhado neste quadro (saiu da sala) fica sem o som da carga.
+      for (let slot = 0; slot < PLAYER_COLORS.length; slot++) {
+        if (this.chargeSeen.has(slot)) continue;
+        som.hold('carga', `carga-${slot}`, false);
+        som.hold('carga-cheia', `cheia-${slot}`, false);
+        this.chargeFull[slot] = false;
+      }
+      this.chargeSeen.clear();
       this.bossView?.draw(art, this.fxBack, g, session.bossView(now), session.hazardViews(now), now, dt);
       this.drawHud(g, art, state.phase, state.lives, me, now);
       art.end();
@@ -710,7 +723,7 @@ export class OnlineScene extends Phaser.Scene {
       facing: look.facing,
     };
     const f = this.riscotes.frame(slot, motion, w, h, look.down, acts, color, now);
-    if (!look.away && !look.down) this.drawCharge(slot, x + w / 2, y + h / 2, look.charge ?? 0, now);
+    this.drawCharge(slot, x + w / 2, y + h / 2, look.away || look.down ? 0 : (look.charge ?? 0), now);
     if (!look.away) {
       // Sombra de aguada no chão: ancora o boneco e encolhe no ar.
       const lift = motion.onGround || look.down ? 1 : 0.6;
@@ -767,9 +780,13 @@ export class OnlineScene extends Phaser.Scene {
     const full = charge >= RULES.chargeTime;
     if (full && !this.chargeFull[slot]) {
       this.fx.sparkle(cx, cy, MAGIC_GOLD, 10, 14);
-      som.play('item', { x: cx, slot, volume: 0.7 });
+      som.play('carga-pronta', { x: cx, slot });
     }
     this.chargeFull[slot] = full;
+    this.chargeSeen.add(slot);
+    // O zumbido sobe enquanto carrega (o arquivo dura o tempo da subida) e vira o pulso com a carga cheia.
+    som.hold('carga', `carga-${slot}`, charge >= CHARGE_SHOW && !full, { x: cx, slot });
+    som.hold('carga-cheia', `cheia-${slot}`, full, { x: cx, slot });
     if (charge < CHARGE_SHOW) return;
     const k = Math.min(1, (charge - CHARGE_SHOW) / (RULES.chargeTime - CHARGE_SHOW));
     const glow = PLAYER_GLOW_HEX[slot] ?? MAGIC_GOLD;
@@ -802,8 +819,7 @@ export class OnlineScene extends Phaser.Scene {
     this.fx.droplets(hx, hy, 0x2f6fd6, 10, 170, facing > 0 ? 0 : Math.PI, 0.9, true);
     this.fx.streaks(hx, hy, facing, 6);
     this.fx.shake(140, 0.005);
-    som.play('tiro', { x: hx, slot, rate: 0.6, volume: 1 });
-    som.play('chute', { x: hx, slot, rate: 1.3, volume: 0.6 });
+    som.play('tiro-carregado', { x: hx, slot });
   }
 
   /** Gota nova junto de um jogador remoto: ele acabou de atirar. */

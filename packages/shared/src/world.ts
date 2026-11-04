@@ -851,6 +851,8 @@ export interface WorldPlayer {
   items: number;
   /** Ticks seguidos com o ataque apertado (tiro carregado); zera ao soltar ou ser derrubado. */
   chargeTicks: number;
+  /** O aperto atual chutou uma bola: soltar não atira. */
+  kicked: boolean;
 }
 
 export interface Item {
@@ -1122,7 +1124,7 @@ export class World {
       ink: RULES.tankSize, cooldown: 0,
       down: false, downTime: 0, rescue: 0,
       invuln: RULES.invulnTime, kills: 0, away: false, hp: this.hitsToDown,
-      strength: 0, speed: 0, rate: 0, range: 0, star: 0, items: 0, chargeTicks: 0,
+      strength: 0, speed: 0, rate: 0, range: 0, star: 0, items: 0, chargeTicks: 0, kicked: false,
     };
     this.players.set(id, player);
     return player;
@@ -1145,18 +1147,26 @@ export class World {
     const p = this.players.get(id);
     if (!p) return;
     const pressed = buttons & ~p.body.prevButtons;
+    const released = p.body.prevButtons & ~buttons & BTN_ATTACK;
     if (p.down) {
       p.chargeTicks = 0;
+      p.kicked = false;
       stepDowned(p.body, buttons, this.arena, this.speedParams[p.speed]!);
       return;
     }
     stepPlayer(p.body, buttons, this.arena, this.speedParams[p.speed]!);
-    if (pressed & BTN_ATTACK) this.attack(p);
-    // Tiro carregado: conta enquanto o ataque está apertado; soltar com a carga cheia dispara a tinta concentrada.
+    // O chute sai no aperto; o tiro, ao soltar (desde 2026-11-04, pedido do usuário: segurar para carregar
+    // não pode gastar uma gota antes). Enquanto o ataque está apertado, a carga conta; soltar com ela cheia
+    // dispara a tinta concentrada; antes disso, a gota normal. O aperto que chutou não atira.
+    if (pressed & BTN_ATTACK) p.kicked = this.kick(p);
     if (buttons & BTN_ATTACK) p.chargeTicks = Math.min(CHARGE_TICKS, p.chargeTicks + 1);
     else {
-      if (p.chargeTicks >= CHARGE_TICKS) this.chargedShot(p);
+      if (released && !p.kicked) {
+        if (p.chargeTicks >= CHARGE_TICKS) this.chargedShot(p);
+        else this.shoot(p);
+      }
       p.chargeTicks = 0;
+      p.kicked = false;
     }
   }
 
@@ -1367,20 +1377,25 @@ export class World {
     });
   }
 
-  private attack(p: WorldPlayer): void {
+  /** Chuta a bola parada ao alcance, se houver (chutar não gasta tinta). */
+  private kick(p: WorldPlayer): boolean {
     const reach = bodyBox(p.body, this.params, 2);
     for (const e of this.enemies.values()) {
       if (e.mode === MODE_BALL && overlaps(reach, enemyBox(e))) {
-        // Chutar não gasta tinta.
         e.mode = MODE_ROLL;
         e.dir = p.body.facing;
         e.kicker = p.id;
         e.rollTime = 0;
         e.bounces = 0;
         e.combo = 0;
-        return;
+        return true;
       }
     }
+    return false;
+  }
+
+  /** A gota de tinta normal. */
+  private shoot(p: WorldPlayer): void {
     if (p.cooldown > 0 || p.ink < 1) return;
     if (this.limitedInk) p.ink -= 1;
     p.cooldown = RULES.shotCooldown * RULES.ratePerLevel ** p.rate;

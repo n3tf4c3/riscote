@@ -33,6 +33,10 @@ export const SONS = {
   'capitulo': { variations: 1, volume: 0.75, gapMs: 2000, loop: false },
   'fim-de-jogo': { variations: 1, volume: 0.55, gapMs: 2000, loop: false },
   'comecar': { variations: 1, volume: 0.8, gapMs: 1000, loop: false },
+  'carga': { variations: 1, volume: 0.2, gapMs: 0, loop: false },
+  'carga-cheia': { variations: 1, volume: 0.26, gapMs: 0, loop: true },
+  'carga-pronta': { variations: 1, volume: 0.5, gapMs: 200, loop: false },
+  'tiro-carregado': { variations: 1, volume: 0.75, gapMs: 80, loop: false },
 } as const;
 
 export const MUSICAS = {

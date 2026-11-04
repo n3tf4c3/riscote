@@ -25,7 +25,11 @@ Prioridade: **P0** = primeiro lote (validar a identidade); **P1** = completa o j
 
 | Arquivo | Evento | Descrição | Duração | Variações | Loop | Prioridade | Estado |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `tiro` | Atirar tinta (o próprio ao apertar; os outros quando a gota aparece) | Clique do bico de pena, jato estreito descendo e o "plic" da gota | 0,4 s | 4 | não | P0 | feito |
+| `tiro` | Atirar tinta (o próprio ao soltar o botão; os outros quando a gota aparece) | Clique do bico de pena, jato estreito descendo e o "plic" da gota | 0,4 s | 4 | não | P0 | feito |
+| `carga` | Segurando o ataque (tiro carregado), do brilho aparecer até a carga encher | Zumbido de energia subindo de tom, com vibrato que acelera e faíscas | 2,65 s | 1 | sim, enquanto carrega | P1 | feito |
+| `carga-cheia` | Carga cheia, até soltar | Zumbido agudo estável que pulsa, com faíscas | 0,4 s | 1 | sim | P1 | feito |
+| `carga-pronta` | A carga acabou de encher | Três sininhos subindo bem rápido | 0,62 s | 1 | não | P1 | feito |
+| `tiro-carregado` | Soltar com a carga cheia: a tinta concentrada | Estalo de energia descendo de tom, um baque grave e o respingo grosso | 0,61 s | 1 | não | P1 | feito |
 | `pulo` | Sair do chão | Pincelada para cima com as cerdas raspando | 0,16 s | 3 | não | P0 | feito |
 | `pouso` | Tocar o chão (volume pela altura da queda) | Baque abafado com estalo de papel | 0,13 s | 3 | não | P0 | feito |
 | `derrubado` | Jogador derrubado | Respingo de nanquim e um apito que murcha | 0,95 s | 1 | não | P0 | feito |
