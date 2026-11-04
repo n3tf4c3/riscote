@@ -5,6 +5,7 @@ import { CASTELO } from './castelo';
 import { FLORESTA } from './floresta';
 import { JARDIM } from './jardim';
 import { OFICINA } from './oficina';
+import { GIZ_CADERNO, GIZ_CEU, GIZ_FRENTE, GIZ_JOGAVEL, GIZ_LONGE, GIZ_MEIO, TREMOR, comTremor, type Giz } from './giz';
 import { INK, PALETTE, PAPER, PAPER_LINE, WHITE, line, outlined, shade, shadowFilter, svgDoc } from './svg';
 
 // Arena em cartum (direção de 2026-10-31), gerada das células do mapa em duas camadas:
@@ -295,10 +296,23 @@ export function arenaCamadasSvg(a: Arena, pedido?: string | null): CamadaSvg[] {
   ] as const;
   return camadas.map(([nome, camada]) => {
     const m = margemDe(camada.amp);
-    let body = camada.desenho(a, w, h, m);
+    // A borda tremida de giz entra antes do recorte da frente: nunca passa para o espaço de jogo.
+    let body = comTremor(`tremor-${nome}`, TREMOR[nome], camada.desenho(a, w, h, m));
     if (nome === 'frente') body = `<clipPath id="recorte-frente">${frenteRecorte(a, camada.amp, m)}</clipPath><g clip-path="url(#recorte-frente)">${body}</g>`;
     return { nome, svg: svgDoc(`${-m} ${-m} ${w + 2 * m} ${h + 2 * m}`, body), amp: camada.amp, margem: m / U };
   });
+}
+
+/**
+ * Acabamento de giz (riscos e grão, `aplicarGiz`) de cada textura da arena: o fundo (céu ou papel),
+ * as peças jogáveis e cada camada do cenário.
+ */
+export function arenaGiz(a: Arena, pedido?: string | null): { fundo: Giz; plataformas: Giz; camadas: Record<CamadaSvg['nome'], Giz> } {
+  return {
+    fundo: tema(a, pedido).cenario ? GIZ_CEU : GIZ_CADERNO,
+    plataformas: GIZ_JOGAVEL,
+    camadas: { longe: GIZ_LONGE, meio: GIZ_MEIO, frente: GIZ_FRENTE },
+  };
 }
 
 /** Enfeite do tema atrás da bisnaga, ou null (o caderno não tem). */

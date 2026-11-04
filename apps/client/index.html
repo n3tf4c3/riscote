@@ -21,7 +21,8 @@
       html, body { margin: 0; height: 100%; }
       /* Papel pautado, como o caderno das referências. */
       body {
-        background: var(--paper) repeating-linear-gradient(transparent 0 31px, var(--pauta) 31px 33px);
+        /* O giz do papel (--giz-papel, ladrilho feito no boot, art/giz.ts) vai por cima da pauta. */
+        background: var(--giz-papel, linear-gradient(transparent, transparent)), var(--paper) repeating-linear-gradient(transparent 0 31px, var(--pauta) 31px 33px);
         color: var(--ink);
         font: 500 14px/1.4 'Segoe UI', system-ui, sans-serif;
         display: grid;

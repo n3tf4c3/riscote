@@ -1,6 +1,7 @@
 import type * as Phaser from 'phaser';
 import type { Arena } from '@riscote/shared';
-import { arenaCamadasSvg, arenaFundoSvg, arenaSvg, temaId, tuboBaseSvg, tuboSvg, type CamadaSvg } from './arena';
+import { arenaCamadasSvg, arenaFundoSvg, arenaGiz, arenaSvg, temaId, tuboBaseSvg, tuboSvg, type CamadaSvg } from './arena';
+import { GIZ_PECA, aplicarGiz, type Giz } from './giz';
 import {
   GRAMPO_FRAMES,
   TRACA_FRAMES,
@@ -51,6 +52,8 @@ export interface ArtSpec {
   k: number;
   ox: number;
   oy: number;
+  /** Acabamento de giz passado depois de rasterizar (só as texturas da arena). */
+  giz?: Giz;
 }
 
 export interface ArtSize {
@@ -256,13 +259,14 @@ export interface CamadaSpec {
 export function arenaSpecs(a: Arena, tema?: string | null): { fundo: ArtSpec; plataformas: ArtSpec; camadas: CamadaSpec[]; baseTubo: ArtSpec | null } {
   const id = `arena-${a.id}@${temaId(a, tema)}`;
   const base = tuboBaseSvg(a, tema);
+  const giz = arenaGiz(a, tema);
   return {
     // Atrás da bisnaga, com o mesmo apoio dela: o meio da base, no chão (quadro -40 -4 80 86).
-    baseTubo: base ? { key: `tubo-base@${temaId(a, tema)}`, svg: base, k: 0.5, ox: 0.5, oy: 84 / 86 } : null,
-    fundo: { key: `${id}-fundo`, svg: arenaFundoSvg(a, tema), k: 0.5, ox: 0, oy: 0 },
-    plataformas: { key: id, svg: arenaSvg(a, tema), k: 0.5, ox: 0, oy: 0 },
+    baseTubo: base ? { key: `tubo-base@${temaId(a, tema)}`, svg: base, k: 0.5, ox: 0.5, oy: 84 / 86, giz: GIZ_PECA } : null,
+    fundo: { key: `${id}-fundo`, svg: arenaFundoSvg(a, tema), k: 0.5, ox: 0, oy: 0, giz: giz.fundo },
+    plataformas: { key: id, svg: arenaSvg(a, tema), k: 0.5, ox: 0, oy: 0, giz: giz.plataformas },
     camadas: arenaCamadasSvg(a, tema).map((c) => ({
-      spec: { key: `${id}-${c.nome}`, svg: c.svg, k: 0.5, ox: 0, oy: 0 },
+      spec: { key: `${id}-${c.nome}`, svg: c.svg, k: 0.5, ox: 0, oy: 0, giz: giz.camadas[c.nome] },
       nome: c.nome,
       amp: c.amp,
       margem: c.margem,
@@ -295,7 +299,7 @@ function inTurn<T>(job: () => Promise<T>): Promise<T> {
 }
 
 /** Rasteriza um SVG em `w × h` pixels, na mesma fila em fatias (a capa usa para o palco). */
-export function rasterSvg(svg: string, w: number, h: number): Promise<HTMLCanvasElement> {
+export function rasterSvg(svg: string, w: number, h: number, giz?: Giz): Promise<HTMLCanvasElement> {
   return inTurn(async () => {
     const sized = svg.replace('<svg ', `<svg width="${w}" height="${h}" preserveAspectRatio="none" `);
     const img = new Image(w, h);
@@ -305,6 +309,7 @@ export function rasterSvg(svg: string, w: number, h: number): Promise<HTMLCanvas
     canvas.width = w;
     canvas.height = h;
     canvas.getContext('2d')?.drawImage(img, 0, 0, w, h);
+    if (giz) aplicarGiz(canvas, giz);
     return canvas;
   });
 }
@@ -315,7 +320,7 @@ function raster(s: ArtSpec): Promise<HTMLCanvasElement> {
   let done = rasters.get(key);
   if (done) return done;
   const size = artSize(s);
-  done = rasterSvg(s.svg, Math.ceil(size.w * RES), Math.ceil(size.h * RES));
+  done = rasterSvg(s.svg, Math.ceil(size.w * RES), Math.ceil(size.h * RES), s.giz);
   rasters.set(key, done);
   // Falhou: outra tentativa pode refazer.
   done.catch(() => rasters.delete(key));

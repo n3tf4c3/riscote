@@ -1,8 +1,13 @@
+import { gizPapelUrl } from './art/giz';
 import { bindSoundControls } from './audio/controles';
 import { el } from './dom';
 import { InputSource, bindKeyControls } from './input';
 import { bootLocal } from './local';
 import { bootOnline } from './online';
+
+// Giz de cera no papel da página (2026-11-03): um ladrilho só, por cima da pauta do CSS.
+const papel = gizPapelUrl();
+if (papel) document.body.style.setProperty('--giz-papel', `url("${papel}")`);
 
 // ?local abre o modo de ajuste de movimento (etapa 1); o padrão é jogar online.
 const input = new InputSource();
