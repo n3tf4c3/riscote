@@ -1,5 +1,5 @@
 import { parseArena, type Arena, type Stage } from './arena.ts';
-import { ATRIL_ARENA, BANCADA_ARENA, BOSQUE_ARENA, BOSS_ARENA, CORETO_ARENA, TORRE_ARENA } from './boss.ts';
+import { ATRIL_ARENA, BANCADA_ARENA, BOSQUE_ARENA, BOSS_ARENA, CORETO_ARENA, TORRE_ARENA, withBoss } from './boss.ts';
 import {
   ENEMY_AVIAO,
   ENEMY_BALAO,
@@ -768,4 +768,35 @@ export const GREYBOX: readonly Arena[] = [
 export function chapterFrom(arenaId: unknown): Arena[] {
   const chapter = CHAPTERS.find((c) => c.some((a) => a.id === arenaId)) ?? CHAPTERS[0]!;
   return [...chapter];
+}
+
+/** Capítulo (índice em CHAPTERS) de uma fase ou da página de um chefe; -1 se nenhum. */
+export function chapterOf(arenaId: unknown): number {
+  return CHAPTERS.findIndex((c, k) => c.some((a) => a.id === arenaId) || CHAPTER_BOSSES[k]?.id === arenaId);
+}
+
+/** Posição de uma página no capítulo dela (1 = primeira fase; a do chefe é a última); null fora dos capítulos. */
+export function chapterPage(arenaId: unknown): { chapter: number; page: number; pages: number } | null {
+  const chapter = chapterOf(arenaId);
+  if (chapter < 0) return null;
+  const fases = CHAPTERS[chapter]!;
+  const i = fases.findIndex((a) => a.id === arenaId);
+  return { chapter, page: i >= 0 ? i + 1 : fases.length + 1, pages: fases.length + 1 };
+}
+
+/**
+ * Campanha da sala (pedido do usuário em 2026-11-04: vencido o chefe, segue para o próximo capítulo,
+ * com os pontos): do capítulo da arena escolhida até o último, sempre a partir da 1ª fase, cada um com
+ * o chefe dele na 5ª página. `chapterEnds` são os índices das páginas que fecham um capítulo.
+ */
+export function campaignFrom(arenaId: unknown): { arenas: Arena[]; chapterEnds: number[] } {
+  const first = Math.max(0, chapterOf(chapterFrom(arenaId)[0]?.id));
+  const arenas: Arena[] = [];
+  const chapterEnds: number[] = [];
+  for (let c = first; c < CHAPTERS.length; c++) {
+    const fases = CHAPTERS[c]!;
+    arenas.push(...withBoss(fases, fases.length, CHAPTER_BOSSES[c]));
+    chapterEnds.push(arenas.length - 1);
+  }
+  return { arenas, chapterEnds };
 }

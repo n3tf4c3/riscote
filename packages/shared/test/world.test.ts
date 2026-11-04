@@ -5,7 +5,11 @@ import {
   BOSS_INTRO,
   BOSS_RULES,
   CHAPTERS,
+  CHAPTER_BOSSES,
   GREYBOX,
+  campaignFrom,
+  chapterOf,
+  chapterPage,
   DIFFICULTY_RULES,
   ENEMY_BORRACHA,
   ENEMY_FIANDEIRA,
@@ -422,6 +426,65 @@ describe('progressão, pressão de tempo e métricas (etapa 4)', () => {
     expect(world.arena.id).toBe('padrao');
     expect(world.score).toBe(0);
     expect(world.lives).toBe(RULES.teamLives);
+  });
+
+  it('campanha: vencido o capítulo, segue para o próximo com os pontos e as vidas; o placar só no fim do último', () => {
+    // Capítulo A = padrao e ampla; capítulo B = compacta (o último).
+    const world = new World([padrao, ampla, compacta], 7, { chapterEnds: [1, 2] });
+    world.addPlayer('p0', 0);
+    world.start();
+    run(world, ticks(1));
+    clearArena(world);
+    run(world, 1 + ticks(RULES.clearDelay) + 1);
+    expect(world.phase).toBe(PHASE_TURN);
+    run(world, ticks(RULES.turnDelay) + 1);
+    expect(world.arena.id).toBe('ampla');
+
+    // Fim do capítulo A, no meio da campanha: resumo curto, sem placar, e a virada para o capítulo B.
+    world.score = 1200;
+    world.lives = 3;
+    clearArena(world);
+    run(world, 1 + ticks(RULES.clearDelay) + 1);
+    expect(world.phase).toBe(PHASE_CHAPTER);
+    expect(world.takeRunEnds()).toEqual([]);
+    run(world, ticks(RULES.chapterDelay) + 1);
+    expect(world.phase).toBe(PHASE_TURN);
+    run(world, ticks(RULES.turnDelay) + 1);
+    expect(world.phase).toBe(PHASE_PLAYING);
+    expect(world.arena.id).toBe('compacta');
+    expect(world.score).toBe(1200);
+    expect(world.lives).toBe(3);
+    expect(world.players.get('p0')!.down).toBe(false);
+
+    // Fim do último capítulo: placar com os pontos de toda a campanha e volta ao começo zerada.
+    world.score += 300;
+    clearArena(world);
+    run(world, 1 + ticks(RULES.clearDelay) + 1);
+    expect(world.phase).toBe(PHASE_CHAPTER);
+    const ends = world.takeRunEnds();
+    expect(ends.map((e) => [e.reason, e.score])).toEqual([['capitulo', 1500]]);
+    world.closeRecords();
+    run(world, ticks(RULES.recordShow) + 1);
+    expect(world.arena.id).toBe('padrao');
+    expect(world.score).toBe(0);
+    expect(world.lives).toBe(RULES.teamLives);
+  });
+
+  it('campanha montada do capítulo escolhido até o último, cada um com o chefe dele no fim', () => {
+    const terceiro = CHAPTERS[2]!;
+    const { arenas, chapterEnds } = campaignFrom(terceiro[1]!.id);
+    // Sempre a partir da 1ª fase do capítulo escolhido.
+    expect(arenas[0]!.id).toBe(terceiro[0]!.id);
+    expect(chapterEnds.length).toBe(CHAPTERS.length - 2);
+    expect(chapterEnds.map((i) => arenas[i]!.id)).toEqual(CHAPTER_BOSSES.slice(2).map((b) => b.id));
+    expect(chapterEnds[chapterEnds.length - 1]).toBe(arenas.length - 1);
+    expect(arenas.length).toBe(CHAPTERS.slice(2).reduce((n, c) => n + c.length + 1, 0));
+    // Id desconhecido: a campanha inteira, do capítulo 1.
+    expect(campaignFrom('nao-existe').arenas[0]!.id).toBe(CHAPTERS[0]![0]!.id);
+    expect(chapterOf(CHAPTER_BOSSES[4]!.id)).toBe(4);
+    expect(chapterPage(CHAPTERS[1]![2]!.id)).toEqual({ chapter: 1, page: 3, pages: CHAPTERS[1]!.length + 1 });
+    expect(chapterPage(CHAPTER_BOSSES[1]!.id)).toEqual({ chapter: 1, page: CHAPTERS[1]!.length + 1, pages: CHAPTERS[1]!.length + 1 });
+    expect(chapterPage('padrao')).toBeNull();
   });
 
   it(`depois de ${RULES.hurryTime} s na arena, o borrão aparece, persegue, não toma tinta e não conta como inimigo restante`, () => {

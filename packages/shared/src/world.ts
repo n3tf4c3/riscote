@@ -40,7 +40,7 @@ export const RULES = {
   hurryTime: 60, // s na arena até o borrão aparecer
   borraoSpeed: 2.5, // células/s, atravessa paredes e não pode ser derrotado
   turnDelay: 1.2, // s de virada de página
-  chapterDelay: 6, // s de resumo no fim do capítulo
+  chapterDelay: 6, // s de resumo no fim do capítulo (no meio da campanha, antes do próximo)
   // Fim de jogo com pontos (capítulo concluído ou equipe sem vidas): pausa para escrever o nome no placar.
   recordDelay: 40, // s no máximo para todos escreverem
   recordShow: 6, // s com o placar na tela depois que todos escreveram
@@ -947,8 +947,14 @@ export interface Drop {
  * Puro e determinístico: o servidor chama applyInput por comando e step uma vez por tick.
  */
 export class World {
-  /** Capítulo: as arenas em sequência; limpar a última fecha o capítulo e volta à primeira. */
+  /**
+   * As arenas em sequência; limpar a última fecha a partida e volta à primeira. Numa campanha (vários
+   * capítulos seguidos), `chapterEnds` marca as páginas que fecham um capítulo no meio do caminho.
+   */
   readonly chapter: readonly Arena[];
+  private readonly chapterEnds: ReadonlySet<number>;
+  /** A pausa de capítulo em curso é a do último: depois dela, a partida recomeça do zero. */
+  private campaignOver = false;
   arenaIndex = 0;
   /** Segundos na arena atual (a pressão de tempo começa em RULES.hurryTime). */
   waveTime = 0;
@@ -999,8 +1005,9 @@ export class World {
   private runEnds: RunEnd[] = [];
 
   /** `waves: false` desliga ondas, pressão de tempo e progressão (cenários montados à mão nos testes). */
-  constructor(chapter: Arena | readonly Arena[], seed: number, options: { waves?: boolean; difficulty?: Difficulty } = {}) {
+  constructor(chapter: Arena | readonly Arena[], seed: number, options: { waves?: boolean; difficulty?: Difficulty; chapterEnds?: readonly number[] } = {}) {
     this.chapter = Array.isArray(chapter) ? chapter : [chapter as Arena];
+    this.chapterEnds = new Set(options.chapterEnds ?? []);
     if (this.chapter.length === 0) throw new Error('capítulo sem arenas');
     this.rng = seededRandom(seed);
     this.autoWaves = options.waves ?? true;
@@ -3653,18 +3660,30 @@ export class World {
     }
     switch (this.phase) {
       case PHASE_CLEAR:
-        if (this.arenaIndex < this.chapter.length - 1) {
+        if (this.arenaIndex >= this.chapter.length - 1) {
+          // Último capítulo: fim da partida, com placar.
+          this.phase = PHASE_CHAPTER;
+          this.campaignOver = true;
+          this.phaseTime = this.endRun('capitulo') ? RULES.recordDelay : RULES.chapterDelay;
+        } else if (this.chapterEnds.has(this.arenaIndex)) {
+          // Chefe vencido no meio da campanha: resumo e segue para o próximo capítulo com os pontos e as vidas.
+          this.phase = PHASE_CHAPTER;
+          this.campaignOver = false;
+          this.phaseTime = RULES.chapterDelay;
+        } else {
           this.phase = PHASE_TURN;
           this.phaseTime = RULES.turnDelay;
-        } else {
-          this.phase = PHASE_CHAPTER;
-          this.phaseTime = this.endRun('capitulo') ? RULES.recordDelay : RULES.chapterDelay;
         }
         break;
       case PHASE_TURN:
         this.loadArena(this.arenaIndex + 1);
         break;
       case PHASE_CHAPTER:
+        if (!this.campaignOver) {
+          this.phase = PHASE_TURN;
+          this.phaseTime = RULES.turnDelay;
+          break;
+        }
         this.score = 0;
         this.lives = RULES.teamLives;
         this.loadArena(0);

@@ -1,5 +1,7 @@
 import * as Phaser from 'phaser';
 import {
+  CHAPTER_NAMES,
+  chapterOf,
   ARENAS,
   BOSS_ARENAS,
   BOSS_RULES,
@@ -1306,8 +1308,12 @@ function bannerText(session: OnlineSession, touch: boolean): string {
     case PHASE_CLEAR:
       if (isBossPage(state.arenaId)) return `${visualDe(state.arenaId).chefe.nome} foi derrotado!`;
       return state.arenaIndex + 1 < state.arenaCount ? 'Arena limpa!' : 'Última arena limpa!';
-    case PHASE_CHAPTER:
-      return `Capítulo concluído!\n${state.score} pontos`;
+    case PHASE_CHAPTER: {
+      // No meio da campanha, a equipe segue para o próximo capítulo com os pontos (2026-11-04).
+      const next = chapterOf(state.arenaId) + 1;
+      const more = state.arenaIndex + 1 < state.arenaCount && CHAPTER_NAMES[next];
+      return more ? `Capítulo concluído!\n${state.score} pontos · a seguir: ${CHAPTER_NAMES[next]}` : `Capítulo concluído!\n${state.score} pontos`;
+    }
     case PHASE_RESTART:
       // Com pontos é fim de jogo: o placar aparece por cima e a arena recomeça do zero.
       return session.records ? 'Fim de jogo!' : 'Sem vidas: recomeçando a arena…';

@@ -40,6 +40,7 @@ import {
   ROOM_LIST_PATH,
   parseRoomList,
   type RoomSummary,
+  CHAPTERS,
 } from '@riscote/shared';
 import { ArenaRoom } from '../src/ArenaRoom.ts';
 import { AttemptLimiter, PEER_HEADER, limitJoins, limitRooms, markPeerAddress } from '../src/joinLimit.ts';
@@ -110,14 +111,18 @@ async function joinError(roomId: string): Promise<string> {
 }
 
 describe('salas', () => {
-  it('cria a sala com código legível e o capítulo da arena escolhida, a partir da 1ª fase', async () => {
+  it('cria a sala com código legível e a campanha a partir do capítulo da arena escolhida, da 1ª fase', async () => {
     const room = await newRoom('toca');
     expect(normalizeRoomCode(room.roomId)).toBe(room.roomId);
     expect(room.state.arenaId).toBe('clareira');
-    // O capítulo da Floresta fecha com o Apontador; o do caderno, com o Mata-Borrão.
-    expect((room as any).world.chapter.map((a: { id: string }) => a.id)).toEqual(['clareira', 'raizes', 'toca', 'copas', 'bosque']);
+    // O capítulo da Floresta fecha com o Apontador e, vencido, a campanha segue até o último capítulo (2026-11-04).
+    const floresta = (room as any).world.chapter.map((a: { id: string }) => a.id);
+    expect(floresta.slice(0, 5)).toEqual(['clareira', 'raizes', 'toca', 'copas', 'bosque']);
+    expect(floresta.at(-1)).toBe('torre');
+    // O caderno: o Mata-Borrão fecha o capítulo 1, e a campanha passa por todos.
     const caderno = await newRoom('margem');
-    expect((caderno as any).world.chapter.at(-1).id).toBe('mesa');
+    expect((caderno as any).world.chapter[4].id).toBe('mesa');
+    expect((caderno as any).world.chapter.at(-1).id).toBe('torre');
     expect((await newRoom('inexistente')).state.arenaId).toBe('margem');
     // Partituras e mapas saiu do menu: link antigo começa pelo capítulo 1.
     expect((await newRoom('mapa')).state.arenaId).toBe('margem');
@@ -371,7 +376,8 @@ describe('progressão entre arenas (etapa 4)', () => {
     const reports: any[] = [];
     a.onMessage(MSG_REPORT, (r: any) => reports.push(r));
     expect((a.state as any).arenaId).toBe('margem');
-    expect((a.state as any).arenaCount).toBe(5); // as 4 fases do capítulo da arena escolhida, com o chefe no fim
+    // A campanha inteira a partir do capítulo 1: as 4 fases de cada capítulo, com o chefe no fim de cada um.
+    expect((a.state as any).arenaCount).toBe(CHAPTERS.reduce((n, c) => n + c.length + 1, 0));
     a.send(MSG_START);
     await until(() => (a.state as any).enemiesLeft > 0);
 
