@@ -49,6 +49,16 @@ function approach(value: number, target: number, delta: number): number {
   return Math.max(value - delta, target);
 }
 
+/**
+ * Derrubado: não obedece aos comandos, mas cai até pousar num chão (derrubado no ar, ficaria fora do
+ * alcance de quem vem resgatar). Guarda os botões para o primeiro comando depois de levantar.
+ */
+export function stepDowned(s: PlayerState, buttons: number, arena: Arena, p: MovementParams): void {
+  s.vx = 0;
+  stepPlayer(s, 0, arena, p);
+  s.prevButtons = buttons;
+}
+
 /** Avança um tick fixo. Função pura sobre o estado (muta `s`): mesma entrada, mesmo resultado. */
 export function stepPlayer(
   s: PlayerState,

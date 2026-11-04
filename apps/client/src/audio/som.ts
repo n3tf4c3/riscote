@@ -15,6 +15,13 @@ const MUSIC_FADE = 0.8;
 const LAYER_FADE = 1.5;
 /** Música enquanto toca uma vinheta ou o fim de jogo. */
 const DUCKED = 0.3;
+/**
+ * Arquivo que não baixou (rede, túnel, aba segurada pelo navegador) é pedido de novo depois de
+ * um tempo, que dobra a cada falha seguida. Antes, a falha ficava guardada e o som só voltava ao
+ * recarregar a página (2026-11-03: música tocando e nenhum efeito).
+ */
+const RETRY_MS = 5000;
+const RETRY_MAX_MS = 60000;
 
 interface Prefs {
   music: number;
@@ -67,6 +74,9 @@ class Som {
   private musicBus!: GainNode;
   private sfxBus!: GainNode;
   private buffers = new Map<string, Promise<AudioBuffer | null>>();
+  /** Arquivos que falharam: quantas vezes seguidas e quando pode tentar de novo. */
+  private failures = new Map<string, { count: number; retryAt: number }>();
+  private musicRetry: ReturnType<typeof setTimeout> | undefined;
   private lastAt = new Map<string, number>();
   private lastVariation = new Map<SomNome, number>();
   private voices = new Map<SomNome, number>();
@@ -136,16 +146,43 @@ class Som {
     let p = this.buffers.get(path);
     if (!p) {
       const ctx = this.ctx!;
-      p = fetch(`${import.meta.env.BASE_URL}audio/${path}.${this.ext}`)
+      const req: Promise<AudioBuffer | null> = fetch(`${import.meta.env.BASE_URL}audio/${path}.${this.ext}`)
         .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${r.status} em ${path}`))))
         .then((data) => ctx.decodeAudioData(data))
+        .then((buffer) => {
+          this.failures.delete(path);
+          return buffer;
+        })
         .catch((err: unknown) => {
-          console.warn('som não carregou', path, err);
+          // Esquece a falha para o arquivo poder ser pedido de novo (ver `cached`).
+          const count = (this.failures.get(path)?.count ?? 0) + 1;
+          const wait = Math.min(RETRY_MAX_MS, RETRY_MS * 2 ** (count - 1));
+          this.failures.set(path, { count, retryAt: performance.now() + wait });
+          if (this.buffers.get(path) === req) this.buffers.delete(path);
+          console.warn('som não carregou', path, `(nova tentativa em ${wait / 1000} s)`, err);
           return null;
         });
+      p = req;
       this.buffers.set(path, p);
     }
     return p;
+  }
+
+  /**
+   * O arquivo já pedido. Se ele falhou e o prazo de espera passou, pede de novo, junto com todos os
+   * outros que falharam e já podem tentar (a rede que voltou para um voltou para todos): o evento de
+   * agora fica sem som (chegaria atrasado), mas os seguintes tocam.
+   */
+  private cached(path: string): Promise<AudioBuffer | null> | undefined {
+    const p = this.buffers.get(path);
+    if (p || !this.ctx) return p;
+    const now = performance.now();
+    const fail = this.failures.get(path);
+    if (!fail || now < fail.retryAt) return undefined;
+    for (const [other, f] of this.failures) {
+      if (other !== path && other.startsWith('sfx/') && now >= f.retryAt && !this.buffers.has(other)) void this.load(other);
+    }
+    return this.load(path);
   }
 
   private applyPrefs(now = false): void {
@@ -190,7 +227,7 @@ class Som {
     if (spec.variations > 1 && v === this.lastVariation.get(name)) v = (v % spec.variations) + 1;
     this.lastAt.set(gapKey, now);
     this.lastVariation.set(name, v);
-    void this.buffers.get(`sfx/${name}-${v}`)?.then((buffer) => {
+    void this.cached(`sfx/${name}-${v}`)?.then((buffer) => {
       // Ainda carregando quando o evento aconteceu: som atrasado confunde mais que silêncio.
       if (!buffer || performance.now() - now > 120) return;
       // Desvio pequeno de altura nos sons repetidos, para não soarem carimbados.
@@ -237,7 +274,7 @@ class Som {
     }
     if (!ctx || ctx.state !== 'running' || this.prefs.muted || !this.prefs.sfxOn) return;
     this.holds.set(key, 'carregando');
-    void this.buffers.get(`sfx/${name}-1`)?.then((buffer) => {
+    void this.cached(`sfx/${name}-1`)?.then((buffer) => {
       if (!buffer || this.holds.get(key) !== 'carregando') return;
       const v = this.voice(ctx, buffer, name, opts);
       v.src.loop = true;
@@ -285,13 +322,27 @@ class Som {
     for (const s of old.sources) s.stop(ctx.currentTime + MUSIC_FADE * 1.5);
   }
 
+  /** A trilha não baixou: tenta de novo no prazo da falha, se ela ainda for a pedida. */
+  private retryMusic(name: MusicaNome): void {
+    clearTimeout(this.musicRetry);
+    const at = this.failures.get(`musica/${name}-base`)?.retryAt ?? performance.now() + RETRY_MS;
+    this.musicRetry = setTimeout(() => {
+      this.musicRetry = undefined;
+      if (this.ctx && this.wanted === name && !this.playing && this.prefs.musicOn) this.startMusic(name);
+    }, Math.max(0, at - performance.now()));
+  }
+
   private startMusic(name: MusicaNome): void {
     const ctx = this.ctx!;
     // A capa não tem camada: nada de pedir um arquivo que não existe.
     const layerLoad = MUSICAS[name].layers ? this.load(`musica/${name}-camada`) : Promise.resolve(null);
     void Promise.all([this.load(`musica/${name}-base`), layerLoad]).then(([base, layerBuf]) => {
       // A música pode ter mudado enquanto carregava.
-      if (this.wanted !== name || this.playing || !base || !this.prefs.musicOn) return;
+      if (this.wanted !== name || this.playing || !this.prefs.musicOn) return;
+      if (!base) {
+        this.retryMusic(name);
+        return;
+      }
       const out = ctx.createGain();
       const layer = ctx.createGain();
       out.gain.value = 0;

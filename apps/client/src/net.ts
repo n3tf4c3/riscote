@@ -1,8 +1,9 @@
 import type { Room } from '@colyseus/sdk';
 import {
   ARENAS,
-  BOSS_ARENA,
+  BOSS_ARENAS,
   Interpolator,
+  MAX_PLAYERS,
   MSG_GIVE_UP,
   MSG_INPUT,
   MSG_NAME,
@@ -12,6 +13,7 @@ import {
   PHASE_CHAPTER,
   PHASE_RESTART,
   Predictor,
+  TILE,
   movementParams,
   parseDifficulty,
   type Arena,
@@ -25,9 +27,12 @@ import {
 } from '@riscote/shared';
 import type { BossSnapshot, HazardSnapshot } from './bossView';
 
-/** Arenas do capítulo e a página do chefe. */
+/** Inimigo que andou mais que isto entre dois estados sumiu e apareceu (o marca-página): sem interpolar. */
+const ENEMY_SNAP = 3 * TILE;
+
+/** Arenas dos capítulos e as páginas dos chefes. */
 function arenaById(id: string): Arena | undefined {
-  return id === BOSS_ARENA.id ? BOSS_ARENA : ARENAS.find((a) => a.id === id);
+  return BOSS_ARENAS.find((a) => a.id === id) ?? ARENAS.find((a) => a.id === id);
 }
 
 interface NetMap<T> {
@@ -47,12 +52,23 @@ export interface NetEnemy {
   skill: number;
   /** Fiandeira: y onde o fio se prende; -1 = solta. */
   anchorY: number;
+  /** Grilo e caracol: o ponto marcado (meio, altura dos pés). */
+  aimX: number;
+  aimY: number;
 }
 
-/** Cuspe do tinteiro. */
+/** Cuspe do tinteiro, graveto do bicho-cesto, seiva do caracol, página do dicionário ou letra da enciclopédia (SPIT_*). */
 export interface NetSpit {
+  kind: number;
   x: number;
   y: number;
+}
+
+/** Broto de espinho da pinha. */
+export interface NetSprout {
+  x: number;
+  y: number;
+  age: number;
 }
 
 export interface NetStain {
@@ -94,6 +110,11 @@ export interface NetState {
   hazards: NetMap<Omit<HazardSnapshot, 'id'>>;
   bossNext: boolean;
   spits: NetMap<NetSpit>;
+  sprouts?: NetMap<NetSprout>;
+  /** Vagas da sala; servidor antigo não manda (vale MAX_PLAYERS, todas pela internet). */
+  capacity?: number;
+  seatsLocal?: number;
+  seatsOnline?: number;
 }
 
 export interface NetItem {
@@ -131,6 +152,12 @@ export type DropView = Positioned & NetDrop;
 export type SpitView = Positioned & NetSpit;
 
 /** Liga a sala do Colyseus à previsão do próprio jogador e à interpolação do resto. */
+/** Um jogador a mais nesta tela: a vaga dele na sala e o controle que é só dele. */
+export interface LocalGuest {
+  session: OnlineSession;
+  pad: number;
+}
+
 export class OnlineSession {
   arena: Arena;
   /** Mesmos parâmetros do servidor para o modo da sala (a velocidade muda no fácil). */
@@ -152,7 +179,7 @@ export class OnlineSession {
   private known: Map<string, { slot: number; name: string; away: boolean }> | null = null;
   private predictor: Predictor;
   private players = new Interpolator<PlayerView>();
-  private enemies = new Interpolator<EnemyView>();
+  private enemies = new Interpolator<EnemyView>(100, 1000, ENEMY_SNAP);
   private drops = new Interpolator<DropView>();
   private spits = new Interpolator<SpitView>();
   private bossPos = new Interpolator<Positioned>();
@@ -183,6 +210,11 @@ export class OnlineSession {
 
   get me(): NetPlayer | undefined {
     return this.state.players.get(this.room.sessionId);
+  }
+
+  /** Quantos cabem na sala; servidor antigo não manda e vale MAX_PLAYERS. */
+  get capacity(): number {
+    return this.state.capacity || MAX_PLAYERS;
   }
 
   get isHost(): boolean {
@@ -253,7 +285,7 @@ export class OnlineSession {
     if (!boss || boss.maxHp === 0 || !pos) return null;
     return {
       state: boss.state, attack: boss.attack, x: pos.x, y: pos.y, dir: boss.dir, hp: boss.hp, maxHp: boss.maxHp,
-      soak: boss.soak, soakMax: boss.soakMax, timer: boss.timer, targetX: boss.targetX, impacts: boss.impacts, hits: boss.hits,
+      soak: boss.soak, soakMax: boss.soakMax, timer: boss.timer, targetX: boss.targetX, targetY: boss.targetY, impacts: boss.impacts, hits: boss.hits,
     };
   }
 
@@ -295,7 +327,7 @@ export class OnlineSession {
       this.arena = arena;
       this.predictor = new Predictor(arena, (level) => movementParams(this.difficulty, level), me, this.predictor.lastSeq);
       this.players = new Interpolator<PlayerView>();
-      this.enemies = new Interpolator<EnemyView>();
+      this.enemies = new Interpolator<EnemyView>(100, 1000, ENEMY_SNAP);
       this.drops = new Interpolator<DropView>();
       this.spits = new Interpolator<SpitView>();
       this.bossPos = new Interpolator<Positioned>();
@@ -317,7 +349,7 @@ export class OnlineSession {
 
     const enemies: EnemyView[] = [];
     state.enemies.forEach((e, id) => {
-      enemies.push({ id, kind: e.kind, mode: e.mode, x: e.x, y: e.y, facing: e.facing, soak: e.soak, skill: e.skill, anchorY: e.anchorY ?? -1 });
+      enemies.push({ id, kind: e.kind, mode: e.mode, x: e.x, y: e.y, facing: e.facing, soak: e.soak, skill: e.skill, anchorY: e.anchorY ?? -1, aimX: e.aimX ?? 0, aimY: e.aimY ?? 0 });
     });
     this.enemies.push(now, enemies);
 
@@ -326,7 +358,7 @@ export class OnlineSession {
     this.drops.push(now, drops);
 
     const spits: SpitView[] = [];
-    state.spits?.forEach((s, id) => spits.push({ id, x: s.x, y: s.y }));
+    state.spits?.forEach((s, id) => spits.push({ id, kind: s.kind ?? 0, x: s.x, y: s.y }));
     this.spits.push(now, spits);
 
     const boss = state.boss;

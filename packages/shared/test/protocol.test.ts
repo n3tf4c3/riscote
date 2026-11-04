@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BTN_ALL, BTN_RIGHT, describeJoinError, normalizeRoomCode, normalizeServerUrl, parseDifficulty, parseInput, parseRoomList, seatForServer } from '../src/index.ts';
+import { BTN_ALL, BTN_RIGHT, MAX_PLAYERS, ONLINE_FULL, ROOM_FULL, describeJoinError, normalizeRoomCode, normalizeServerUrl, parseDifficulty, parseInput, parseLocalKey, parseRoomList, parseSeats, seatForServer } from '../src/index.ts';
 
 describe('parseInput', () => {
   it('aceita seq inteiro e botões dentro da máscara, descartando outros campos', () => {
@@ -43,6 +43,8 @@ describe('describeJoinError', () => {
     expect(describeJoinError(new Error('room "ABCDEF" is locked'))).toMatch(/Sala cheia/);
     expect(describeJoinError(new Error('room "ABCDEF" not found'))).toMatch(/Nenhuma sala/);
     expect(describeJoinError(new Error('ECONNREFUSED'))).toMatch(/Não foi possível/);
+    expect(describeJoinError(new Error(ONLINE_FULL))).toBe(ONLINE_FULL);
+    expect(describeJoinError(new Error(ROOM_FULL))).toBe(ROOM_FULL);
   });
 });
 
@@ -54,7 +56,7 @@ describe('parseDifficulty', () => {
   });
 });
 describe('parseRoomList', () => {
-  const open = { code: 'ABCD23', players: 2, names: ['netface', 'Ana'], chapter: 0, difficulty: 'medio', playing: true, page: 1, pages: 5 };
+  const open = { code: 'ABCD23', players: 2, capacity: 4, vacant: 1, names: ['netface', 'Ana'], chapter: 0, difficulty: 'medio', playing: true, page: 1, pages: 5 };
 
   it('aceita a sala aberta com código e nomes, e a privada sem eles', () => {
     const closed = { ...open, code: null, names: ['escondido'] };
@@ -93,5 +95,42 @@ describe('seatForServer', () => {
     for (const odd of [null, 'texto', { ...seat, token: '' }, { ...seat, token: 5 }, { ...seat, server: 1 }]) {
       expect(seatForServer(odd, 'wss://play.riscote.win')).toBeNull();
     }
+  });
+});
+
+describe('vagas da sala', () => {
+  it('parseSeats aceita as vagas dentro do limite; fora dele, 1 local e o resto pela internet', () => {
+    expect(parseSeats(3, 2)).toEqual({ local: 3, online: 2 });
+    expect(parseSeats(2, 0)).toEqual({ local: 2, online: 0 });
+    expect(parseSeats(1, 0)).toEqual({ local: 1, online: 0 });
+    expect(parseSeats(undefined, undefined)).toEqual({ local: 1, online: MAX_PLAYERS - 1 });
+    // Mais que o limite somado, fração, texto ou zero local: o que não vale volta ao padrão.
+    expect(parseSeats(3, 3)).toEqual({ local: 3, online: 2 });
+    expect(parseSeats(6, 0)).toEqual({ local: 1, online: 0 });
+    expect(parseSeats(0, 2)).toEqual({ local: 1, online: 2 });
+    expect(parseSeats(2.5, '1')).toEqual({ local: 1, online: 4 });
+  });
+
+  it('parseLocalKey só aceita a chave no formato sorteado pelo navegador', () => {
+    expect(parseLocalKey('Ab-_0123456789abcdefXY')).toBe('Ab-_0123456789abcdefXY');
+    expect(parseLocalKey('curta')).toBeNull();
+    expect(parseLocalKey('x'.repeat(65))).toBeNull();
+    expect(parseLocalKey('chave com espaço 0123456')).toBeNull();
+    expect(parseLocalKey(1234567890123456)).toBeNull();
+  });
+
+  it('a lista de servidor antigo, sem capacidade, vale sala de 5 toda pela internet; números incoerentes são limitados', () => {
+    const base = { code: null, players: 2, names: [], chapter: 0, difficulty: 'medio', playing: false, page: 0, pages: 5 };
+    expect(parseRoomList([base])[0]).toMatchObject({ capacity: MAX_PLAYERS, vacant: MAX_PLAYERS - 2 });
+    expect(parseRoomList([{ ...base, capacity: 1, vacant: 4 }])[0]).toMatchObject({ capacity: 2, vacant: 0 });
+    expect(parseRoomList([{ ...base, capacity: 4, vacant: 9 }])[0]).toMatchObject({ capacity: 4, vacant: 2 });
+  });
+
+  it('a vaga guardada leva a chave das vagas locais só no formato válido', () => {
+    const seat = { server: 'wss://play.riscote.win', code: 'ABCD23', token: 't' };
+    const key = 'Ab-_0123456789abcdefXY';
+    expect(seatForServer({ ...seat, localKey: key, local: 3 }, 'wss://play.riscote.win')).toEqual({ ...seat, localKey: key, local: 3 });
+    expect(seatForServer({ ...seat, localKey: key, local: 9 }, 'wss://play.riscote.win')).toEqual({ ...seat, localKey: key, local: 1 });
+    expect(seatForServer({ ...seat, localKey: '<x>', local: 3 }, 'wss://play.riscote.win')).toEqual(seat);
   });
 });

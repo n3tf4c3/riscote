@@ -21,7 +21,8 @@
       html, body { margin: 0; height: 100%; }
       /* Papel pautado, como o caderno das referências. */
       body {
-        background: var(--paper) repeating-linear-gradient(transparent 0 31px, var(--pauta) 31px 33px);
+        /* O giz do papel (--giz-papel, ladrilho feito no boot, art/giz.ts) vai por cima da pauta. */
+        background: var(--giz-papel, linear-gradient(transparent, transparent)), var(--paper) repeating-linear-gradient(transparent 0 31px, var(--pauta) 31px 33px);
         color: var(--ink);
         font: 500 14px/1.4 'Segoe UI', system-ui, sans-serif;
         display: grid;
@@ -228,7 +229,7 @@
             <li class="teclas-asd"><kbd>J</kbd> ou <kbd>Espaço</kbd> pular (segure para ir mais alto)</li>
             <li class="teclas-asd"><kbd>S</kbd> + pular: descer da plataforma</li>
             <li class="teclas-asd"><kbd>K</kbd> atirar tinta e chutar a bola</li>
-            <li>Controle: direcional, <kbd>A</kbd> pula, <kbd>X</kbd> ataca</li>
+            <li>Controle: direcional, <kbd>A</kbd> ou <kbd>Y</kbd> pula (<kbd>✕</kbd> ou <kbd>△</kbd> no PlayStation), <kbd>B</kbd>, <kbd>X</kbd> ou os de ombro atiram (<kbd>○</kbd> ou <kbd>□</kbd>)</li>
           </ul>
           <p class="dica dica-teclas">Prefere a mão esquerda no ASD e a direita no J e K? Troque em “Configurações”, no painel.</p>
           <p class="dica">Encharque o inimigo de tinta até ele virar bola, depois chute. Encoste num amigo derrubado por 1 s para levantá-lo.</p>
@@ -315,6 +316,11 @@
             <button type="button" data-aberta="0" aria-pressed="false">Privada</button>
           </div>
           <p id="visibility-hint" class="keys"></p>
+          <h3 id="locais-titulo">Jogadores neste computador</h3>
+          <div id="online-local" class="escolhas cinco" role="group" aria-labelledby="locais-titulo"></div>
+          <h3 id="internet-titulo">Vagas pela internet</h3>
+          <div id="online-remote" class="escolhas cinco" role="group" aria-labelledby="internet-titulo"></div>
+          <p id="seats-hint" class="keys"></p>
           <button type="button" id="create" class="primary">Criar sala <span class="atalho" aria-hidden="true">Enter</span></button>
 
           <hr />
@@ -344,6 +350,12 @@
           </div>
           <h2>Na sala</h2>
           <ul id="room-players" class="na-sala"></ul>
+          <p id="seats-info" class="keys"></p>
+          <h2>Nesta tela</h2>
+          <p class="keys">Mais alguém jogando neste computador? Cada jogador a mais usa um controle (USB ou Bluetooth); o teclado fica com o primeiro.</p>
+          <ul id="local-players" class="na-sala"></ul>
+          <button type="button" id="add-local">Mais um jogador no controle</button>
+          <p id="local-hint" class="keys" aria-live="polite"></p>
           <div id="lobby-start" hidden>
             <button type="button" id="start" class="primary">Começar partida</button>
             <p id="start-hint" class="keys"></p>

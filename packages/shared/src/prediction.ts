@@ -1,4 +1,4 @@
-import { stepPlayer, type PlayerState } from './physics.ts';
+import { stepDowned, stepPlayer, type PlayerState } from './physics.ts';
 import type { Arena } from './arena.ts';
 import type { MovementParams } from './params.ts';
 import type { InputMessage, NetPlayer } from './protocol.ts';
@@ -26,7 +26,7 @@ export class Predictor {
   readonly state: PlayerState;
   /** Reconciliações que mudaram a posição prevista. */
   corrections = 0;
-  /** Derrubado no servidor: os comandos seguem sendo enviados, mas o boneco não se move. */
+  /** Derrubado no servidor: os comandos seguem sendo enviados, mas o boneco só cai até pousar. */
   frozen = false;
   private seq = 0;
   private pending: InputMessage[] = [];
@@ -88,9 +88,9 @@ export class Predictor {
     return corrected;
   }
 
-  /** Mesma regra do servidor (World.applyInput): derrubado só registra os botões. */
+  /** Mesma regra do servidor (World.applyInput): derrubado só cai, sem obedecer aos botões. */
   private apply(buttons: number): void {
-    if (this.frozen) this.state.prevButtons = buttons;
+    if (this.frozen) stepDowned(this.state, buttons, this.arena, this.params);
     else stepPlayer(this.state, buttons, this.arena, this.params);
   }
 }
@@ -119,10 +119,13 @@ export class Interpolator<T extends Positioned = RemoteView> {
 
   private readonly delayMs: number;
   private readonly keepMs: number;
+  private readonly snapDist: number;
 
-  constructor(delayMs = 100, keepMs = 1000) {
+  /** `snapDist`: entre dois estados, um salto maior que isso (em pixels) não é interpolado (o marca-página some e aparece). */
+  constructor(delayMs = 100, keepMs = 1000, snapDist = Infinity) {
     this.delayMs = delayMs;
     this.keepMs = keepMs;
+    this.snapDist = snapDist;
   }
 
   push(t: number, players: T[]): void {
@@ -142,7 +145,7 @@ export class Interpolator<T extends Positioned = RemoteView> {
     const k = Math.max(0, Math.min(1, (target - a.t) / (b.t - a.t)));
     return [...b.players.values()].map((pb) => {
       const pa = a.players.get(pb.id);
-      if (!pa) return pb;
+      if (!pa || Math.hypot(pb.x - pa.x, pb.y - pa.y) > this.snapDist) return pb;
       return { ...pb, x: pa.x + (pb.x - pa.x) * k, y: pa.y + (pb.y - pa.y) * k };
     });
   }

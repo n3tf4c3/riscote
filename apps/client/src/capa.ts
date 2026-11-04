@@ -3,6 +3,7 @@ import { GROUND, LEDGES, STAGE_H, STAGE_W, logoSvg, palcoSvg, pincelSvg } from '
 import { POSES, runPose, type Pose } from './art/riscote';
 import { INK, BOIL } from './art/svg';
 import { artSize, boilKey, commonSpecs, rasterSvg, riscoteKey, tracaKey, type ArtSpec } from './art/textures';
+import { GIZ_JOGAVEL } from './art/giz';
 import { el } from './dom';
 import { PLAYER_COLORS } from './draw';
 
@@ -189,6 +190,13 @@ function mount(): void {
   floor.alt = '';
   floor.src = svgUrl(palcoSvg());
   stage.append(floor);
+  // O palco ganha o giz das arenas: rasterizado uma vez no tamanho da tela e trocado quando fica pronto.
+  const fw = Math.round(stage.clientWidth * devicePixelRatio);
+  if (fw > 0) {
+    void rasterSvg(palcoSvg(), fw, Math.round((fw * STAGE_H) / STAGE_W), GIZ_JOGAVEL)
+      .then((c) => c.toBlob((b) => b && (floor.src = URL.createObjectURL(b))))
+      .catch(() => undefined);
+  }
 
   // Os bonecos vão num canvas só, a partir de bitmaps feitos uma vez (na fila de rasterização do jogo).
   // Trocar o src de imagens SVG com filtro a cada quadro refazia o desenho e deixava a capa a ~10 qps no celular.

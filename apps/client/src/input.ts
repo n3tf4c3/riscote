@@ -50,9 +50,19 @@ function isTextField(target: EventTarget | null): boolean {
   return target instanceof HTMLInputElement && target.type !== 'range';
 }
 
-/** Teclado, gamepad e toque viram a mesma máscara de bits que a simulação recebe. */
+/**
+ * Teclado, gamepad e toque viram a mesma máscara de bits que a simulação recebe. Com mais jogadores na
+ * mesma tela (pedido do usuário em 2026-11-01), cada um a mais fica com um controle só dele
+ * (`claimed`), que deixa de entrar nos botões do primeiro; o teclado e o toque ficam com o primeiro.
+ */
 export class InputSource {
   private keys = 0;
+  /** Controles que são de outro jogador nesta tela. */
+  private readonly claimed = new Set<number>();
+  /** Esperando um controle para o próximo jogador: quem apertar um botão primeiro fica com ele. */
+  private claim: ((pad: number) => void) | null = null;
+  /** Botões apertados no quadro anterior, por controle: só conta o aperto novo. */
+  private readonly padWasDown = new Map<number, boolean>();
   private keyMode = loadKeyMode();
   private readonly touch = new TouchPad();
 
@@ -106,8 +116,59 @@ export class InputSource {
   }
 
   buttons(): number {
-    return this.keys | readGamepad() | this.touch.buttons();
+    this.pollClaim();
+    let pads = 0;
+    for (const pad of connectedPads()) if (!this.claimed.has(pad.index)) pads |= padBits(pad);
+    return this.keys | pads | this.touch.buttons();
   }
+
+  /** Botões do controle de um jogador a mais. */
+  padButtons(index: number): number {
+    const pad = connectedPads().find((p) => p.index === index);
+    return pad ? padBits(pad) : 0;
+  }
+
+  /** Está esperando um controle para um jogador novo. */
+  get claiming(): boolean {
+    return this.claim !== null;
+  }
+
+  /** O próximo controle livre que apertar um botão (aperto novo, não um segurado) fica para `take`. */
+  armClaim(take: (pad: number) => void): void {
+    this.claim = take;
+    for (const pad of connectedPads()) this.padWasDown.set(pad.index, anyFace(pad));
+  }
+
+  cancelClaim(): void {
+    this.claim = null;
+  }
+
+  /** O controle volta a ser do primeiro jogador (o jogador a mais saiu). */
+  release(index: number): void {
+    this.claimed.delete(index);
+  }
+
+  private pollClaim(): void {
+    for (const pad of connectedPads()) {
+      const down = anyFace(pad);
+      const was = this.padWasDown.get(pad.index) ?? false;
+      this.padWasDown.set(pad.index, down);
+      if (!this.claim || this.claimed.has(pad.index) || !down || was) continue;
+      this.claimed.add(pad.index);
+      const take = this.claim;
+      this.claim = null;
+      take(pad.index);
+    }
+  }
+}
+
+function connectedPads(): Gamepad[] {
+  return [...(navigator.getGamepads?.() ?? [])].filter((p): p is Gamepad => !!p?.connected);
+}
+
+/** Algum dos quatro botões da frente ou o Start apertado. */
+function anyFace(pad: Gamepad): boolean {
+  return [0, 1, 2, 3, 9].some((i) => pad.buttons[i]?.pressed ?? false);
 }
 
 /** Botões do painel que escolhem o modo de teclas. */
@@ -133,21 +194,22 @@ export function bindKeyControls(input: InputSource): void {
   }
 }
 
-function readGamepad(): number {
-  const pads = navigator.getGamepads?.() ?? [];
-  for (const pad of pads) {
-    if (!pad?.connected) continue;
-    const b = (i: number) => pad.buttons[i]?.pressed ?? false;
-    const ax = pad.axes[0] ?? 0;
-    const ay = pad.axes[1] ?? 0;
-    let bits = 0;
-    if (ax < -0.4 || b(14)) bits |= BTN_LEFT;
-    if (ax > 0.4 || b(15)) bits |= BTN_RIGHT;
-    if (ay < -0.6 || b(12)) bits |= BTN_UP;
-    if (ay > 0.5 || b(13)) bits |= BTN_DOWN;
-    if (b(0)) bits |= BTN_JUMP;
-    if (b(2)) bits |= BTN_ATTACK;
-    return bits;
-  }
-  return 0;
+/**
+ * Botões de um controle: direcional ou analógico esquerdo; A e Y pulam, B, X e os de ombro e gatilho
+ * atiram. Só o X atirava, e no controle de PlayStation o ✕ é o A (pula): quem procurava o "X" pulava,
+ * e o B/○ não fazia nada. Com todo botão da frente fazendo alguma coisa, controle genérico (sem o
+ * mapeamento padrão, botões em outra ordem) também pula e atira.
+ */
+function padBits(pad: Gamepad): number {
+  const b = (i: number) => pad.buttons[i]?.pressed ?? false;
+  const ax = pad.axes[0] ?? 0;
+  const ay = pad.axes[1] ?? 0;
+  let bits = 0;
+  if (ax < -0.4 || b(14)) bits |= BTN_LEFT;
+  if (ax > 0.4 || b(15)) bits |= BTN_RIGHT;
+  if (ay < -0.6 || b(12)) bits |= BTN_UP;
+  if (ay > 0.5 || b(13)) bits |= BTN_DOWN;
+  if (b(0) || b(3)) bits |= BTN_JUMP;
+  if (b(1) || b(2) || b(4) || b(5) || b(6) || b(7)) bits |= BTN_ATTACK;
+  return bits;
 }

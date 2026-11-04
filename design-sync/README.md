@@ -12,8 +12,8 @@ Cada arquivo é um cartão. A primeira linha (`<!-- @dsCard group="…" -->`) de
 | Marca | `marca/riscote.html`: premissa, linguagem e o que não copiar |
 | Cores | `cores/papel-e-tinta.html`, `cores/jogadores.html` |
 | Fundamentos | `fundamentos/camadas.html`, `fundamentos/escala.html`, `fundamentos/tipografia.html` |
-| Personagens | `personagens/jogadores.html` (os cinco riscotes de cartum: poses, expressões, auras e tamanho do jogo), `personagens/inimigos.html` (inimigos, estados, encharcado e o Mata-Borrão) |
-| Cenário | `cenario/arena-tinta.html` (as páginas dos capítulos e a mesa do chefe, em duas camadas), `cenario/arena.html` (geometria greybox), `cenario/itens.html`, `cenario/efeitos.html` |
+| Personagens | `personagens/jogadores.html` (os cinco riscotes de cartum: poses, expressões, auras e tamanho do jogo), `personagens/inimigos.html` (inimigos, estados, encharcado e o Mata-Borrão), `personagens/floresta.html` (os inimigos e o chefe da Floresta), `personagens/biblioteca.html` (os inimigos e o chefe da Biblioteca), `personagens/jardim.html`, `personagens/oficina.html` e `personagens/castelo.html` (os inimigos e o chefe de cada um) |
+| Cenário | `cenario/arena-tinta.html` (as páginas dos capítulos e a mesa do chefe, em duas camadas), `cenario/arena.html` (geometria greybox), `cenario/itens.html`, `cenario/efeitos.html`, `cenario/floresta.html`, `cenario/biblioteca.html`, `cenario/jardim.html`, `cenario/oficina.html` e `cenario/castelo.html` (fases novas em protótipo, com camadas de parallax) |
 | Interface | `interface/painel.html` |
 
 A primeira arte (pincel de nanquim) nasceu na prancha "Riscote — personagens" (Claude Design, artifact QnTcq5XpucJxr2GPxGfR3t). Em 2026-10-31 a direção mudou para cartum de traço marinho, cor chapada, sombra dura e rostos expressivos, a pedido do usuário. A fonte é o código: os cartões de marca, cores, personagens, cenário e efeitos saem dos geradores de `apps/client/src/art/`; tipografia, painel e camadas são escritos à mão a partir do CSS. Ao mudar um gerador, refaça o cartão correspondente.

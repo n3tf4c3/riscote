@@ -294,6 +294,29 @@ describe('derrubada, resgate e vidas', () => {
     expect(world.drops.size).toBe(0);
   });
 
+  it('derrubado no ar cai até o chão (sem andar para o lado) e lá pode ser resgatado', () => {
+    const world = setup(2);
+    const p = world.players.get('p0')!;
+    // No alto, longe da plataforma: sem cair, ninguém o alcançaria.
+    p.body.x = 14 * TILE;
+    p.body.y = 2 * TILE;
+    p.body.vx = 0;
+    p.body.vy = 0;
+    p.body.onGround = false;
+    const down = knockDown(world, 'p0');
+    const x = down.body.x;
+    run(world, ticks(1.5), { p0: BTN_RIGHT });
+    expect(down.down).toBe(true);
+    expect(down.body.onGround).toBe(true);
+    expect(down.body.y + world.params.playerHeight * TILE).toBeCloseTo(7 * TILE, 5);
+    expect(down.body.x).toBe(x);
+    const ally = world.players.get('p1')!;
+    ally.body.x = down.body.x + 4;
+    ally.body.y = down.body.y;
+    run(world, ticks(RULES.rescueTime) + 1);
+    expect(down.down).toBe(false);
+  });
+
   it('todos derrubados e sem vidas: a arena recomeça com a reserva cheia', () => {
     const world = setup(2);
     world.lives = 0;
@@ -824,7 +847,7 @@ describe('habilidades dos inimigos', () => {
       run(world, 1);
       fastest = Math.max(fastest, Math.abs(e.body.vx));
     }
-    expect(fastest).toBeGreaterThan(3.5 * TILE * (RULES.dashSpeedMult - 0.2));
+    expect(fastest).toBeGreaterThan(3.5 * RULES.enemySpeedMult * TILE * (RULES.dashSpeedMult - 0.2));
 
     run(world, ticks(RULES.dashRest) + 10);
     expect(e.skill).toBe(SKILL_NONE);
@@ -1175,6 +1198,7 @@ describe('inimigos das fases', () => {
 describe('fases, modos e habilidades', () => {
   const [margem, , poco] = CHAPTERS[0]!;
 
+  // São 40 s de partida em cada arena de capítulo: perto de 5 s de máquina, no limite padrão do vitest.
   it('cada fase faz surgir só os tipos dela, com as habilidades ligadas só onde a fase manda', () => {
     for (const arena of ARENAS) {
       const world = new World(arena, 5);
@@ -1192,7 +1216,7 @@ describe('fases, modos e habilidades', () => {
       }
       expect(seen.size, arena.id).toBeGreaterThan(1);
     }
-  });
+  }, 20_000);
 
   it('fase 1: nenhum aviso de habilidade, mesmo com gente à frente e o tempo passando', () => {
     const world = new World(margem!, 2);
@@ -1265,7 +1289,7 @@ describe('fases, modos e habilidades', () => {
     expect([...kinds].sort()).toEqual([ENEMY_TRACA, ENEMY_GRAMPO].sort());
   });
 
-  it.each(['andaime', 'calendario'])('%s: determinístico com os inimigos novos, o cuspe e o fio', (id) => {
+  it.each(['andaime', 'copas'])('%s: determinístico com os inimigos novos, o cuspe e o fio', (id) => {
     const arena = ARENAS.find((a) => a.id === id)!;
     const snapshot = (seed: number) => {
       const world = new World(arena, seed, { difficulty: 'dificil' });

@@ -27,6 +27,8 @@ import {
   TOO_MANY_JOINS,
   TOO_MANY_ROOMS,
   SERVER_FULL,
+  ROOM_FULL,
+  ONLINE_FULL,
   CLOSE_LOBBY_IDLE,
   movementParams,
   parseDifficulty,
@@ -109,10 +111,16 @@ async function joinError(roomId: string): Promise<string> {
 
 describe('salas', () => {
   it('cria a sala com código legível e o capítulo da arena escolhida, a partir da 1ª fase', async () => {
-    const room = await newRoom('mapa');
+    const room = await newRoom('toca');
     expect(normalizeRoomCode(room.roomId)).toBe(room.roomId);
-    expect(room.state.arenaId).toBe('partitura');
+    expect(room.state.arenaId).toBe('clareira');
+    // O capítulo da Floresta fecha com o Apontador; o do caderno, com o Mata-Borrão.
+    expect((room as any).world.chapter.map((a: { id: string }) => a.id)).toEqual(['clareira', 'raizes', 'toca', 'copas', 'bosque']);
+    const caderno = await newRoom('margem');
+    expect((caderno as any).world.chapter.at(-1).id).toBe('mesa');
     expect((await newRoom('inexistente')).state.arenaId).toBe('margem');
+    // Partituras e mapas saiu do menu: link antigo começa pelo capítulo 1.
+    expect((await newRoom('mapa')).state.arenaId).toBe('margem');
   });
 
   it('a dificuldade escolhida vale para a sala; valor desconhecido vira médio', async () => {
@@ -132,7 +140,7 @@ describe('salas', () => {
     const slots = [...room.state.players.values()].map((p) => p.slot).sort();
     expect(slots).toEqual([0, 1, 2, 3, 4]);
 
-    expect(await joinError(room.roomId)).toBe('Sala cheia: o limite é de 5 jogadores.');
+    expect(await joinError(room.roomId)).toBe(ROOM_FULL);
     expect(room.clients.length).toBe(MAX_PLAYERS);
 
     const leaving = clients[2]!;
@@ -476,7 +484,7 @@ describe('queda de conexão e reconexão (etapa 5)', () => {
     await drop(dropped);
     await until(() => room.state.players.get(id)?.away === true);
     expect(room.state.players.size).toBe(MAX_PLAYERS);
-    expect(await joinError(room.roomId)).toBe('Sala cheia: o limite é de 5 jogadores.');
+    expect(await joinError(room.roomId)).toBe(ROOM_FULL);
 
     const back = await t.sdk.reconnect(token);
     expect(back.sessionId).toBe(id);
@@ -667,7 +675,7 @@ describe('itens na rede', () => {
   });
 
   it('a sala aberta mostra código e nomes; a privada e a de cliente antigo, só a contagem', async () => {
-    const aberta = (await t.createRoom(ROOM_NAME, { arenaId: 'partitura', difficulty: 'dificil', open: true })) as unknown as ArenaRoom;
+    const aberta = (await t.createRoom(ROOM_NAME, { arenaId: 'clareira', difficulty: 'dificil', open: true })) as unknown as ArenaRoom;
     const privada = (await t.createRoom(ROOM_NAME, { open: false })) as unknown as ArenaRoom;
     const antiga = (await t.createRoom(ROOM_NAME, {})) as unknown as ArenaRoom;
     await t.connectTo(aberta, { name: 'netface' });
@@ -675,7 +683,7 @@ describe('itens na rede', () => {
     await t.connectTo(privada, { name: 'Segredo' });
     expect(aberta.summary()).toEqual({
       // A sala de teste não tem ondas, então já começa jogando (sem aquecimento).
-      code: aberta.roomId, players: 2, names: ['netface', 'Jogador 2'], chapter: 1, difficulty: 'dificil', playing: true, page: 0, pages: 5,
+      code: aberta.roomId, players: 2, capacity: 5, vacant: 3, names: ['netface', 'Jogador 2'], chapter: 1, difficulty: 'dificil', playing: true, page: 0, pages: 5,
     });
     expect(privada.summary()).toMatchObject({ code: null, players: 1, names: [] });
     expect(antiga.summary().code).toBeNull();
@@ -700,7 +708,7 @@ describe('itens na rede', () => {
       const base = `http://127.0.0.1:${(http.address() as { port: number }).port}`;
       const get = async () => (await fetch(`${base}${ROOM_LIST_PATH}`)).json();
       expect(await get()).toEqual([]);
-      rooms = [{ code: null, players: 1, names: [], chapter: 0, difficulty: 'medio', playing: false, page: 0, pages: 5 }];
+      rooms = [{ code: null, players: 1, capacity: 5, vacant: 4, names: [], chapter: 0, difficulty: 'medio', playing: false, page: 0, pages: 5 }];
       expect(await get()).toEqual([]);
       clock = 1000;
       expect(await get()).toHaveLength(1);
@@ -709,5 +717,95 @@ describe('itens na rede', () => {
     } finally {
       await new Promise((r) => http.close(r));
     }
+  });
+});
+
+describe('vagas deste computador e da internet', () => {
+  const KEY = 'chave-de-teste-0123456789';
+
+  async function seatRoom(local: number, online: number): Promise<ArenaRoom> {
+    return (await t.createRoom(ROOM_NAME, { local, online, localKey: KEY })) as unknown as ArenaRoom;
+  }
+
+  async function refusal(roomId: string, options: Record<string, unknown> = {}): Promise<string> {
+    try {
+      await t.sdk.joinById(roomId, options);
+    } catch (e) {
+      return describeJoinError(e);
+    }
+    throw new Error('a entrada deveria ter sido recusada');
+  }
+
+  it('3 neste computador e 2 pela internet: quem vem de fora só ocupa as da internet', async () => {
+    const room = await seatRoom(3, 2);
+    expect([room.state.capacity, room.state.seatsLocal, room.state.seatsOnline]).toEqual([5, 3, 2]);
+    // O primeiro é quem criou a sala; os dois seguintes, sem a chave, vêm pela internet.
+    await t.connectTo(room);
+    await t.connectTo(room);
+    await t.connectTo(room);
+    expect(await refusal(room.roomId)).toBe(ONLINE_FULL);
+    expect(await refusal(room.roomId, { localKey: 'chave-errada-0123456789' })).toBe(ONLINE_FULL);
+    expect(room.summary()).toMatchObject({ players: 3, capacity: 5, vacant: 0 });
+    await t.connectTo(room, { localKey: KEY });
+    await t.connectTo(room, { localKey: KEY });
+    expect(room.state.players.size).toBe(5);
+    expect(await refusal(room.roomId, { localKey: KEY })).toBe(ROOM_FULL);
+  });
+
+  it('a sala tem o tamanho escolhido; com as vagas locais cheias, a chave usa uma da internet', async () => {
+    const room = await seatRoom(2, 1);
+    expect(room.maxClients).toBe(3);
+    await t.connectTo(room);
+    await t.connectTo(room, { localKey: KEY });
+    await t.connectTo(room, { localKey: KEY });
+    expect(room.state.players.size).toBe(3);
+    expect(room.summary().vacant).toBe(0);
+    expect(await refusal(room.roomId)).toBe(ROOM_FULL);
+  });
+
+  it('só neste computador: ninguém entra pela internet', async () => {
+    const room = await seatRoom(2, 0);
+    await t.connectTo(room);
+    expect(await refusal(room.roomId)).toBe(ONLINE_FULL);
+    await t.connectTo(room, { localKey: KEY });
+    expect(room.state.players.size).toBe(2);
+  });
+
+  it('quando todos do computador saem, as vagas deles passam para a internet', async () => {
+    const room = await seatRoom(3, 1);
+    const host = await t.connectTo(room);
+    const guest = await t.connectTo(room, { localKey: KEY });
+    await t.connectTo(room);
+    expect(await refusal(room.roomId)).toBe(ONLINE_FULL);
+    await guest.leave();
+    await until(() => room.state.players.size === 2);
+    // Ainda há alguém do computador: a vaga local continua reservada.
+    expect(await refusal(room.roomId)).toBe(ONLINE_FULL);
+    await host.leave();
+    await until(() => room.state.seatsLocal === 0);
+    expect(room.state.seatsOnline).toBe(4);
+    await t.connectTo(room);
+    await t.connectTo(room);
+    await t.connectTo(room);
+    expect(room.state.players.size).toBe(4);
+    expect(await refusal(room.roomId, { localKey: KEY })).toBe(ROOM_FULL);
+  });
+
+  it('duas entradas ao mesmo tempo não passam juntas pela última vaga da internet', async () => {
+    const room = await seatRoom(3, 1);
+    await t.connectTo(room);
+    const results = await Promise.allSettled([t.sdk.joinById(room.roomId), t.sdk.joinById(room.roomId)]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const lost = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')!;
+    expect(describeJoinError(lost.reason)).toBe(ONLINE_FULL);
+    await until(() => room.state.players.size === 2);
+    // A entrada recusada não deixa vaga presa.
+    expect((room as any).kinds.size).toBe(2);
+    expect(room.summary().vacant).toBe(0);
+  });
+
+  it('cliente antigo, sem os campos: sala de 5, com 1 vaga local e 4 pela internet', async () => {
+    const room = await newRoom();
+    expect([room.state.capacity, room.state.seatsLocal, room.state.seatsOnline]).toEqual([5, 1, 4]);
   });
 });

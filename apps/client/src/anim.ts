@@ -1,5 +1,35 @@
 import {
   ENEMY_BORRACHA,
+  ENEMY_CARACOL,
+  ENEMY_CESTO,
+  ENEMY_GRILO,
+  ENEMY_LAGARTA,
+  ENEMY_OURICO,
+  ENEMY_CORUJA,
+  ENEMY_DICIONARIO,
+  ENEMY_ENCICLOPEDIA,
+  ENEMY_MARCADOR,
+  ENEMY_MORCEGO,
+  ENEMY_PERGAMINHO,
+  ENEMY_BESOURO,
+  ENEMY_CHAFARIZ,
+  ENEMY_SAPO,
+  ENEMY_SINO,
+  ENEMY_SOMBRINHA,
+  ENEMY_VAGALUME,
+  ENEMY_AVIAO,
+  ENEMY_BALAO,
+  ENEMY_COMPASSO,
+  ENEMY_CORNETA,
+  ENEMY_FURADEIRA,
+  ENEMY_IMA,
+  ENEMY_MARTELO,
+  ENEMY_MOBILE,
+  ENEMY_MOLA,
+  ENEMY_PRUMO,
+  ENEMY_RAPOSA,
+  ENEMY_TORREAO,
+  enemyRole,
   ENEMY_BORRAO,
   ENEMY_FIANDEIRA,
   ENEMY_GRAMPO,
@@ -10,6 +40,7 @@ import {
   MODE_WALK,
   RULES,
   SKILL_ACT,
+  SKILL_NONE,
   SKILL_REST,
   SKILL_WARN,
   TILE,
@@ -156,6 +187,8 @@ export interface EnemyLike {
   skill: number;
   /** Fiandeira: y onde o fio se prende; -1 = solta. */
   anchorY: number;
+  /** Ponto marcado pelo poder (o sino: o x de onde o fio se prende enquanto balança). */
+  aimX?: number;
 }
 
 export interface EnemyFrame {
@@ -163,11 +196,17 @@ export interface EnemyFrame {
   sx: number;
   sy: number;
   angle: number;
+  /** Desenho apoiado pelo meio do corpo (borboleta, bola de espinhos), não pelos pés. */
+  center?: boolean;
   /** Espelhar o desenho; sem valor, segue o lado para onde o inimigo olha (a borracha vira no meio do giro). */
   flip?: boolean;
+  /** Transparência (o marca-página sumindo e aparecendo); sem valor, opaco. */
+  alpha?: number;
 }
 
 interface EnemyState {
+  /** Velocidade na horizontal (suavizada), para apontar o avião no voo. */
+  vx: number;
   x: number;
   y: number;
   vy: number;
@@ -201,6 +240,35 @@ export class EnemyAnimator {
   ) {}
 
   private warnFor(kind: number): number {
+    if (kind === ENEMY_LAGARTA) return this.warnTimes.cocoon;
+    if (kind === ENEMY_GRILO) return this.warnTimes.leap;
+    if (kind === ENEMY_CESTO) return this.warnTimes.twig;
+    if (kind === ENEMY_CARACOL) return this.warnTimes.lob;
+    if (kind === ENEMY_OURICO) return this.warnTimes.roll;
+    if (kind === ENEMY_MARCADOR) return this.warnTimes.warp;
+    if (kind === ENEMY_DICIONARIO) return this.warnTimes.pages;
+    if (kind === ENEMY_PERGAMINHO) return this.warnTimes.unroll;
+    if (kind === ENEMY_MORCEGO) return this.warnTimes.dive;
+    if (kind === ENEMY_CORUJA) return this.warnTimes.beam;
+    if (kind === ENEMY_ENCICLOPEDIA) return this.warnTimes.letters;
+    if (kind === ENEMY_VAGALUME) return this.warnTimes.flash;
+    if (kind === ENEMY_SAPO) return this.warnTimes.bubble;
+    if (kind === ENEMY_BESOURO) return this.warnTimes.dew;
+    if (kind === ENEMY_SINO) return this.warnTimes.swing;
+    if (kind === ENEMY_CHAFARIZ) return this.warnTimes.geyser;
+    if (kind === ENEMY_SOMBRINHA) return this.warnTimes.parasol;
+    if (kind === ENEMY_COMPASSO) return this.warnTimes.compass;
+    if (kind === ENEMY_MOLA) return this.warnTimes.spring;
+    if (kind === ENEMY_IMA) return this.warnTimes.magnet;
+    if (kind === ENEMY_PRUMO) return this.warnTimes.plumb;
+    if (kind === ENEMY_FURADEIRA) return this.warnTimes.drill;
+    if (kind === ENEMY_MARTELO) return this.warnTimes.hammer;
+    if (kind === ENEMY_RAPOSA) return this.warnTimes.fox;
+    if (kind === ENEMY_BALAO) return this.warnTimes.balloon;
+    if (kind === ENEMY_AVIAO) return this.warnTimes.plane;
+    if (kind === ENEMY_MOBILE) return this.warnTimes.mobile;
+    if (kind === ENEMY_CORNETA) return this.warnTimes.horn;
+    if (kind === ENEMY_TORREAO) return this.warnTimes.tower;
     if (kind === ENEMY_SALTADOR) return this.warnTimes.slam;
     if (kind === ENEMY_TINTEIRO) return this.warnTimes.spit;
     if (kind === ENEMY_BORRACHA) return RULES.eraserTurn;
@@ -212,6 +280,183 @@ export class EnemyAnimator {
     const feet = e.y + this.size;
     // Toda habilidade perigosa avisa também no som, no mesmo instante do aviso visual.
     if (e.skill === SKILL_WARN && e.kind !== ENEMY_BORRACHA && e.kind !== ENEMY_BORRAO) som.play('aviso', { x: cx });
+    // Poderes da Floresta.
+    if (e.kind === ENEMY_LAGARTA) {
+      if (e.skill === SKILL_WARN) this.fx.droplets(cx, e.y + this.size / 2, 0xfff3dc, 8, 70, -Math.PI / 2, Math.PI * 2);
+      else if (e.skill === SKILL_ACT) {
+        // Rompeu o casulo: fiapos de seda voando e a borboleta sai.
+        this.fx.droplets(cx, e.y + this.size / 2, 0xfff3dc, 14, 160, -Math.PI / 2, Math.PI * 2);
+        this.fx.sparkle(cx, e.y, 0xd8213f, 8, 10);
+        som.play('chegada', { x: cx });
+      }
+      return;
+    }
+    if (e.kind === ENEMY_GRILO) {
+      if (e.skill === SKILL_WARN) this.fx.dust(cx, feet, 0.5);
+      else if (e.skill === SKILL_ACT) {
+        this.fx.dust(cx, feet, 0.8);
+        this.fx.streaks(cx, e.y + this.size / 2, e.facing, 6);
+      } else if (e.skill === SKILL_REST && prev === SKILL_ACT) {
+        // Pousou do salto longo.
+        som.play('pancada', { x: cx, volume: 0.6 });
+        this.fx.dust(cx, feet, 1);
+        this.fx.shake(140, 0.004);
+      }
+      return;
+    }
+    if (e.kind === ENEMY_CARACOL) {
+      if (e.skill === SKILL_ACT) {
+        som.play('cuspe', { x: cx });
+        this.fx.droplets(cx + e.facing * this.size * 0.4, e.y, 0xc6d64a, 8, 120, -Math.PI / 2 + e.facing * 0.5, 0.8);
+      }
+      return;
+    }
+    if (e.kind === ENEMY_CESTO) {
+      if (e.skill === SKILL_WARN) this.fx.droplets(cx, e.y + this.size, 0xc4511d, 5, 50, Math.PI / 2, 1.4);
+      return;
+    }
+    if (e.kind === ENEMY_OURICO) {
+      if (e.skill === SKILL_ACT) {
+        this.fx.dust(cx, feet, 0.8);
+        this.fx.streaks(cx, e.y + this.size / 2, e.facing, 8);
+        som.play('chute', { x: cx, volume: 0.6 });
+      } else if (e.skill === SKILL_REST) {
+        // Parou tonto: estrelinhas.
+        this.fx.sparkle(cx, e.y - 2, 0xe8b400, 8, 9);
+        this.fx.shake(120, 0.004);
+      }
+      return;
+    }
+    // Poderes da Biblioteca.
+    if (e.kind === ENEMY_MARCADOR) {
+      if (e.skill === SKILL_WARN) this.fx.sparkle(cx, e.y + this.size / 2, 0xffd84a, 6, 9);
+      else if (e.skill === SKILL_REST) {
+        // Apareceu na marca: um estalo de brilho e poeira.
+        this.fx.sparkle(cx, e.y + this.size / 2, 0xffd84a, 10, 12);
+        this.fx.dust(cx, feet, 0.6);
+        som.play('chegada', { x: cx });
+      }
+      return;
+    }
+    if (e.kind === ENEMY_DICIONARIO) {
+      if (e.skill === SKILL_WARN) this.fx.droplets(cx, e.y + this.size / 3, 0xfff6e0, 4, 50, -Math.PI / 2, 1.6);
+      else if (e.skill === SKILL_ACT) this.fx.dust(cx, feet, 0.7);
+      else if (e.skill === SKILL_REST && prev === SKILL_ACT) {
+        som.play('pancada', { x: cx, volume: 0.5 });
+        this.fx.dust(cx, feet, 0.8);
+      }
+      return;
+    }
+    if (e.kind === ENEMY_PERGAMINHO) {
+      if (e.skill === SKILL_ACT) {
+        // Desenrolou: poeira de papel rente ao chão, na frente.
+        this.fx.dust(cx + e.facing * this.size, feet, 0.6);
+        som.play('chute', { x: cx, volume: 0.5 });
+      }
+      return;
+    }
+    if (e.kind === ENEMY_MORCEGO) {
+      if (e.skill === SKILL_ACT) this.fx.streaks(cx, e.y + this.size / 2, e.facing, 5);
+      return;
+    }
+    if (e.kind === ENEMY_CORUJA) {
+      if (e.skill === SKILL_ACT) {
+        som.play('cuspe', { x: cx });
+        this.fx.sparkle(cx, e.y + this.size * 0.35, 0xfff1a8, 8, 9);
+      }
+      return;
+    }
+    // Poderes do Jardim.
+    if (e.kind === ENEMY_VAGALUME) {
+      if (e.skill === SKILL_WARN) this.fx.sparkle(cx, e.y + this.size / 2, 0xd9f45a, 6, 8);
+      else if (e.skill === SKILL_ACT) {
+        // O clarão: brilho em volta e um tranco leve na tela.
+        this.fx.sparkle(cx, e.y + this.size / 2, 0xfff3a0, 16, RULES.flashRadius * TILE);
+        this.fx.shake(120, 0.004);
+        som.play('chegada', { x: cx });
+      }
+      return;
+    }
+    if (e.kind === ENEMY_SAPO) {
+      if (e.skill === SKILL_REST && prev === SKILL_WARN) som.play('cuspe', { x: cx });
+      return;
+    }
+    if (e.kind === ENEMY_BESOURO) {
+      if (e.skill === SKILL_REST && prev === SKILL_WARN) {
+        this.fx.dust(cx + e.facing * this.size * 0.6, feet, 0.6);
+        som.play('chute', { x: cx, volume: 0.5 });
+      }
+      return;
+    }
+    if (e.kind === ENEMY_SINO) {
+      if (e.skill === SKILL_ACT) this.fx.streaks(cx, e.y + this.size / 2, e.facing, 4);
+      return;
+    }
+    if (e.kind === ENEMY_CHAFARIZ) {
+      if (e.skill === SKILL_WARN) this.fx.droplets(cx, e.y, 0x2fbfb2, 5, 50, -Math.PI / 2, 0.8);
+      else if (e.skill === SKILL_ACT) som.play('cuspe', { x: cx });
+      return;
+    }
+    // Poderes da Oficina e do Castelo: o som e a poeira no começo de cada golpe.
+    if (e.kind === ENEMY_COMPASSO || e.kind === ENEMY_MOLA || e.kind === ENEMY_AVIAO) {
+      if (e.skill === SKILL_ACT) {
+        this.fx.streaks(cx, e.y + this.size / 2, e.facing, 6);
+        this.fx.dust(cx, feet, 0.5);
+        som.play('chute', { x: cx, volume: 0.6 });
+      } else if (e.skill === SKILL_REST && prev === SKILL_ACT && e.kind === ENEMY_AVIAO) this.fx.dust(cx, feet, 0.6);
+      return;
+    }
+    if (e.kind === ENEMY_PRUMO) {
+      if (e.skill === SKILL_REST && prev === SKILL_ACT) {
+        // Bateu no chão: a onda corre pelo mesmo trecho que a simulação usa.
+        som.play('pancada', { x: cx });
+        const floor = Math.round(feet / TILE) * TILE;
+        const [left, right] = floorSpan(this.arena, cx, floor, RULES.plumbRadius);
+        this.fx.wave(cx, floor, left, right, RULES.plumbRadius * TILE, RULES.slamWaveTime);
+        this.fx.dust(cx, floor, 1);
+        this.fx.shake(200, 0.006);
+      }
+      return;
+    }
+    if (e.kind === ENEMY_MARTELO) {
+      if (e.skill === SKILL_ACT) {
+        som.play('pancada', { x: cx });
+        this.fx.dust(cx + e.facing * this.size * 0.6, feet, 1.2);
+        this.fx.shake(260, 0.009);
+      }
+      return;
+    }
+    if (e.kind === ENEMY_BALAO) {
+      if (e.skill === SKILL_REST && prev === SKILL_WARN) {
+        som.play('estouro', { x: cx });
+        this.fx.droplets(cx, e.y + this.size / 2, 0xfff6e0, 10, 140, 0, Math.PI * 2);
+      }
+      return;
+    }
+    if (e.kind === ENEMY_RAPOSA) {
+      if (e.skill === SKILL_ACT) som.play('chegada', { x: cx });
+      return;
+    }
+    if (e.kind === ENEMY_IMA || e.kind === ENEMY_FURADEIRA || e.kind === ENEMY_MOBILE || e.kind === ENEMY_CORNETA || e.kind === ENEMY_TORREAO) {
+      if (e.skill === SKILL_REST && prev === SKILL_WARN) som.play('cuspe', { x: cx });
+      return;
+    }
+    if (e.kind === ENEMY_SOMBRINHA) {
+      if (e.skill === SKILL_REST && prev === SKILL_WARN) {
+        // Abriu de uma vez.
+        this.fx.droplets(cx, e.y, 0x2fbfb2, 8, 120, -Math.PI / 2, Math.PI * 0.9);
+        som.play('chute', { x: cx, volume: 0.5 });
+      }
+      return;
+    }
+    if (e.kind === ENEMY_ENCICLOPEDIA) {
+      if (e.skill === SKILL_WARN) this.fx.droplets(cx, e.y + this.size / 3, 0xfff6e0, 5, 60, -Math.PI / 2, 1.4);
+      else if (e.skill === SKILL_ACT) {
+        som.play('cuspe', { x: cx });
+        this.fx.droplets(cx + e.facing * this.size * 0.5, e.y + this.size * 0.4, 0xfff6e0, 6, 120, e.facing > 0 ? -0.3 : Math.PI + 0.3, 0.8);
+      }
+      return;
+    }
     if (e.kind === ENEMY_SALTADOR) {
       if (e.skill === SKILL_WARN) this.fx.dust(cx, feet, 0.4);
       else if (e.skill === SKILL_REST && prev === SKILL_ACT) {
@@ -252,7 +497,7 @@ export class EnemyAnimator {
       const cx = e.x + (e.kind === ENEMY_BORRAO ? this.borraoSize : this.size) / 2;
       const cy = e.y + (e.kind === ENEMY_BORRAO ? this.borraoSize : this.size) / 2;
       if (!s) {
-        s = { x: e.x, y: e.y, vy: 0, dist: 0, mode: e.mode, soak: e.soak, air: false, landAt: -Infinity, seen: now, lastTrail: 0, skill: e.skill, skillAt: now };
+        s = { x: e.x, y: e.y, vx: 0, vy: 0, dist: 0, mode: e.mode, soak: e.soak, air: false, landAt: -Infinity, seen: now, lastTrail: 0, skill: e.skill, skillAt: now };
         this.states.set(e.id, s);
         if (this.primed && live) {
           // Chegou um inimigo novo: cai na página com um respingo.
@@ -264,6 +509,7 @@ export class EnemyAnimator {
       const dx = e.x - s.x;
       if (Math.abs(dx) < 40) s.dist += Math.abs(dx);
       if (dt > 0) s.vy = s.vy * 0.6 + ((e.y - s.y) / dt) * 0.4;
+      if (dt > 0 && Math.abs(dx) < 40) s.vx = s.vx * 0.6 + (dx / dt) * 0.4;
       s.x = e.x;
       s.y = e.y;
       s.seen = now;
@@ -303,6 +549,10 @@ export class EnemyAnimator {
       let sy = 1;
       let angle = 0;
       let flip: boolean | undefined;
+      let center = false;
+      let alpha = 1;
+      // As criaturas da Floresta usam os quadros de quem fazem o papel (na pele delas).
+      const role = enemyRole(e.kind);
       if (e.kind === ENEMY_BORRAO) {
         key = 'borrao';
         const w = Math.sin(now / 170);
@@ -332,16 +582,159 @@ export class EnemyAnimator {
           s.lastTrail = now;
           this.fx.droplets(cx, e.y + this.size - 2, INK_BLUE, 2, 50, -Math.PI / 2, 1.2);
         }
-      } else if (e.kind === ENEMY_GRAMPO) {
+      } else if (e.kind === ENEMY_LAGARTA && e.skill === SKILL_WARN) {
+        // Casulo: pulsa e treme cada vez mais até romper.
+        key = 'lagarta-casulo';
+        angle = 7 * warn * Math.sin(now / 26);
+        sx = 1 + 0.08 * warn * Math.sin(now / 60);
+        sy = 1 - 0.08 * warn * Math.sin(now / 60);
+      } else if (e.kind === ENEMY_LAGARTA && e.skill === SKILL_ACT) {
+        // Borboleta: bate as asas e balança.
+        key = `borboleta-${Math.floor(now / 90) % 2}`;
+        center = true;
+        angle = 6 * Math.sin(now / 200);
+      } else if (e.kind === ENEMY_OURICO && (e.skill === SKILL_ACT || (e.skill === SKILL_WARN && warn > 0.45))) {
+        // Bola de espinhos: gira pelo caminho percorrido; no aviso, já enrolada, gira no lugar.
+        key = 'ourico-bola';
+        center = true;
+        angle = e.skill === SKILL_ACT ? ((e.x / half) * 180) / Math.PI : e.facing * (now * 0.5) % 360;
+        if (e.skill === SKILL_WARN) {
+          sx = 0.85 + 0.15 * warn;
+          sy = sx;
+        }
+      } else if (e.kind === ENEMY_OURICO && e.skill === SKILL_WARN) {
+        // Começando a se enrolar.
+        key = 'borracha';
+        sx = 1 - 0.3 * warn;
+        sy = 1 - 0.25 * warn;
+        angle = e.facing * 25 * warn;
+      } else if (e.kind === ENEMY_OURICO && e.skill === SKILL_REST) {
+        key = 'ourico-tonto';
+        angle = 5 * Math.sin(now / 110);
+      } else if (e.kind === ENEMY_MARCADOR && e.skill === SKILL_WARN) {
+        // Some: gira em torno de si cada vez mais rápido, afinando e apagando.
+        key = 'traca-bote';
+        sx = Math.max(0.12, Math.abs(Math.cos(Math.PI * (1 + 3 * warn) * warn))) * (1 - 0.35 * warn);
+        sy = 1 + 0.12 * warn;
+        alpha = 1 - 0.8 * warn;
+      } else if (e.kind === ENEMY_MARCADOR && e.skill === SKILL_REST) {
+        // Apareceu na marca: acende e estica de uma vez, e assenta.
+        const k = Math.min(1, (now - s.skillAt) / 220);
+        key = tracaKey(0);
+        alpha = 0.3 + 0.7 * k;
+        sx = 0.6 + 0.4 * k;
+        sy = 1.25 - 0.25 * k;
+      } else if (e.kind === ENEMY_PERGAMINHO && e.skill !== SKILL_NONE) {
+        // Parado segurando a ponta (aviso, treme), inclinado para trás enquanto o tapete está aberto.
+        key = grampoKey(0);
+        if (e.skill === SKILL_WARN) {
+          angle = -e.facing * 6 * warn + 2 * Math.sin(now / 24);
+          sx = 1 + 0.06 * warn;
+          sy = 1 - 0.06 * warn;
+        } else if (e.skill === SKILL_ACT) angle = -e.facing * 10;
+      } else if (e.kind === ENEMY_MORCEGO && e.skill === SKILL_ACT) {
+        key = 'morcego-mergulho';
+      } else if (e.kind === ENEMY_VAGALUME && e.skill === SKILL_WARN) {
+        // Acendendo: pulsa cada vez mais rápido.
+        key = 'traca-bote';
+        const p = 0.5 + 0.5 * Math.sin(now / (90 - 50 * warn));
+        sx = 1 + 0.08 * warn * p;
+        sy = 1 + 0.08 * warn * p;
+      } else if (e.kind === ENEMY_COMPASSO && e.skill !== SKILL_NONE && e.skill !== SKILL_REST) {
+        // Ponta cravada: no aviso treme; girando, o corpo acompanha a perna (o braço é desenhado na cena).
+        key = 'traca-bote';
+        angle = e.skill === SKILL_WARN ? 3 * warn * Math.sin(now / 24) : 6 * Math.sin(now / 50);
+      } else if (e.kind === ENEMY_RAPOSA && e.skill === SKILL_WARN) {
+        // Farejando o rastro: nariz no chão.
+        key = 'traca-bote';
+        sy = 1 - 0.06 * warn;
+      } else if (e.kind === ENEMY_RAPOSA && e.skill === SKILL_ACT) {
+        // Seguindo o rastro, aos saltos rápidos.
+        key = tracaKey(Math.floor(now / 70));
+        sx = 1.08;
+        sy = 0.94;
+      } else if (e.kind === ENEMY_AVIAO && e.skill === SKILL_ACT) {
+        // Voando: o nariz aponta para onde vai.
+        key = 'aviao-voo';
+        const dir = (Math.atan2(s.vy, s.vx) * 180) / Math.PI;
+        angle = e.facing > 0 ? dir : dir - 180;
+      } else if (e.kind === ENEMY_AVIAO && e.skill === SKILL_WARN) {
+        // Mirando: nariz para cima, tremendo.
+        key = grampoKey(0);
+        angle = -e.facing * 18 * warn + 2 * Math.sin(now / 24);
+      } else if (e.kind === ENEMY_MARTELO && e.skill === SKILL_WARN) {
+        key = 'martelo-erguido';
+        angle = 3 * warn * Math.sin(now / 22);
+      } else if (e.kind === ENEMY_MARTELO && (e.skill === SKILL_ACT || e.skill === SKILL_REST)) {
+        // Bateu: achatado no chão e assentando.
+        key = 'borracha';
+        const k = Math.min(1, (now - s.skillAt) / 220);
+        sx = 1.15 - 0.15 * k;
+        sy = 0.85 + 0.15 * k;
+      } else if (e.kind === ENEMY_TORREAO && (e.skill === SKILL_WARN || e.skill === SKILL_ACT)) {
+        key = 'torreao-aberto';
+        angle = 2 * warn * Math.sin(now / 26);
+      } else if ((e.kind === ENEMY_BESOURO || e.kind === ENEMY_IMA) && e.skill !== SKILL_NONE) {
+        // Prepara o chute: recua e treme; depois do chute, a perna à frente.
+        key = grampoKey(0);
+        if (e.skill === SKILL_WARN) {
+          angle = -e.facing * 8 * warn + 2 * Math.sin(now / 24);
+          sx = 1 - 0.06 * warn;
+        } else angle = e.facing * 8;
+      } else if (e.kind === ENEMY_SINO && e.skill === SKILL_ACT && e.anchorY >= 0 && e.aimX !== undefined) {
+        // Balançando: o corpo acompanha o fio, inclinado para o ponto onde ele se prende.
+        key = `fiandeira-${Math.floor(now / 120) % 2}`;
+        angle = (-Math.atan2(cx - e.aimX, Math.max(1, cy - e.anchorY)) * 180) / Math.PI;
+      } else if ((e.kind === ENEMY_CHAFARIZ || e.kind === ENEMY_FURADEIRA || e.kind === ENEMY_CORNETA) && (e.skill === SKILL_WARN || e.skill === SKILL_ACT)) {
+        // Transbordando: pulsa no lugar (o jato sai longe dele, no ponto marcado).
+        key = 'tinteiro-carga';
+        const k = e.skill === SKILL_ACT ? 1 : warn;
+        sx = 1 + 0.06 * k * Math.sin(now / 45);
+        sy = 1 - 0.06 * k * Math.sin(now / 45);
+      } else if (e.kind === ENEMY_SOMBRINHA && e.skill === SKILL_WARN) {
+        // Fechada, fazendo força: treme cada vez mais.
+        key = 'sombrinha-fechada';
+        angle = 4 * warn * Math.sin(now / 22);
+        sy = 1 + 0.04 * warn;
+      } else if (e.kind === ENEMY_SOMBRINHA && e.skill === SKILL_REST) {
+        // Abriu de uma vez: estica e assenta.
+        key = 'borracha';
+        const k = Math.min(1, (now - s.skillAt) / 200);
+        sx = 1.15 - 0.15 * k;
+        sy = 0.9 + 0.1 * k;
+      } else if (e.kind === ENEMY_CORUJA && (e.skill === SKILL_WARN || e.skill === SKILL_ACT)) {
+        // Óculos acesos: encara o alvo, pulsando (sem inclinar: o facho pode ir para cima ou para baixo).
+        key = 'tinteiro-carga';
+        const k = e.skill === SKILL_ACT ? 1 : warn;
+        sx = 1 + 0.05 * k * Math.sin(now / 40);
+        sy = 1 - 0.05 * k * Math.sin(now / 40);
+        angle = 1.5 * k * Math.sin(now / 26);
+      } else if (e.kind === ENEMY_ENCICLOPEDIA && e.skill !== SKILL_NONE) {
+        // Aberta: abrindo no aviso (estica e treme), atirando e ainda aberta um tempo.
+        key = 'enciclopedia-aberta';
+        if (e.skill === SKILL_WARN) {
+          sx = 0.85 + 0.15 * warn;
+          angle = 3 * warn * Math.sin(now / 26);
+        } else if (e.skill === SKILL_ACT) {
+          sx = 1.08;
+          sy = 0.94;
+        } else sy = 1 + 0.03 * Math.sin(now / 90);
+      } else if (role === ENEMY_GRAMPO) {
         // Corre aos saltinhos curtos: as pontas trocam e o arco quica.
         key = grampoKey(Math.floor(s.dist / 4));
         sy = 1 + 0.05 * Math.sin(s.dist / 3);
-      } else if (e.kind === ENEMY_FIANDEIRA) {
+      } else if (role === ENEMY_FIANDEIRA) {
         key = `fiandeira-${Math.floor(now / 240) % 2}`;
-        // No fio, balança devagar; solta, anda com as patas.
-        if (e.anchorY >= 0) angle = 7 * Math.sin(now / 320);
+        // No fio, balança devagar; solta, anda com as patas. O cesto, no aviso, treme forte.
+        if (e.anchorY >= 0) angle = e.skill === SKILL_WARN ? 14 * Math.sin(now / 24) : 7 * Math.sin(now / 320);
         else key = `fiandeira-${Math.floor(s.dist / 6) % 2}`;
-      } else if (e.kind === ENEMY_TINTEIRO) {
+      } else if (e.kind === ENEMY_CARACOL && (e.skill === SKILL_WARN || e.skill === SKILL_ACT)) {
+        // Mira para cima: inclina para trás, com a bolha de seiva crescendo.
+        key = 'tinteiro-carga';
+        angle = -e.facing * (e.skill === SKILL_ACT ? 22 : 18 * warn + 2 * Math.sin(now / 26));
+        sx = 1 + 0.06 * warn;
+        sy = 1 - 0.05 * warn;
+      } else if (role === ENEMY_TINTEIRO) {
         if (e.skill === SKILL_WARN) {
           // Aviso do cuspe: inclina para a frente cada vez mais, tremendo.
           key = 'tinteiro-carga';
@@ -355,7 +748,7 @@ export class EnemyAnimator {
           key = `tinteiro-${Math.floor(s.dist / 6) % 2}`;
           if (e.skill === SKILL_REST) angle = e.facing * 10;
         }
-      } else if (e.kind === ENEMY_BORRACHA) {
+      } else if (role === ENEMY_BORRACHA) {
         key = 'borracha';
         if (e.skill === SKILL_WARN) {
           // Gira parada: estreita até ficar de lado e volta já do outro lado.
@@ -364,8 +757,8 @@ export class EnemyAnimator {
         } else {
           sy = 1 + 0.03 * Math.sin(s.dist / 5);
         }
-      } else if (e.kind === ENEMY_SALTADOR) {
-        const air = Math.abs(s.vy) > 25;
+      } else if (role === ENEMY_SALTADOR) {
+        const air = Math.abs(s.vy) > 25 || ((e.kind === ENEMY_GRILO || e.kind === ENEMY_MOLA) && e.skill === SKILL_ACT);
         if (!air && s.air) {
           s.landAt = now;
           this.fx.dust(cx, e.y + this.size, 0.5);
@@ -414,7 +807,7 @@ export class EnemyAnimator {
       } else {
         key = tracaKey(Math.floor(s.dist / 5));
       }
-      out.set(e.id, { key, sx, sy, angle, ...(flip === undefined ? {} : { flip }) });
+      out.set(e.id, { key, sx, sy, angle, ...(flip === undefined ? {} : { flip }), ...(center ? { center } : {}), ...(alpha < 1 ? { alpha } : {}) });
     }
 
     // Quem sumiu: bola que estourou, inimigo derrubado pela bola. Vários no mesmo quadro são um
