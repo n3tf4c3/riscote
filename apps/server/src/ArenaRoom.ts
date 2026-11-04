@@ -15,15 +15,13 @@ import {
   ROOM_CODE_ALPHABET,
   ROOM_CODE_LENGTH,
   TICK_RATE,
-  CHAPTERS,
-  CHAPTER_BOSSES,
+  campaignFrom,
+  chapterPage,
   PHASE_LOBBY,
   ONLINE_FULL,
   ROOM_FULL,
   World,
-  chapterFrom,
   isBossArena,
-  withBoss,
   parseDifficulty,
   parseInput,
   parseLocalKey,
@@ -92,8 +90,6 @@ export class ArenaRoom extends Room<{ state: GameState }> {
   private names = new Map<string, string>();
   /** Aberta: código e nomes na lista da capa. Privada: só a contagem. */
   private open = false;
-  /** Índice em CHAPTERS do capítulo da sala. */
-  private chapterIndex = 0;
   /** Vagas do computador que criou a sala e da internet (pedido do usuário em 2026-11-01). */
   private seatsLocal = 1;
   private seatsOnline = 0;
@@ -117,14 +113,13 @@ export class ArenaRoom extends Room<{ state: GameState }> {
     this.maxClients = seats.local + seats.online;
     // 60 comandos/s mais folga; acima disso o cliente é desconectado.
     this.maxMessagesPerSecond = 120;
-    // Capítulo da arena escolhida na criação da sala, sempre da 1ª fase; o chefe dele fecha o capítulo.
-    const arenas = chapterFrom(options.arenaId);
-    this.chapterIndex = Math.max(0, CHAPTERS.findIndex((c) => c[0]?.id === arenas[0]?.id));
-    const chapter = withBoss(arenas, arenas.length, CHAPTER_BOSSES[this.chapterIndex]);
+    // Campanha a partir do capítulo da arena escolhida, sempre da 1ª fase: cada capítulo fecha com o
+    // chefe dele e, vencido, segue para o próximo com os pontos e as vidas (2026-11-04), até o último.
+    const campaign = campaignFrom(options.arenaId);
     // Só `true` abre a sala: cliente antigo, sem o campo, continua com sala privada.
     this.open = options.open === true;
     const difficulty = parseDifficulty(options.difficulty);
-    this.world = new World(chapter, randomInt(2 ** 31), { waves: this.waves, difficulty });
+    this.world = new World(campaign.arenas, randomInt(2 ** 31), { waves: this.waves, difficulty, chapterEnds: campaign.chapterEnds });
 
     const state = new GameState();
     state.tick = 0;
@@ -171,17 +166,19 @@ export class ArenaRoom extends Room<{ state: GameState }> {
   summary(): RoomSummary {
     const s = this.state;
     const names = this.arrivals.map((id) => s.players.get(id)?.name ?? '').filter(Boolean);
+    const where = chapterPage(this.world.arena.id);
     return {
       code: this.open ? this.roomId : null,
       players: this.world.players.size,
       capacity: this.maxClients,
       vacant: Math.max(0, Math.min(this.seatsOnline - this.count('online'), this.maxClients - this.kinds.size)),
       names: this.open ? names : [],
-      chapter: this.chapterIndex,
+      // O capítulo e a página em que a equipe está agora (a campanha passa de um capítulo para o outro).
+      chapter: where?.chapter ?? 0,
       difficulty: this.world.difficulty,
       playing: this.world.phase !== PHASE_LOBBY,
-      page: this.world.arenaIndex,
-      pages: this.world.chapter.length,
+      page: (where?.page ?? 1) - 1,
+      pages: where?.pages ?? this.world.chapter.length,
     };
   }
 

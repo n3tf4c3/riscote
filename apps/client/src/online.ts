@@ -3,6 +3,7 @@ import { CloseCode, ColyseusSDK, type Room } from '@colyseus/sdk';
 import {
   CHAPTERS,
   CHAPTER_NAMES,
+  chapterPage,
   CLOSE_LOBBY_IDLE,
   LOBBY_IDLE_TEXT,
   DIFFICULTIES,
@@ -831,7 +832,11 @@ export function bootOnline(input: InputSource): void {
     startHint.textContent = session.isHost
       ? 'Você é o anfitrião. Comece (ou aperte Enter) quando todos tiverem entrado: a primeira arena é dimensionada para quem estiver na sala.'
       : 'Aquecimento: aguardando o anfitrião começar a partida.';
-    hud.arena.textContent = `${session.arena.name} (${state.arenaIndex + 1}/${state.arenaCount})`;
+    // A campanha passa por vários capítulos: o painel mostra o capítulo e a página dentro dele.
+    const where = chapterPage(state.arenaId);
+    hud.arena.textContent = where
+      ? `${session.arena.name} (capítulo ${where.chapter + 1}, página ${where.page}/${where.pages})`
+      : `${session.arena.name} (${state.arenaIndex + 1}/${state.arenaCount})`;
     const secs = Math.floor(state.waveTime);
     hud.time.textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}${state.hurry ? ' · borrão!' : ''}`;
     const last = session.reports[session.reports.length - 1];
