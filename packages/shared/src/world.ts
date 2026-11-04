@@ -14,9 +14,10 @@ export const RULES = {
   dropSpeed: 16, // células/s
   dropLife: 0.35, // s
   dropSize: 0.4, // células
-  soakToBall: 4,
-  soakToBallBigTeam: 5, // com 4 ou 5 jogadores
-  soakDecay: 1.5, // s para perder um nível de encharcado
+  // 2026-11-03: eram 4, 5 e 1,5 s; o usuário achou que demorava muito para derrubar.
+  soakToBall: 3,
+  soakToBallBigTeam: 4, // com 4 ou 5 jogadores
+  soakDecay: 2.2, // s para perder um nível de encharcado
   ballTime: 5, // s até a bola se desfazer sozinha
   rollSpeed: 12, // células/s
   rollMaxBounces: 3,

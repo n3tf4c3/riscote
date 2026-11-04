@@ -1198,6 +1198,7 @@ describe('inimigos das fases', () => {
 describe('fases, modos e habilidades', () => {
   const [margem, , poco] = CHAPTERS[0]!;
 
+  // São 40 s de partida em cada arena de capítulo: perto de 5 s de máquina, no limite padrão do vitest.
   it('cada fase faz surgir só os tipos dela, com as habilidades ligadas só onde a fase manda', () => {
     for (const arena of ARENAS) {
       const world = new World(arena, 5);
@@ -1215,7 +1216,7 @@ describe('fases, modos e habilidades', () => {
       }
       expect(seen.size, arena.id).toBeGreaterThan(1);
     }
-  });
+  }, 20_000);
 
   it('fase 1: nenhum aviso de habilidade, mesmo com gente à frente e o tempo passando', () => {
     const world = new World(margem!, 2);
