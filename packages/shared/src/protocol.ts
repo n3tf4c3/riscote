@@ -199,6 +199,8 @@ export interface NetPlayer extends Omit<PlayerState, 'facing'> {
   range: number;
   /** Segundos restantes do item de invencibilidade. */
   star: number;
+  /** Segundos segurando o ataque (tiro carregado); servidor antigo não manda. */
+  charge?: number;
 }
 
 const MAX_SEQ = 2 ** 31 - 1;

@@ -29,6 +29,8 @@ export const PlayerSchema = schema(
     rate: t.uint8(),
     range: t.uint8(),
     star: t.float32(),
+    /** Segundos segurando o ataque (tiro carregado): o cliente mostra o brilho da carga. */
+    charge: t.float32(),
     /** Nome para os outros verem (o escolhido na entrada ou "Jogador N"); fora da simulação. */
     name: t.string(),
   },
@@ -95,6 +97,8 @@ export const DropSchema = schema(
     slot: t.uint8(),
     x: t.float32(),
     y: t.float32(),
+    /** Tinta concentrada (tiro carregado). */
+    big: t.boolean(),
   },
   'Drop',
 );

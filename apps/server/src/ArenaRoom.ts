@@ -14,6 +14,7 @@ import {
   RECORD_NAME_TRIES,
   ROOM_CODE_ALPHABET,
   ROOM_CODE_LENGTH,
+  TICK_DT,
   TICK_RATE,
   campaignFrom,
   chapterPage,
@@ -512,6 +513,7 @@ export class ArenaRoom extends Room<{ state: GameState }> {
       if (!net) {
         net = new DropSchema();
         net.slot = d.slot;
+        net.big = d.big;
         s.drops.set(key, net);
       }
       net.x = d.x;
@@ -545,4 +547,5 @@ function copyPlayer(p: WorldPlayer, net: PlayerSchema): void {
   net.rate = p.rate;
   net.range = p.range;
   net.star = p.star;
+  net.charge = p.chargeTicks * TICK_DT;
 }

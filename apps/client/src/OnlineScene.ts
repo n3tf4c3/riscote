@@ -95,6 +95,7 @@ import { capituloDe, visualDe } from './art/capitulos';
 import { Ambiente } from './ambiente';
 import { ITEM_LIQUIDS } from './art/items';
 import { ArtLayer } from './art/layer';
+import { PLAYER_GLOWS } from './art/riscote';
 import { RES, arenaSpecs, artSize, commonSpecs, loadArt, protecaoKey, riscoteKey, type ArtSpec } from './art/textures';
 import { ROUNDED } from './art/capa';
 import {
@@ -125,6 +126,10 @@ const SHOT_POSE_MS = 160;
 const MAGIC_GOLD = 0xffd54a;
 /** Intervalo entre os brilhinhos do rastro de uma gota. */
 const DROP_TRAIL_MS = 45;
+/** Segurando o ataque por menos que isso, ainda é só um tiro: o brilho da carga não aparece. */
+const CHARGE_SHOW = 0.35;
+/** Tons claros de cada jogador (o brilho da carga). */
+const PLAYER_GLOW_HEX = PLAYER_GLOWS.map((c) => parseInt(c.slice(1), 16));
 /** Centro das auras acima dos pés: o meio do desenho do riscote, que é mais alto que a caixa. */
 const AURA_CENTER = 22;
 const STAR_GOLD = 0xe8b400;
@@ -226,8 +231,15 @@ export class OnlineScene extends Phaser.Scene {
   private generation = 0;
   /** Último disparo visto de cada jogador (por slot), para a pose de tiro. */
   private shotAt: number[] = [];
+  /** Quando o jogador local apertou o ataque (−1 = solto), para o brilho da carga. */
+  private holdStart = -1;
+  /** Carga cheia de cada jogador no quadro anterior (o "pronto!" toca uma vez). */
+  private chargeFull: boolean[] = [];
   /** Último brilhinho do rastro de cada gota. */
   private dropTrail = new Map<string, number>();
+  /** Tintas concentradas de outros jogadores já anunciadas; faíscas da carga de cada um. */
+  private seenBig = new Set<string>();
+  private chargeSparkAt: number[] = [];
   /** Último chute na bola de cada jogador (por slot) e até quando ele comemora (item pego). */
   private kickAt: number[] = [];
   private cheerUntil: number[] = [];
@@ -323,6 +335,8 @@ export class OnlineScene extends Phaser.Scene {
     this.prevY = session.local.y;
     this.lastFrame = performance.now();
     this.shotAt = [];
+    this.holdStart = -1;
+    this.chargeFull = [];
     this.dropTrail.clear();
     this.kickAt = [];
     this.cheerUntil = [];
@@ -439,6 +453,13 @@ export class OnlineScene extends Phaser.Scene {
     const buttons = this.ctx.input.buttons();
     const pressed = buttons & BTN_ATTACK && !(this.prevButtons & BTN_ATTACK);
     if (pressed) this.shotAt[session.slot] = now;
+    // Tiro carregado do jogador local: conta desde o aperto (sem esperar o servidor) e, ao soltar com a carga
+    // cheia, mostra o disparo na hora; quem decide se ele sai é o servidor, com a mesma conta.
+    const holding = (buttons & BTN_ATTACK) !== 0;
+    if (pressed) this.holdStart = now;
+    const released = !holding && this.prevButtons & BTN_ATTACK;
+    const charged = this.holdStart >= 0 && now - this.holdStart >= RULES.chargeTime * 1000;
+    if (!holding) this.holdStart = -1;
     this.prevButtons = buttons;
     // Jogadores a mais nesta tela: cada um com o controle dele, no mesmo passo fixo do primeiro.
     const guests = this.ctx.guests?.() ?? [];
@@ -475,9 +496,15 @@ export class OnlineScene extends Phaser.Scene {
     const local = session.local;
     const localX = this.prevX + (local.x - this.prevX) * alpha;
     const localY = this.prevY + (local.y - this.prevY) * alpha;
+    if (me?.down) this.holdStart = -1;
+    const localCharge = this.holdStart >= 0 ? (now - this.holdStart) / 1000 : 0;
     const localLook: PlayerLook | null = me
-      ? { facing: local.facing, ink: me.ink, down: me.down, rescue: me.rescue, invuln: me.invuln, inkGauge, hp: me.hp, star: me.star }
+      ? { facing: local.facing, ink: me.ink, down: me.down, rescue: me.rescue, invuln: me.invuln, inkGauge, hp: me.hp, star: me.star, charge: localCharge }
       : null;
+    if (released && charged && localLook && !localLook.down && (!inkGauge || localLook.ink >= RULES.chargeInk)) {
+      this.shotAt[session.slot] = now;
+      this.chargedSplash(session.slot, localX, localY, localLook.facing);
+    }
     if (pressed && localLook && !localLook.down) {
       if (this.reachesBall(enemies, localX, localY)) {
         // Chute: perto de uma bola parada o ataque chuta em vez de atirar (o som vem quando ela rola).
@@ -510,6 +537,7 @@ export class OnlineScene extends Phaser.Scene {
       .map((e) => ({ x: e.x + size / 2 + (e.facing * size) / 2, y: e.y + size / 2 }));
     const dropDirs = this.dropWatch.dirs(drops, now, erasers);
     for (const id of this.dropTrail.keys()) if (!drops.some((d) => d.id === id)) this.dropTrail.delete(id);
+    for (const id of this.seenBig) if (!drops.some((d) => d.id === id)) this.seenBig.delete(id);
     const spits = session.spitViews(now);
     const spitDirs = this.watchSpits(spits, live);
     this.updateHint(state.phase, enemies);
@@ -600,13 +628,25 @@ export class OnlineScene extends Phaser.Scene {
       const dropSize = RULES.dropSize * TILE;
       for (const d of drops) {
         const dir = dropDirs.get(d.id) ?? 1;
-        // Rastro de brilhinhos na cor de quem atirou: a gota é um feitiço de tinta.
-        if (now - (this.dropTrail.get(d.id) ?? -Infinity) > DROP_TRAIL_MS) {
+        const size = d.big ? RULES.chargeSize * TILE : dropSize;
+        const cx = d.x + size / 2;
+        const cy = d.y + size / 2;
+        // Rastro de brilhinhos na cor de quem atirou: a gota é um feitiço de tinta; a concentrada solta mais, e dourados.
+        if (now - (this.dropTrail.get(d.id) ?? -Infinity) > (d.big ? DROP_TRAIL_MS / 2 : DROP_TRAIL_MS)) {
           this.dropTrail.set(d.id, now);
-          this.fx.sparkle(d.x + dropSize / 2 - dir * 3, d.y + dropSize / 2, PLAYER_COLORS[d.slot] ?? MAGIC_GOLD, 1, 2);
+          this.fx.sparkle(cx - dir * size * 0.4, cy, PLAYER_COLORS[d.slot] ?? MAGIC_GOLD, d.big ? 2 : 1, d.big ? 5 : 2);
+          if (d.big) this.fx.sparkle(cx - dir * size * 0.5, cy, MAGIC_GOLD, 2, 6);
         }
-        art.draw('gota', d.x + dropSize / 2, d.y + dropSize / 2, DEPTH_ENEMY + 0.5, { flip: dir < 0 });
-        g.lineStyle(1.2, PLAYER_COLORS[d.slot] ?? INK, 0.9).strokeCircle(d.x + dropSize / 2 + dir * 1.5, d.y + dropSize / 2, 4);
+        if (d.big) {
+          // Tinta concentrada: a gota grande, um halo dourado pulsando e o anel na cor de quem atirou.
+          const pulse = Math.sin(now / 45);
+          this.fxBack.fillStyle(MAGIC_GOLD, 0.35 + 0.1 * pulse).fillCircle(cx, cy, size * 0.75 + pulse);
+          art.draw('gota', cx, cy, DEPTH_ENEMY + 0.5, { flip: dir < 0, sx: 2.3, sy: 2.3 });
+          g.lineStyle(2, PLAYER_COLORS[d.slot] ?? INK, 0.95).strokeCircle(cx + dir * 2, cy, size * 0.55);
+          continue;
+        }
+        art.draw('gota', cx, cy, DEPTH_ENEMY + 0.5, { flip: dir < 0 });
+        g.lineStyle(1.2, PLAYER_COLORS[d.slot] ?? INK, 0.9).strokeCircle(cx + dir * 1.5, cy, 4);
       }
       for (const r of remotes) {
         this.drawRiscote(art, r.slot, r.x, r.y, { ...r, inkGauge }, r, now, DEPTH_PLAYER, here.has(r.id));
@@ -670,6 +710,7 @@ export class OnlineScene extends Phaser.Scene {
       facing: look.facing,
     };
     const f = this.riscotes.frame(slot, motion, w, h, look.down, acts, color, now);
+    if (!look.away && !look.down) this.drawCharge(slot, x + w / 2, y + h / 2, look.charge ?? 0, now);
     if (!look.away) {
       // Sombra de aguada no chão: ancora o boneco e encolhe no ar.
       const lift = motion.onGround || look.down ? 1 : 0.6;
@@ -718,12 +759,63 @@ export class OnlineScene extends Phaser.Scene {
     this.fx.droplets(hx, hy, PLAYER_COLORS[slot] ?? INK, 2, 80, facing > 0 ? 0 : Math.PI, 0.8, true);
   }
 
+  /**
+   * Brilho da carga (tiro carregado), atrás do boneco: um halo na cor clara do jogador que cresce com a carga,
+   * faíscas sendo puxadas para ele e, com a carga cheia, o dourado piscando (e um "pronto!" uma vez).
+   */
+  private drawCharge(slot: number, cx: number, cy: number, charge: number, now: number): void {
+    const full = charge >= RULES.chargeTime;
+    if (full && !this.chargeFull[slot]) {
+      this.fx.sparkle(cx, cy, MAGIC_GOLD, 10, 14);
+      som.play('item', { x: cx, slot, volume: 0.7 });
+    }
+    this.chargeFull[slot] = full;
+    if (charge < CHARGE_SHOW) return;
+    const k = Math.min(1, (charge - CHARGE_SHOW) / (RULES.chargeTime - CHARGE_SHOW));
+    const glow = PLAYER_GLOW_HEX[slot] ?? MAGIC_GOLD;
+    if (full) {
+      const blink = Math.floor(now / 70) % 2 === 0;
+      this.fxBack.fillStyle(blink ? MAGIC_GOLD : 0xffffff, 0.45).fillCircle(cx, cy, 17 + 1.5 * Math.sin(now / 40));
+      this.fxBack.lineStyle(1.5, MAGIC_GOLD, 0.9).strokeCircle(cx, cy, 19 + 2 * Math.sin(now / 55));
+    } else {
+      this.fxBack.fillStyle(glow, 0.15 + 0.25 * k).fillCircle(cx, cy, 8 + 9 * k + Math.sin(now / 90));
+    }
+    // Faíscas em volta, mais rápidas conforme enche.
+    if (now - (this.chargeSparkAt[slot] ?? 0) > (full ? 60 : 160 - 90 * k)) {
+      this.chargeSparkAt[slot] = now;
+      const a = Math.random() * Math.PI * 2;
+      const r = 13 + 5 * Math.random();
+      this.fx.sparkle(cx + Math.cos(a) * r, cy + Math.sin(a) * r, full ? MAGIC_GOLD : glow, 1, 2);
+    }
+  }
+
+  /** O disparo da tinta concentrada: estouro dourado na ponta do pincel, respingo grosso e um tranco. */
+  private chargedSplash(slot: number, x: number, y: number, facing: number): void {
+    const params = this.ctx.session()?.params;
+    if (!params) return;
+    const w = params.playerWidth * TILE;
+    const h = params.playerHeight * TILE;
+    const hx = x + w / 2 + facing * w * 1.1;
+    const hy = y + h * 0.4;
+    this.fx.sparkle(hx, hy, MAGIC_GOLD, 14, 14);
+    this.fx.sparkle(hx, hy, 0xffffff, 6, 9);
+    this.fx.droplets(hx, hy, 0x2f6fd6, 10, 170, facing > 0 ? 0 : Math.PI, 0.9, true);
+    this.fx.streaks(hx, hy, facing, 6);
+    this.fx.shake(140, 0.005);
+    som.play('tiro', { x: hx, slot, rate: 0.6, volume: 1 });
+    som.play('chute', { x: hx, slot, rate: 1.3, volume: 0.6 });
+  }
+
   /** Gota nova junto de um jogador remoto: ele acabou de atirar. */
-  private noteShots(remotes: Array<{ slot: number; x: number; y: number; facing: number; down: boolean }>, drops: Array<{ slot: number; x: number; y: number }>, now: number): void {
+  private noteShots(remotes: Array<{ slot: number; x: number; y: number; facing: number; down: boolean }>, drops: Array<{ id: string; slot: number; x: number; y: number; big?: boolean }>, now: number): void {
     for (const d of drops) {
       const r = remotes.find((p) => p.slot === d.slot);
       if (!r || Math.abs(d.x - r.x) >= TILE * 1.3 || Math.abs(d.y - r.y) >= TILE * 1.3) continue;
-      if (now - (this.shotAt[d.slot] ?? -Infinity) > SHOT_POSE_MS && !r.down) {
+      if (d.big && !this.seenBig.has(d.id) && !r.down) {
+        // Tinta concentrada de outro jogador.
+        this.seenBig.add(d.id);
+        this.chargedSplash(r.slot, r.x, r.y, r.facing);
+      } else if (!d.big && now - (this.shotAt[d.slot] ?? -Infinity) > SHOT_POSE_MS && !r.down) {
         this.shotSplash(r.slot, r.x, r.y, r.facing);
         som.play('tiro', { x: r.x, slot: r.slot });
       }

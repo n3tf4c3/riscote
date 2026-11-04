@@ -52,6 +52,14 @@ export const RULES = {
   itemSize: 0.8, // células
   invincibleTime: 6, // s
   ratePerLevel: 0.75, // multiplica a cadência de tiro por nível
+  // Tiro carregado (pedido do usuário em 2026-11-04): segurar o ataque por chargeTime e soltar dispara uma
+  // bola de tinta concentrada, grande e mais lenta, que vira em bola quem toca (escudo de frente não
+  // segura) e atravessa vários. O aperto continua atirando a gota normal na hora.
+  chargeTime: 3, // s segurando
+  chargeSize: 0.9, // células
+  chargeSpeed: 11, // células/s
+  chargeLife: 0.9, // s (o item de alcance aumenta, como na gota)
+  chargeInk: 3, // tinta gasta no difícil (sem ela, não sai)
   dropSpeedPerLevel: 0.2, // +20% de velocidade da gota por nível
   rangePerLevel: 0.35, // +35% de alcance da gota por nível
   // Habilidades dos inimigos: cada uma tem um aviso antes de acontecer (no mínimo 0,6 s; mais longo no fácil).
@@ -443,6 +451,8 @@ export const SPIT_ESTRELA = 11;
 export const SPIT_NOTA = 12;
 /** Flecha do torreão: cai até a marca no chão (`landY`). */
 export const SPIT_FLECHA = 13;
+/** Ticks segurando o ataque até a carga encher (RULES.chargeTime). */
+export const CHARGE_TICKS = Math.round(RULES.chargeTime / TICK_DT);
 export const MODE_WALK = 0;
 export const MODE_BALL = 1;
 export const MODE_ROLL = 2;
@@ -839,6 +849,8 @@ export interface WorldPlayer {
   star: number;
   /** Itens pegos (métrica). */
   items: number;
+  /** Ticks seguidos com o ataque apertado (tiro carregado); zera ao soltar ou ser derrubado. */
+  chargeTicks: number;
 }
 
 export interface Item {
@@ -940,6 +952,10 @@ export interface Drop {
   life: number;
   /** Quanto encharca ao acertar (1 + nível de força de quem atirou). */
   power: number;
+  /** Tinta concentrada (tiro carregado): grande, atravessa e ignora o escudo de frente. */
+  big: boolean;
+  /** Inimigos que a tinta concentrada já acertou (cada um uma vez só). */
+  hit: number[];
 }
 
 /**
@@ -1106,7 +1122,7 @@ export class World {
       ink: RULES.tankSize, cooldown: 0,
       down: false, downTime: 0, rescue: 0,
       invuln: RULES.invulnTime, kills: 0, away: false, hp: this.hitsToDown,
-      strength: 0, speed: 0, rate: 0, range: 0, star: 0, items: 0,
+      strength: 0, speed: 0, rate: 0, range: 0, star: 0, items: 0, chargeTicks: 0,
     };
     this.players.set(id, player);
     return player;
@@ -1130,11 +1146,18 @@ export class World {
     if (!p) return;
     const pressed = buttons & ~p.body.prevButtons;
     if (p.down) {
+      p.chargeTicks = 0;
       stepDowned(p.body, buttons, this.arena, this.speedParams[p.speed]!);
       return;
     }
     stepPlayer(p.body, buttons, this.arena, this.speedParams[p.speed]!);
     if (pressed & BTN_ATTACK) this.attack(p);
+    // Tiro carregado: conta enquanto o ataque está apertado; soltar com a carga cheia dispara a tinta concentrada.
+    if (buttons & BTN_ATTACK) p.chargeTicks = Math.min(CHARGE_TICKS, p.chargeTicks + 1);
+    else {
+      if (p.chargeTicks >= CHARGE_TICKS) this.chargedShot(p);
+      p.chargeTicks = 0;
+    }
   }
 
   /** Avança o mundo um tick (depois dos comandos do tick). */
@@ -1322,6 +1345,28 @@ export class World {
     });
   }
 
+  /** Tinta concentrada: sai da ponta do pincel para o lado em que o boneco olha. */
+  private chargedShot(p: WorldPlayer): void {
+    if (this.limitedInk) {
+      if (p.ink < RULES.chargeInk) return;
+      p.ink -= RULES.chargeInk;
+    }
+    this.playerStats(p).shots++;
+    const box = bodyBox(p.body, this.params);
+    const size = RULES.chargeSize * TILE;
+    const id = this.nextId++;
+    this.drops.set(id, {
+      id, owner: p.id, slot: p.slot,
+      x: p.body.facing > 0 ? box.x + box.w - size * 0.3 : box.x - size * 0.7,
+      y: box.y + box.h * 0.4 - size / 2,
+      vx: p.body.facing * RULES.chargeSpeed * TILE,
+      life: RULES.chargeLife * (1 + RULES.rangePerLevel * p.range),
+      // Encharca o suficiente para virar bola de uma vez, mesmo com a equipe grande.
+      power: RULES.soakToBallBigTeam + p.strength,
+      big: true, hit: [],
+    });
+  }
+
   private attack(p: WorldPlayer): void {
     const reach = bodyBox(p.body, this.params, 2);
     for (const e of this.enemies.values()) {
@@ -1350,12 +1395,13 @@ export class World {
       vx: p.body.facing * RULES.dropSpeed * TILE * (1 + RULES.dropSpeedPerLevel * p.rate),
       life: RULES.dropLife * (1 + RULES.rangePerLevel * p.range),
       power: 1 + p.strength,
+      big: false, hit: [],
     });
   }
 
   private stepDrops(dt: number): void {
-    const size = RULES.dropSize * TILE;
     for (const d of this.drops.values()) {
+      const size = (d.big ? RULES.chargeSize : RULES.dropSize) * TILE;
       d.x += d.vx * dt;
       d.life -= dt;
       const col = Math.floor((d.x + size / 2) / TILE);
@@ -1367,6 +1413,10 @@ export class World {
       const box = { x: d.x, y: d.y, w: size, h: size };
       if (this.boss?.soakHit(box, d.power)) {
         this.drops.delete(d.id);
+        continue;
+      }
+      if (d.big) {
+        this.stepBigDrop(d, box);
         continue;
       }
       // Tinta contra o cuspe do tinteiro (ou o graveto, ou a seiva): as duas se desmancham.
@@ -1403,6 +1453,20 @@ export class World {
         this.soak(e, d.power);
         break;
       }
+    }
+  }
+
+  /**
+   * Tinta concentrada: desmancha cuspes e brotos no caminho e segue; cada inimigo que toca (fora a bola
+   * rolando e o borrão) vira bola na hora, mesmo de escudo de frente. Ela atravessa todos.
+   */
+  private stepBigDrop(d: Drop, box: Box): void {
+    for (const s of [...this.spits.values()]) if (overlaps(box, spitBox(s))) this.spits.delete(s.id);
+    for (const s of [...this.sprouts.values()]) if (overlaps(box, sproutBox(s))) this.sprouts.delete(s.id);
+    for (const e of this.enemies.values()) {
+      if (e.mode === MODE_ROLL || e.kind === ENEMY_BORRAO || d.hit.includes(e.id) || !overlaps(box, enemyBox(e))) continue;
+      d.hit.push(e.id);
+      this.soak(e, d.power);
     }
   }
 

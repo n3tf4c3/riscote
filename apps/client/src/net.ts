@@ -81,6 +81,8 @@ export interface NetDrop {
   slot: number;
   x: number;
   y: number;
+  /** Tinta concentrada (tiro carregado); servidor antigo não manda. */
+  big?: boolean;
 }
 
 /** Forma do estado sincronizado (o cliente decodifica por reflexão, sem importar o schema do servidor). */
@@ -134,6 +136,8 @@ export interface PlayerView extends Positioned {
   away: boolean;
   hp: number;
   star: number;
+  /** Segundos segurando o ataque (tiro carregado). */
+  charge: number;
   /** Para escolher a pose do desenho (corrida, pulo, queda). */
   vx: number;
   vy: number;
@@ -342,6 +346,7 @@ export class OnlineSession {
       others.push({
         id, slot: p.slot, x: p.x, y: p.y, facing: p.facing,
         ink: p.ink, down: p.down, rescue: p.rescue, invuln: p.invuln, away: p.away, hp: p.hp, star: p.star,
+        charge: p.charge ?? 0,
         vx: p.vx, vy: p.vy, onGround: p.onGround,
       });
     });
@@ -354,7 +359,7 @@ export class OnlineSession {
     this.enemies.push(now, enemies);
 
     const drops: DropView[] = [];
-    state.drops.forEach((d, id) => drops.push({ id, slot: d.slot, x: d.x, y: d.y }));
+    state.drops.forEach((d, id) => drops.push({ id, slot: d.slot, x: d.x, y: d.y, big: d.big ?? false }));
     this.drops.push(now, drops);
 
     const spits: SpitView[] = [];
