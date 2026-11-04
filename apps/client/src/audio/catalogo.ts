@@ -40,6 +40,11 @@ export const MUSICAS = {
   'partituras': { loopSeconds: 27.428563, layers: true },
   'chefe': { loopSeconds: 25.600000, layers: true },
   'capa': { loopSeconds: 40.000000, layers: false },
+  'floresta': { loopSeconds: 29.090917, layers: true },
+  'biblioteca': { loopSeconds: 32.000000, layers: true },
+  'jardim': { loopSeconds: 27.826083, layers: true },
+  'oficina': { loopSeconds: 26.666667, layers: true },
+  'castelo': { loopSeconds: 26.301375, layers: true },
 } as const;
 
 export type SomNome = keyof typeof SONS;

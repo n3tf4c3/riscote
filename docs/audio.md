@@ -10,8 +10,8 @@ O Riscote acontece numa folha de papel: bonecos de nanquim, monstros de papelari
 
 - **Clima:** leve, saltitante, cooperativo e com humor. Tensão só quando o jogo pede (borrão, chefe), nunca agressiva. Derrota sem drama: um amigo pode levantar você.
 - **Efeitos (foley de papelaria):** tinta molhada (respingo, bolhas, "plic"), papel (folha virando, estalos), pincel e bico de pena (jato, pincelada), madeira oca (chute, carimbo), vidro (tinteiro), plástico (caneta sem carga) e borracha (apagar). Nada de laser, explosão ou bipe eletrônico.
-- **Música (instrumental, acústica e "de brinquedo"):** pizzicato de cordas, contrabaixo dedilhado, piano de brinquedo, marimba, glockenspiel, clarinete e bateria de vassourinha; a capa usa caixinha de música e celesta, o capítulo 2 sanfona e assobio, o chefe tuba, tímpano e bloco de madeira. Andamento de 96–150 bpm com swing leve, tonalidades maiores; o chefe vai para ré menor.
-- **Um tema só:** os dois capítulos tocam a mesma melodia em roupas diferentes (Fá com piano de brinquedo; Sol com assobio e sanfona), e a capa toca uma versão lenta. O chefe tem tema próprio.
+- **Música (instrumental, acústica e "de brinquedo"):** pizzicato de cordas, contrabaixo dedilhado, piano de brinquedo, marimba, glockenspiel, clarinete e bateria de vassourinha; a capa usa caixinha de música e celesta, o chefe tuba, tímpano e bloco de madeira, e cada capítulo temático tem a sua banda (flauta na Floresta, caixinha e clarinete na Biblioteca, marimba e glockenspiel no Jardim, piano de brinquedo e engrenagens de bloco na Oficina, glockenspiel, clarinete, tuba e tímpano no Castelo). Andamento de 96–150 bpm com swing leve, tonalidades maiores; o chefe vai para ré menor.
+- **Um tema só:** todos os capítulos tocam a mesma melodia em roupas diferentes (Fá com piano de brinquedo no Caderno; Ré, Mi bemol, Si bemol, Dó e Lá nos capítulos temáticos), e a capa toca uma versão lenta. O chefe tem tema próprio. A `partituras` (Sol, assobio e sanfona) era a do antigo capítulo 2 e ficou sem capítulo em 2026-11-04.
 - **Mesma banda nas vinhetas:** arena limpa, capítulo, começo, fim de jogo e a derrota do chefe usam os timbres da trilha.
 - **Hierarquia na mixagem:** o próprio jogador na frente (sons de outros jogadores a 55%), perigos com aviso sonoro claro, música por baixo (barramento separado, 50% por padrão) e um limitador suave no fim, para 5 jogadores atirando juntos não estourarem.
 - **Durações:** ações repetidas curtas (0,1–0,4 s), reações de 0,5–1 s, vinhetas de 2–5 s e trilhas em loop de 25–40 s.
@@ -90,22 +90,27 @@ Prioridade: **P0** = primeiro lote (validar a identidade); **P1** = completa o j
 | Arquivo | Momento | Descrição | Duração | Loop | Prioridade | Estado |
 | --- | --- | --- | --- | --- | --- | --- |
 | `caderno-base` + `caderno-camada` | Capítulo 1 (Caderno), incluindo o aquecimento | Fá maior, 136 bpm, swing; base: baixo, pizzicato, piano de brinquedo e vassourinha; camada: marimba, clarinete, ganzá e palmas | 28,2 s | sim | P0 | provisória (procedural) |
-| `partituras-base` + `partituras-camada` | Capítulo 2 (Partituras e mapas), incluindo o aquecimento | O mesmo tema em Sol, 140 bpm; assobio na melodia, sanfona nos contratempos; camada: marimba, celesta, ganzá e palmas | 27,4 s | sim | P1 | provisória (procedural) |
+| `partituras-base` + `partituras-camada` | Sem capítulo desde 2026-11-04 (era o antigo capítulo 2, Partituras e mapas, e depois a de todos os capítulos temáticos); fica no catálogo de reserva | O mesmo tema em Sol, 140 bpm; assobio na melodia, sanfona nos contratempos; camada: marimba, celesta, ganzá e palmas | 27,4 s | sim | P1 | provisória (procedural) |
 | `chefe-base` + `chefe-camada` | Página do Mata-Borrão | Ré menor, 150 bpm, marcha de vilão engraçado: tuba, tímpano, pizzicato grave, clarinete, bloco e piano espetando; camada (da 2ª fase dele): marimba em semicolcheias, ganzá, palmas e rufos | 25,6 s | sim | P1 | provisória (procedural) |
+| `floresta-base` + `floresta-camada` | Capítulo 2 (Floresta Encantada), incluindo o aquecimento | Ré maior, 132 bpm, balanço de 6/8 (swing 0,16); base: baixo, pizzicato, flauta de madeira na melodia, vassourinha e um passarinho de glockenspiel a cada dois compassos; camada: marimba, assobio segurando a terça, ganzá e palmas | 29,1 s | sim | P1 | provisória (procedural) |
+| `biblioteca-base` + `biblioteca-camada` | Capítulo 3 (Biblioteca dos Sonhos), incluindo o aquecimento | Mi bemol maior, 120 bpm, swing leve; base: baixo, celesta nos contratempos, caixinha de música na melodia (ligada) com clarinete macio uma oitava abaixo, bateria leve (bumbo no 1, aro no 4, chimbal macio); camada: glockenspiel em colcheias, clarinete segurando a terça, ganzá e palmas | 32,0 s | sim | P1 | provisória (procedural) |
+| `jardim-base` + `jardim-camada` | Capítulo 4 (Jardim das Lanternas), incluindo o aquecimento | Si bemol maior, 138 bpm, balanço suave; base: baixo, pizzicato leve, marimba na melodia com o glockenspiel uma oitava acima, vassourinha; camada: caixinha de música em colcheias, celesta segurando a terça, ganzá e palmas | 27,8 s | sim | P1 | provisória (procedural) |
+| `oficina-base` + `oficina-camada` | Capítulo 5 (Oficina Mágica), incluindo o aquecimento | Dó maior, 144 bpm, reto; base: baixo, pizzicato curtinho, piano de brinquedo em staccato, vassourinha e duas engrenagens de bloco de madeira em semicolcheias (grave e aguda, defasadas); camada: marimba em semicolcheias, clarinete, ganzá e palmas | 26,7 s | sim | P1 | provisória (procedural) |
+| `castelo-base` + `castelo-camada` | Capítulo 6 (Castelo das Nuvens), incluindo o aquecimento | Lá maior, 146 bpm, fanfarra leve; base: tuba, pizzicato, glockenspiel na melodia com o clarinete uma oitava abaixo, marcha (bumbo, vassourinha, chimbal) e tímpano no 1 de cada compasso; camada: marimba em semicolcheias, sanfona segurando a terça, ganzá, palmas e rufos de tímpano no fim das frases | 26,3 s | sim | P1 | provisória (procedural) |
 | `capa-base` | Capa e menu | O tema lento na caixinha de música, celesta em arpejo, baixo em mínimas, sem bateria e sem camada | 40 s | sim | P1 | provisória (procedural) |
 
 ## Como os arquivos são feitos
 
 ### Efeitos e trilhas: síntese procedural (este repositório)
 
-Todos os efeitos e as quatro trilhas são sintetizados por código em `audio/`, sem amostras de terceiros:
+Todos os efeitos e as nove trilhas são sintetizados por código em `audio/`, sem amostras de terceiros:
 
 | Arquivo | Conteúdo |
 | --- | --- |
 | `audio/dsp.ts` | Primitivas: ruído com semente, biquad variável, envelopes, bolha (Minnaert), corda dedilhada (Karplus-Strong), sino FM, modos de madeira e metal, osciladores, reverb Schroeder |
-| `audio/instrumentos.ts` | A banda: pizzicato, contrabaixo, piano de brinquedo, marimba, glockenspiel, clarinete, caixinha de música, celesta, sanfona, assobio, tuba, tímpano, bloco, bumbo, vassourinha, chimbal, palmas e ganzá |
+| `audio/instrumentos.ts` | A banda: pizzicato, contrabaixo, piano de brinquedo, marimba, glockenspiel, clarinete, caixinha de música, celesta, sanfona, assobio, flauta de madeira, tuba, tímpano, bloco, bumbo, vassourinha, chimbal, palmas e ganzá |
 | `audio/sfx.ts` | Receitas dos efeitos e das vinhetas: camadas, parâmetros, variações, volume no jogo, intervalo mínimo e loop |
-| `audio/musica.ts` | Harmonia, melodia e arranjo das trilhas, e a renderização em loop |
+| `audio/musica.ts` | Harmonia, melodia e arranjo das trilhas (`arranjo` rearranja o tema para cada capítulo temático), e a renderização em loop |
 | `audio/gerar.ts` | Masters + catálogo do cliente + relatório de verificação |
 | `audio/codificar.sh` | Conversão para OGG e MP3 |
 
@@ -120,6 +125,7 @@ bash audio/codificar.sh
 ```
 
 - `node audio/gerar.ts tiro pulo` refaz só os nomes indicados; o catálogo sai completo do mesmo jeito.
+- `bash audio/codificar.sh floresta jardim` codifica só os masters desses nomes (`floresta-base`, `floresta-camada`...). Sem nomes, codifica todos os masters que existirem; um tipo sem masters (eles ficam fora do Git) é pulado. Codificar de novo um som que não mudou troca o arquivo do jogo à toa, porque o OGG sai diferente a cada vez.
 - A semente é fixa por nome e variação, então o mesmo código gera o mesmo arquivo.
 - **Masters:** `audio/masters/` em WAV 48 kHz, 24 bits (efeitos mono, música estéreo), pico em −1 dBFS. Ficam fora do Git (`.gitignore`), porque são refeitos de forma determinística a partir do código.
 - **Nível das trilhas:** a base de toda trilha fica em −19 dBFS RMS (o pico da soma das camadas limita a −1 dBFS), para a troca de trilha não mudar o volume.
@@ -147,7 +153,7 @@ Depois de gerar: escolher a melhor tomada, cortar no Audacity (seção abaixo), 
 
 ### Trilha final com Suno (pendente; interface manual)
 
-As quatro trilhas procedurais são provisórias e servem para validar andamento, timbres e mixagem. Para a versão final, os prompts abaixo vão para o Suno no **modo Custom**, com **Instrumental** ligado. Os nomes de artistas ou jogos ficam de fora: a referência ao Snow Bros é só de ritmo, e o projeto proíbe copiar.
+As trilhas procedurais são provisórias e servem para validar andamento, timbres e mixagem. Para a versão final, os prompts abaixo vão para o Suno no **modo Custom**, com **Instrumental** ligado. Os nomes de artistas ou jogos ficam de fora: a referência ao Snow Bros é só de ritmo, e o projeto proíbe copiar.
 
 | Faixa | Style of Music | Título |
 | --- | --- | --- |
@@ -155,6 +161,11 @@ As quatro trilhas procedurais são provisórias e servem para validar andamento,
 | Capítulo 2 | `whimsical folk chamber, accordion lead, whistling melody, pizzicato strings, upright bass, glockenspiel, brushed drums, 140 bpm, G major, adventurous, map-reading mood, instrumental, no vocals` | Riscote - Partituras e mapas |
 | Chefe | `quirky villain march, bass clarinet, tuba, low pizzicato, wooden percussion, timpani, toy piano stabs, 150 bpm, D minor, tense but funny, cartoon boss battle, instrumental, no vocals` | Riscote - Mata-Borrão |
 | Capa | `gentle music box and celesta, soft pizzicato, warm upright bass, 96 bpm, F major, cozy, sketchbook, inviting, instrumental, no vocals` | Riscote - Capa |
+| Floresta Encantada | `sunny forest folk, wooden flute lead, pizzicato strings, upright bass, marimba, light brushed drums, birdlike glockenspiel accents, 6/8 lilt, 132 bpm, D major, cheerful morning, cartoon adventure, instrumental, no vocals` | Riscote - Floresta Encantada |
+| Biblioteca dos Sonhos | `dreamy night lullaby swing, music box lead, soft clarinet doubling an octave below, celesta, upright bass, sparkling glockenspiel, very light drums, 120 bpm, E-flat major, starry, cozy, gently danceable, instrumental, no vocals` | Riscote - Biblioteca dos Sonhos |
+| Jardim das Lanternas | `warm sunset garden groove, marimba lead with glockenspiel doubling, soft pizzicato, upright bass, music box twinkles, brushed drums, gentle swing, 138 bpm, B-flat major, lantern light, peaceful but playful, instrumental, no vocals` | Riscote - Jardim das Lanternas |
+| Oficina Mágica | `quirky clockwork workshop, toy piano staccato lead, short pizzicato, upright bass, ticking wood blocks like gears, marimba sixteenths, brushed drums, straight rhythm, 144 bpm, C major, mechanical, inventive, funny, instrumental, no vocals` | Riscote - Oficina Mágica |
+| Castelo das Nuvens | `bright light fanfare, glockenspiel lead with clarinet an octave below, tuba bass, pizzicato, timpani on the downbeat, marching brushed drums, 146 bpm, A major, grand finale, luminous, joyful, cartoon adventure, instrumental, no vocals` | Riscote - Castelo das Nuvens |
 
 Na caixa de letra, com o modo Instrumental ligado, a estrutura pode ir como marcação, sem palavras cantadas:
 
@@ -202,13 +213,14 @@ Para cada faixa, gerar 4 versões, escolher pelo ritmo e pela clareza (a melodia
   - `bossView.ts`: entrada, carimbo, aviso, golpe, pesado, derrota e o borrão da chuva caindo;
   - `OnlineScene.ts`: tiro ou tinta vazia, recarga, proteção, item, manchas, as vinhetas por fase e a trilha;
   - `online.ts`: a trilha da capa na capa e ao voltar para ela.
-- Trilhas: `capa` na capa; na sala, a do capítulo (`caderno` ou `partituras`, já no aquecimento) e `chefe` na página do Mata-Borrão. A camada entra com o borrão (`hurry`) e quando o chefe chega a 60% da vida (a 2ª fase dele). A música abaixa para 30% nas vinhetas e no fim de jogo.
+- Trilhas: `capa` na capa; na sala, a do capítulo, já no aquecimento (`TRILHAS` em `OnlineScene.ts`, na ordem de `CHAPTERS`: `caderno`, `floresta`, `biblioteca`, `jardim`, `oficina` e `castelo`), e `chefe` na página do chefe de qualquer capítulo. A camada entra com o borrão (`hurry`) e quando o chefe chega a 60% da vida (a 2ª fase dele). A música abaixa para 30% nas vinhetas e no fim de jogo.
 
 ## Origem e licença
 
 | Material | Origem | Licença |
 | --- | --- | --- |
 | Todos os efeitos e as trilhas `caderno`, `partituras`, `chefe` e `capa` | Sintetizados pelo código de `audio/`, escrito para o projeto em 2026-10-21; sem amostras, gravações ou trechos de terceiros | Do projeto, como o restante do código |
+| Trilhas `floresta`, `biblioteca`, `jardim`, `oficina` e `castelo` e o instrumento `flauta` | Sintetizados pelo mesmo código em 2026-11-04, a partir do tema do caderno; sem amostras, gravações ou trechos de terceiros | Do projeto |
 | Melodias e harmonias | Compostas nota a nota em `audio/musica.ts` e `audio/sfx.ts` | Do projeto |
 | Ferramentas | `ffmpeg`, `libvorbis` e `libmp3lame` do Alpine, usados só para converter; não entram no jogo | Não se aplicam aos arquivos gerados |
 | ElevenLabs (futuro) | Se autorizado | Os termos dependem do plano: conferir na hora o uso comercial e a atribuição exigida no plano gratuito |
@@ -236,6 +248,21 @@ Cada arquivo externo novo deve entrar nesta tabela com serviço, data, plano, pr
   - desligar a música para a trilha e zera o barramento; desligar os efeitos zera o barramento e nada toca; religar volta ao normal;
   - nenhum erro de áudio no console.
 - `pnpm typecheck`, `pnpm test` (208 + 55) e `pnpm client:build` passaram; o build leva os 106 arquivos de efeitos e os 14 das trilhas para `dist/`.
+
+**Trilhas dos capítulos temáticos (feita em 2026-11-04):**
+- `node audio/gerar.ts floresta biblioteca jardim oficina castelo` (só as cinco; os outros arquivos do jogo ficaram iguais byte a byte). Base e camada de cada trilha com o mesmo comprimento.
+
+  | Trilha | Loop | Pico (base / camada) | RMS da base | Emenda (percentil dos saltos, base / camada) | OGG (base + camada) | MP3 (base + camada) |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | `floresta` | 29,091 s | −4,0 / −6,9 dBFS | −20,0 dBFS | 19,5–33,6 / 71,6–85,5 | 1.113 KB | 1.166 KB |
+  | `biblioteca` | 32,000 s | −4,7 / −12,4 dBFS | −18,7 dBFS | 2,3–35,6 / 26,6–72,8 | 1.202 KB | 1.282 KB |
+  | `jardim` | 27,826 s | −3,6 / −8,2 dBFS | −18,8 dBFS | 54,9–80,4 / 31,2–48,1 | 1.065 KB | 1.116 KB |
+  | `oficina` | 26,667 s | −3,4 / −7,7 dBFS | −19,3 dBFS | 96,2–96,3 / 67,0–74,1 | 1.040 KB | 1.069 KB |
+  | `castelo` | 26,301 s | −5,0 / −6,1 dBFS | −19,1 dBFS | 84,0–85,2 / 4,9–6,4 | 1.028 KB | 1.054 KB |
+
+- `bash audio/codificar.sh floresta biblioteca jardim oficina castelo`; o `client:build` leva os 34 arquivos das trilhas (20 novos) e os 106 dos efeitos para `dist/`.
+- `pnpm typecheck`, `pnpm test` (448 + 72) e `pnpm client:build` passaram.
+- Não ouvidas: o agente não consegue ouvir; falta o usuário conferir no jogo.
 
 **Auditiva:** o usuário ouviu e aprovou a identidade no primeiro lote e, depois, os sons P1. O agente não consegue ouvir.
 
@@ -273,3 +300,4 @@ Verificado em 2026-10-21, depois do merge do áudio (`d38eb59`): **o áudio não
 3. Suno: geração manual pelos prompts acima, exportação e preparo no Audacity.
 4. Teste com 5 jogadores reais e em celular (Safari usa o MP3; conferir a emenda dos loops lá).
 5. A sequência de partida completa até o chefe não rodou no navegador em tempo real (o painel estava escondido), nem pelo site público.
+6. Ouvir as trilhas dos capítulos temáticos no jogo (2026-11-04) e, se aprovadas, gerar as versões finais no Suno pelos prompts acima.

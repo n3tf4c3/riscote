@@ -11,11 +11,11 @@
     "test": "echo \"mobile: sem testes (o jogo é testado em @riscote/shared e no servidor)\""
   },
   "dependencies": {
-    "expo": "~58.0.16",
+    "expo": "~58.0.22",
     "expo-navigation-bar": "~58.0.4",
-    "expo-status-bar": "~58.0.3",
+    "expo-status-bar": "~58.0.4",
     "react": "19.3.0",
-    "react-native": "0.88.0",
+    "react-native": "0.88.1",
     "react-native-webview": "14.0.1"
   },
   "devDependencies": {

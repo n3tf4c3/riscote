@@ -12,17 +12,21 @@ allowBuilds:
   # sem ele o msgpackr usa a implementação em JS puro.
   msgpackr-extract: false
 
-# Auditoria de 2026-10-23, achado 5: o xcode (plugins de configuração do Expo) pede uuid 7, com
-# o GHSA-w5hq-g745-h8pq. Ele só usa uuid.v4(), que a 11 mantém em CommonJS.
+# Auditoria, achado 7 (2026-11-04, decisão do usuário: atualizar em vez de aceitar): o CLI do Expo
+# (@expo/cli, @expo/fingerprint) pede glob 13 e minimatch 10, com o GHSA-3g3m-2fjr-6pw4 (glob) e o
+# GHSA-g3hv-75wg-m249 (minimatch, ReDoS). A correção é o major seguinte. O Expo só chama glob/globSync,
+# hasMagic e escape, e minimatch/Minimatch, que seguem iguais; o que mudou no 14 e no 11 (GlobWalker,
+# isRegExp, a opção debug, makeRe) ele não usa. Provado com expo export, expo-doctor e prebuild.
+# Remover quando o Expo pedir glob 14 e minimatch 11.
 overrides:
-  xcode>uuid: 11.1.1
+  glob@13: ^14.0.3
+  minimatch@10: ^11.0.3
 
 auditConfig:
-  # Sem versão corrigida publicada (as últimas são as vulneráveis). Os dois chegam só pelas ferramentas
-  # de build do app (CLI do Expo e Metro) e não vão para o jogo nem para as imagens. Tirar daqui
-  # quando sair a correção.
+  # Sem versão corrigida publicada (a última é a vulnerável). Chega só pelas ferramentas de build
+  # do app (Metro) e não vai para o jogo nem para as imagens. Tirar daqui quando sair a correção.
+  # Em 2026-11-04 saíram o aceite do node-forge (a 1.4.2 já tem a correção) e o override
+  # xcode>uuid (o xcode 4 não usa mais o uuid).
   ignoreGhsas:
-    # node-forge <=1.4.0 (verificação de assinatura RSA PKCS#1 v1.5), via @expo/cli.
-    - GHSA-86w9-cpqp-85rv
     # braces <=3.0.3 (estouro de pilha com padrões aninhados), via metro > micromatch.
     - GHSA-vfj7-8cjw-p6xm

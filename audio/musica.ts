@@ -272,7 +272,176 @@ function chefe(): Track {
   return { name: 'chefe', bpm: 150, swing: 0, bars: 16, stems: { base, camada } };
 }
 
-export const TRACKS: Track[] = [caderno(), partituras(), chefe(), capa()];
+// Trilhas dos capítulos temáticos (2026-11-04): o mesmo tema do caderno, transposto e rearranjado por
+// capítulo, para soar como o mesmo jogo com outra roupa. Cada uma tem a sua tonalidade, andamento,
+// balanço e banda; base e camada seguem a regra de sempre (a camada entra com o borrão).
+
+/** Acorde transposto em `k` semitons; o baixo fica entre Lá0 e Mi2, para não sumir nem embolar. */
+function transp(ch: Chord, k: number): Chord {
+  const fit = (m: number) => {
+    let x = m + k;
+    while (x < 33) x += 12;
+    while (x > 52) x -= 12;
+    return x;
+  };
+  return { root: fit(ch.root), fifth: fit(ch.fifth), voices: [ch.voices[0] + k, ch.voices[1] + k, ch.voices[2] + k] };
+}
+
+interface Arranjo {
+  name: string;
+  bpm: number;
+  swing: number;
+  /** Semitons em relação ao caderno (Fá maior). */
+  k: number;
+  lead: InstrumentName;
+  leadVel: number;
+  /** Multiplica a duração das notas da melodia (abaixo de 1, staccato; acima, ligado). */
+  leadDur?: number;
+  /** Outra voz dobrando a melodia, `octave` oitavas acima (negativo, abaixo). */
+  dobra?: { inst: InstrumentName; vel: number; octave: number };
+  bass: InstrumentName;
+  bassVel: number;
+  comp: InstrumentName;
+  compVel: number;
+  /** Duração do acompanhamento nos contratempos, em batidas. */
+  compBeats: number;
+  hold: InstrumentName;
+  holdVel: number;
+  arp: InstrumentName;
+  arpVel: number;
+  /** Passo do arpejo da camada, em batidas (0,5 colcheia, 0,25 semicolcheia). */
+  arpStep: number;
+  /** `leve`: bumbo no 1, aro no 4 e chimbal macio; `vassoura`: o kit do caderno; `marcha`: com tímpano no 1. */
+  drums: 'leve' | 'vassoura' | 'marcha';
+  /** Toque próprio do capítulo, compasso a compasso. */
+  extra?: (b0: number, bar: number, ch: Chord, base: Note[], camada: Note[]) => void;
+}
+
+function arranjo(o: Arranjo): Track {
+  const harmony = CADERNO_HARMONIA.map((bar) => bar.map((ch) => transp(ch, o.k)));
+  const base: Note[] = [];
+  const camada: Note[] = [];
+  harmony.forEach((chords, bar) => {
+    const b0 = bar * 4;
+    chords.forEach((ch, half) => {
+      const span = 4 / chords.length;
+      const at = b0 + half * span;
+      for (let beat = 0; beat < span; beat++) {
+        const t = at + beat;
+        if ((t - b0) % 2 === 0) base.push(n(t, 0.9, o.bass, (t - b0) % 4 === 0 ? ch.root : ch.fifth, o.bassVel, -0.05));
+        else ch.voices.forEach((v, i) => base.push(n(t, o.compBeats, o.comp, v, o.compVel, -0.35 + i * 0.1)));
+      }
+      const arp = [ch.voices[0] + 12, ch.voices[1] + 12, ch.voices[2] + 12, ch.voices[1] + 12];
+      const steps = Math.round(span / o.arpStep);
+      for (let s = 0; s < steps; s++) camada.push(n(at + s * o.arpStep, o.arpStep, o.arp, arp[s % arp.length]!, s % 2 ? o.arpVel * 0.75 : o.arpVel, 0.45));
+      camada.push(n(at, span - 0.1, o.hold, ch.voices[1], o.holdVel, -0.4));
+    });
+    for (const [beat, beats, midi] of CADERNO_MELODIA[bar]!) {
+      const d = beats * (o.leadDur ?? 1);
+      base.push(n(b0 + beat, d, o.lead, midi + o.k, o.leadVel, 0.1));
+      if (o.dobra) base.push(n(b0 + beat, d, o.dobra.inst, midi + o.k + 12 * o.dobra.octave, o.dobra.vel, -0.1));
+    }
+    for (let beat = 0; beat < 4; beat++) {
+      const t = b0 + beat;
+      if (o.drums === 'leve') {
+        if (beat === 0) base.push(n(t, 1, 'bumbo', 0, 0.45));
+        if (beat === 3) base.push(n(t, 1, 'vassoura', 0, 0.3, 0.15));
+        base.push(n(t + 0.5, 0.5, 'chimbal', 0, 0.16, 0.3));
+      } else {
+        if (beat % 2 === 0) base.push(n(t, 1, 'bumbo', 0, o.drums === 'marcha' ? 0.65 : 0.6));
+        else base.push(n(t, 1, 'vassoura', 0, 0.5, 0.15));
+        base.push(n(t, 0.5, 'chimbal', 0, 0.28, 0.3), n(t + 0.5, 0.5, 'chimbal', 0, 0.17, 0.3));
+        if (o.drums === 'marcha' && beat === 0) base.push(n(t, 1, 'timpano', harmony[bar]![0]!.root + 12, 0.6, -0.15));
+      }
+      for (let s = 0; s < 4; s++) camada.push(n(t + s * 0.25, 0.25, 'ganza', 0, s === 0 ? 0.3 : 0.18, -0.25));
+      if (beat % 2 === 1) camada.push(n(t, 1, 'palma', 0, 0.38, 0.05));
+    }
+    if (bar % 4 === 3) {
+      if (o.drums === 'marcha') for (let s = 0; s < 8; s++) camada.push(n(b0 + 2 + s * 0.25, 0.25, 'timpano', harmony[bar]![0]!.root + 12, 0.22 + s * 0.05, -0.15));
+      else for (const s of [3, 3.25, 3.5, 3.75]) camada.push(n(b0 + s, 0.25, 'vassoura', 0, 0.28 + (s - 3) * 0.4, 0.15));
+    }
+    o.extra?.(b0, bar, harmony[bar]![0]!, base, camada);
+  });
+  return { name: o.name, bpm: o.bpm, swing: o.swing, bars: harmony.length, stems: { base, camada } };
+}
+
+/**
+ * Capítulo 2 (Floresta Encantada, manhã com raios de sol): folk leve em Ré, com balanço de 6/8
+ * (swing quase de tercina). Flauta de madeira na melodia, pizzicato nos contratempos e assobio
+ * segurando a terça na camada. A cada dois compassos, um passarinho de glockenspiel lá no alto.
+ */
+const floresta = () =>
+  arranjo({
+    name: 'floresta', bpm: 132, swing: 0.16, k: -3,
+    lead: 'flauta', leadVel: 0.6,
+    bass: 'baixo', bassVel: 0.95, comp: 'pizz', compVel: 0.4, compBeats: 0.5,
+    hold: 'assobio', holdVel: 0.22, arp: 'marimba', arpVel: 0.55, arpStep: 0.5, drums: 'vassoura',
+    extra: (b0, bar, ch, base) => {
+      if (bar % 2 === 1) base.push(n(b0 + 3.5, 0.25, 'glock', ch.voices[2] + 24, 0.22, 0.5), n(b0 + 3.75, 0.25, 'glock', ch.voices[2] + 26, 0.18, 0.5));
+    },
+  });
+
+/**
+ * Capítulo 3 (Biblioteca dos Sonhos, noite estrelada): sonhadora em Mi bemol, mais calma (120 bpm),
+ * mas com o baixo andando para não arrastar a partida. Caixinha de música na melodia, ligada, com um
+ * clarinete macio uma oitava abaixo; celesta nos contratempos e bateria leve. Camada: glockenspiel
+ * em colcheias, como estrelas piscando.
+ */
+const biblioteca = () =>
+  arranjo({
+    name: 'biblioteca', bpm: 120, swing: 0.06, k: -2,
+    lead: 'caixinha', leadVel: 0.55, leadDur: 1.2, dobra: { inst: 'clarinete', vel: 0.32, octave: -1 },
+    bass: 'baixo', bassVel: 0.8, comp: 'celesta', compVel: 0.24, compBeats: 1,
+    hold: 'clarinete', holdVel: 0.2, arp: 'glock', arpVel: 0.32, arpStep: 0.5, drums: 'leve',
+  });
+
+/**
+ * Capítulo 4 (Jardim das Lanternas, entardecer): balanço suave em Si bemol. Marimba na melodia com o
+ * glockenspiel dobrando uma oitava acima, pizzicato leve e a celesta segurando a terça na camada,
+ * onde a caixinha de música acende as lanternas em colcheias.
+ */
+const jardim = () =>
+  arranjo({
+    name: 'jardim', bpm: 138, swing: 0.1, k: -7,
+    lead: 'marimba', leadVel: 0.72, dobra: { inst: 'glock', vel: 0.26, octave: 1 },
+    bass: 'baixo', bassVel: 0.9, comp: 'pizz', compVel: 0.34, compBeats: 0.5,
+    hold: 'celesta', holdVel: 0.3, arp: 'caixinha', arpVel: 0.34, arpStep: 0.5, drums: 'vassoura',
+  });
+
+/**
+ * Capítulo 5 (Oficina Mágica): mecânica e divertida em Dó, reta (sem swing). Piano de brinquedo em
+ * staccato, pizzicato curtinho e, por baixo de tudo, duas engrenagens de bloco de madeira em
+ * semicolcheias (uma grave e uma aguda, defasadas). Camada: marimba em semicolcheias.
+ */
+const oficina = () =>
+  arranjo({
+    name: 'oficina', bpm: 144, swing: 0, k: -5,
+    lead: 'piano', leadVel: 0.62, leadDur: 0.6,
+    bass: 'baixo', bassVel: 0.95, comp: 'pizz', compVel: 0.45, compBeats: 0.25,
+    hold: 'clarinete', holdVel: 0.22, arp: 'marimba', arpVel: 0.42, arpStep: 0.25, drums: 'vassoura',
+    extra: (b0, _bar, _ch, base) => {
+      for (let s = 0; s < 16; s++) {
+        const t = b0 + s * 0.25;
+        if (s % 2 === 0) base.push(n(t, 0.25, 'bloco', 77, s % 4 === 0 ? 0.26 : 0.16, -0.45));
+        if (s % 3 === 1) base.push(n(t, 0.25, 'bloco', 89, 0.14, 0.45));
+      }
+    },
+  });
+
+/**
+ * Capítulo 6 (Castelo das Nuvens, o grande final): fanfarra leve e luminosa em Lá. Glockenspiel na
+ * melodia com o clarinete uma oitava abaixo, tuba no chão e tímpano no 1 de cada compasso. Camada:
+ * marimba em semicolcheias, ganzá, palmas e rufos de tímpano no fim de cada frase.
+ */
+const castelo = () =>
+  arranjo({
+    name: 'castelo', bpm: 146, swing: 0, k: 4,
+    lead: 'glock', leadVel: 0.5, dobra: { inst: 'clarinete', vel: 0.6, octave: -1 },
+    bass: 'tuba', bassVel: 0.9, comp: 'pizz', compVel: 0.4, compBeats: 0.5,
+    hold: 'sanfona', holdVel: 0.2, arp: 'marimba', arpVel: 0.42, arpStep: 0.25, drums: 'marcha',
+  });
+
+export const TRACKS: Track[] = [caderno(), partituras(), chefe(), capa(), floresta(), biblioteca(), jardim(), oficina(), castelo()];
 
 export interface RenderedTrack {
   loopSeconds: number;
