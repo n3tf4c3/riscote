@@ -138,6 +138,23 @@ export const assobio: Instrument = (m, beats, _vel, r, spb) => {
   return applyEnv(x, (t) => Math.min(1, t / 0.045) * (t < len ? 1 : Math.max(0, 1 - (t - len) / 0.07)) * 0.6);
 };
 
+/**
+ * Flauta de madeira (Floresta, 2026-11-04): seno com um pouco de 2ª e 3ª harmônicas, o "chiff" de ar
+ * no ataque, sopro constante por baixo e vibrato que chega devagar.
+ */
+export const flauta: Instrument = (m, beats, vel, r, spb) => {
+  const f = midiHz(m);
+  const len = beats * spb;
+  const total = len + 0.1;
+  const fr = (t: number) => f * (1 + 0.005 * Math.min(1, Math.max(0, t - 0.15) / 0.2) * Math.sin(2 * Math.PI * 5 * t));
+  const x = osc(total, fr);
+  mix(x, osc(total, (t) => 2 * fr(t)), 0, 0.2 + 0.1 * vel);
+  mix(x, osc(total, (t) => 3 * fr(t)), 0, 0.06);
+  mix(x, applyEnv(filter(noise(0.05, r), 'bandpass', f * 2, 2), decay(0.002, 0.02)), 0, 0.35);
+  mix(x, filter(noise(total, r), 'bandpass', f, 4), 0, 0.08);
+  return applyEnv(x, (t) => Math.min(1, t / 0.03) * (t < len ? 1 : Math.max(0, 1 - (t - len) / 0.08)) * 0.55);
+};
+
 /** Tuba: dente de serra com o filtro abrindo no ataque (o "bufo" do metal) e o fundamental por baixo. */
 export const tuba: Instrument = (m, beats, vel, _r, spb) => {
   const f = midiHz(m);
@@ -170,7 +187,7 @@ export const bloco: Instrument = (m, _b, _vel, r) => {
 
 export const INSTRUMENTS = {
   pizz, baixo, piano, marimba, glock, clarinete, bumbo, vassoura, chimbal, palma, ganza,
-  caixinha, celesta, sanfona, assobio, tuba, timpano, bloco,
+  caixinha, celesta, sanfona, assobio, tuba, timpano, bloco, flauta,
 } as const;
 export type InstrumentName = keyof typeof INSTRUMENTS;
 

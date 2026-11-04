@@ -108,6 +108,7 @@ import {
   type PlayerLook,
 } from './draw';
 import { som } from './audio/som';
+import type { MusicaNome } from './audio/catalogo';
 import { BossView, drawBossTurn } from './bossView';
 import { Effects } from './fx';
 import type { InputSource } from './input';
@@ -138,6 +139,13 @@ const PARALLAX_RATE = 1.6;
  * (fração da largura no fim da virada): o fundo devagar, a frente depressa. A folha nova, chegando
  * pela direita, cobre sempre mais do que elas andaram.
  */
+/**
+ * Trilha de cada capítulo, na ordem de `CHAPTERS` (2026-11-04): Caderno, Floresta Encantada,
+ * Biblioteca dos Sonhos, Jardim das Lanternas, Oficina Mágica e Castelo das Nuvens. A `partituras`
+ * fica no catálogo sem capítulo (era a do antigo capítulo 2, Partituras e mapas).
+ */
+const TRILHAS: readonly MusicaNome[] = ['caderno', 'floresta', 'biblioteca', 'jardim', 'oficina', 'castelo'];
+
 const VIRADA: Record<string, number> = { longe: 0.18, meio: 0.32, frente: 0.55 };
 const DEPTH_ITEM = 1;
 const DEPTH_ENEMY = 2;
@@ -716,8 +724,7 @@ export class OnlineScene extends Phaser.Scene {
       this.shownPhase = phase;
     }
     // Uma trilha por capítulo e a do chefe na página dele; o aquecimento já toca a do capítulo.
-    // Os capítulos novos usam a segunda trilha provisória até ganharem a deles.
-    som.music(bossPage ? 'chefe' : capituloDe(state.arenaId) >= 1 ? 'partituras' : 'caderno');
+    som.music(bossPage ? 'chefe' : (TRILHAS[capituloDe(state.arenaId)] ?? 'caderno'));
     // Camada: o borrão chegou, ou o chefe passou para a 2ª fase.
     const bossAngry = bossPage && boss !== null && boss.hp <= boss.maxHp * BOSS_RULES.phase2At;
     som.intensity(phase === PHASE_PLAYING && (state.hurry || bossAngry));
