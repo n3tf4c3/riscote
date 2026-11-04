@@ -12,6 +12,16 @@ allowBuilds:
   # sem ele o msgpackr usa a implementação em JS puro.
   msgpackr-extract: false
 
+# Auditoria, achado 7 (2026-11-04, decisão do usuário: atualizar em vez de aceitar): o CLI do Expo
+# (@expo/cli, @expo/fingerprint) pede glob 13 e minimatch 10, com o GHSA-3g3m-2fjr-6pw4 (glob) e o
+# GHSA-g3hv-75wg-m249 (minimatch, ReDoS). A correção é o major seguinte. O Expo só chama glob/globSync,
+# hasMagic e escape, e minimatch/Minimatch, que seguem iguais; o que mudou no 14 e no 11 (GlobWalker,
+# isRegExp, a opção debug, makeRe) ele não usa. Provado com expo export, expo-doctor e prebuild.
+# Remover quando o Expo pedir glob 14 e minimatch 11.
+overrides:
+  glob@13: ^14.0.3
+  minimatch@10: ^11.0.3
+
 auditConfig:
   # Sem versão corrigida publicada (a última é a vulnerável). Chega só pelas ferramentas de build
   # do app (Metro) e não vai para o jogo nem para as imagens. Tirar daqui quando sair a correção.
