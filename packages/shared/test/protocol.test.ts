@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BTN_ALL, BTN_RIGHT, MAX_PLAYERS, ONLINE_FULL, ROOM_FULL, describeJoinError, normalizeRoomCode, normalizeServerUrl, parseDifficulty, parseInput, parseLocalKey, parseRoomList, parseSeats, seatForServer } from '../src/index.ts';
+import { BTN_ALL, adoptRoom, BTN_RIGHT, MAX_PLAYERS, ONLINE_FULL, ROOM_FULL, describeJoinError, normalizeRoomCode, normalizeServerUrl, parseDifficulty, parseInput, parseLocalKey, parseRoomList, parseSeats, seatForServer } from '../src/index.ts';
 
 describe('parseInput', () => {
   it('aceita seq inteiro e botões dentro da máscara, descartando outros campos', () => {
@@ -132,5 +132,51 @@ describe('vagas da sala', () => {
     expect(seatForServer({ ...seat, localKey: key, local: 3 }, 'wss://play.riscote.win')).toEqual({ ...seat, localKey: key, local: 3 });
     expect(seatForServer({ ...seat, localKey: key, local: 9 }, 'wss://play.riscote.win')).toEqual({ ...seat, localKey: key, local: 1 });
     expect(seatForServer({ ...seat, localKey: '<x>', local: 3 }, 'wss://play.riscote.win')).toEqual(seat);
+  });
+});
+
+describe('adoptRoom (achado 10 da auditoria de 2026-11-06)', () => {
+  /** Sala de mentira: conta as saídas; `failLeave` faz a própria saída falhar. */
+  function fakeRoom(failLeave = false) {
+    const room = {
+      leaves: 0,
+      leave(): Promise<number> {
+        room.leaves++;
+        return failLeave ? Promise.reject(new Error('já fechada')) : Promise.resolve(1000);
+      },
+    };
+    return room;
+  }
+
+  it('estado inicial que não chega depois de conectar: a sala sai de vez e o erro segue', async () => {
+    const room = fakeRoom();
+    const timeout = new Error('estado inicial não chegou');
+    await expect(adoptRoom(Promise.resolve(room), async () => Promise.reject(timeout))).rejects.toBe(timeout);
+    expect(room.leaves).toBe(1);
+  });
+
+  it('erro síncrono ao montar a sessão: a sala sai de vez, e a falha ao sair não esconde o erro original', async () => {
+    const room = fakeRoom(true);
+    const boom = new Error('sessão');
+    await expect(
+      adoptRoom(Promise.resolve(room), () => {
+        throw boom;
+      }),
+    ).rejects.toBe(boom);
+    expect(room.leaves).toBe(1);
+  });
+
+  it('controle: sessão assumida não sai, e recusa antes de conectar não tem sala a fechar', async () => {
+    const room = fakeRoom();
+    expect(await adoptRoom(Promise.resolve(room), async (r) => (r === room ? 'ok' : 'outra'))).toBe('ok');
+    expect(room.leaves).toBe(0);
+    const refused = new Error('sala cheia');
+    let adopted = false;
+    await expect(
+      adoptRoom(Promise.reject(refused) as Promise<typeof room>, () => {
+        adopted = true;
+      }),
+    ).rejects.toBe(refused);
+    expect(adopted).toBe(false);
   });
 });

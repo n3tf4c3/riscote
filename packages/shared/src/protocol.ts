@@ -256,6 +256,27 @@ export function describeJoinError(error: unknown): string {
   return 'Não foi possível entrar na sala. Tente de novo.';
 }
 
+/**
+ * Conexão provisória: espera a sala e entrega a `adopt` (estado inicial, sessão, cena). Se algo falhar
+ * depois de conectar, a sala sai de vez antes de o erro seguir; senão a vaga e o boneco ficam presos
+ * no servidor sem ninguém no controle (auditoria de 2026-11-06, achado 10). Erro ao conectar não tem
+ * sala a fechar e segue direto.
+ */
+export async function adoptRoom<R extends { leave(): Promise<unknown> }, T>(joining: Promise<R>, adopt: (room: R) => T | Promise<T>): Promise<T> {
+  const room = await joining;
+  try {
+    return await adopt(room);
+  } catch (error) {
+    // Sem esperar: a tela mostra o erro já, e uma falha ao sair não esconde a original.
+    try {
+      room.leave().catch(() => undefined);
+    } catch {
+      // A sala pode já estar fechada.
+    }
+    throw error;
+  }
+}
+
 /** Vaga guardada no navegador para voltar ao mesmo boneco depois de recarregar a página. */
 export interface SavedSeat {
   /** Servidor que emitiu o token (normalizeServerUrl). */

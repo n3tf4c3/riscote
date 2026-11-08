@@ -17,6 +17,7 @@ import {
   ROOM_NAME,
   RULES,
   TICK_DT,
+  adoptRoom,
   arenaHeight,
   arenaWidth,
   describeJoinError,
@@ -565,45 +566,60 @@ export function bootOnline(input: InputSource): void {
     setBusy(true);
     statusOut.textContent = 'Conectando…';
     try {
-      const room = await joining;
-      await firstState(room);
-      const current = new OnlineSession(room);
-      current.onArenaChange = (arena) => startGame(arena);
-      current.onPresence = notify;
-      session = current;
-      localPlan = plan;
-      // O que estava preenchido na capa foi usado: ao voltar para ela, a recarga por versão nova vale de novo.
-      lobbyTouched = false;
-      saveSeat(room, serverUrl, plan);
-      // Queda de rede: o SDK tenta reconectar sozinho; a vaga fica reservada no servidor.
-      room.onDrop(() => {
-        if (session === current) current.reconnecting = true;
+      // Conectou mas falhou antes de a sessão assumir (estado inicial que não chegou, erro ao montar a
+      // sessão ou a cena): adoptRoom tira a sala provisória do servidor (achado 10 da auditoria de 2026-11-06).
+      await adoptRoom(joining, async (room) => {
+        await firstState(room);
+        const current = new OnlineSession(room);
+        try {
+          current.onArenaChange = (arena) => startGame(arena);
+          current.onPresence = notify;
+          session = current;
+          localPlan = plan;
+          // O que estava preenchido na capa foi usado: ao voltar para ela, a recarga por versão nova vale de novo.
+          lobbyTouched = false;
+          saveSeat(room, serverUrl, plan);
+          // Queda de rede: o SDK tenta reconectar sozinho; a vaga fica reservada no servidor.
+          room.onDrop(() => {
+            if (session === current) current.reconnecting = true;
+          });
+          room.onReconnect(() => {
+            if (session !== current) return;
+            current.reconnecting = false;
+            saveSeat(room, serverUrl, plan);
+          });
+          room.onLeave((code: number) => {
+            if (session !== current) return;
+            session = null;
+            // Quem jogava nesta tela sai junto.
+            dropGuests();
+            if (unloading) return;
+            clearSeat();
+            showLobby(code === CloseCode.CONSENTED ? '' : code === CLOSE_LOBBY_IDLE ? LOBBY_IDLE_TEXT : 'A conexão com a sala caiu.');
+          });
+          startGame(current.arena);
+          lobby.hidden = true;
+          inRoom.hidden = false;
+          setCover(false);
+          el('room-code').textContent = current.code;
+          statusOut.textContent = '';
+          if (wanted !== null && current.slot !== wanted) {
+            notice(current.slot, `Alguém já estava com ${CHARACTER_NAMES[wanted] ?? 'esse personagem'}: você ficou com ${CHARACTER_NAMES[current.slot] ?? 'outro'}.`);
+          }
+          // Jogadores deste computador escolhidos na capa: o painel já espera o controle do próximo.
+          waitNextLocal();
+        } catch (error) {
+          // Desfaz o que já estava ligado a esta sala antes de ela sair: a capa volta, sem sessão nem vaga guardada.
+          if (session === current) {
+            session = null;
+            localPlan = null;
+            dropGuests();
+            clearSeat();
+            showLobby('');
+          }
+          throw error;
+        }
       });
-      room.onReconnect(() => {
-        if (session !== current) return;
-        current.reconnecting = false;
-        saveSeat(room, serverUrl, plan);
-      });
-      room.onLeave((code: number) => {
-        if (session !== current) return;
-        session = null;
-        // Quem jogava nesta tela sai junto.
-        dropGuests();
-        if (unloading) return;
-        clearSeat();
-        showLobby(code === CloseCode.CONSENTED ? '' : code === CLOSE_LOBBY_IDLE ? LOBBY_IDLE_TEXT : 'A conexão com a sala caiu.');
-      });
-      startGame(current.arena);
-      lobby.hidden = true;
-      inRoom.hidden = false;
-      setCover(false);
-      el('room-code').textContent = current.code;
-      statusOut.textContent = '';
-      if (wanted !== null && current.slot !== wanted) {
-        notice(current.slot, `Alguém já estava com ${CHARACTER_NAMES[wanted] ?? 'esse personagem'}: você ficou com ${CHARACTER_NAMES[current.slot] ?? 'outro'}.`);
-      }
-      // Jogadores deste computador escolhidos na capa: o painel já espera o controle do próximo.
-      waitNextLocal();
     } catch (error) {
       if (failure) clearSeat();
       statusOut.textContent = failure ?? describeJoinError(error);
@@ -710,24 +726,26 @@ export function bootOnline(input: InputSource): void {
       // Com a chave de quem criou a sala, o jogador a mais ocupa uma vaga deste computador, e não uma da internet.
       const options: JoinOptions = name ? { name } : {};
       if (localPlan) options.localKey = localPlan.key;
-      const room = await sdk.joinById(host.code, options);
-      await firstState(room);
-      if (session !== host) {
-        void room.leave();
-        input.release(pad);
-        return;
-      }
-      const guest: LocalGuest = { session: new OnlineSession(room), pad };
-      guests.push(guest);
-      room.onLeave(() => {
-        const i = guests.indexOf(guest);
-        if (i >= 0) guests.splice(i, 1);
-        input.release(pad);
+      // Como na entrada principal: falha depois de conectar tira a sala provisória do servidor (achado 10).
+      await adoptRoom(sdk.joinById(host.code, options), async (room) => {
+        await firstState(room);
+        if (session !== host) {
+          void room.leave();
+          input.release(pad);
+          return;
+        }
+        const guest: LocalGuest = { session: new OnlineSession(room), pad };
+        guests.push(guest);
+        room.onLeave(() => {
+          const i = guests.indexOf(guest);
+          if (i >= 0) guests.splice(i, 1);
+          input.release(pad);
+          renderGuests();
+        });
+        localHint.textContent = '';
         renderGuests();
+        waitNextLocal();
       });
-      localHint.textContent = '';
-      renderGuests();
-      waitNextLocal();
     } catch (error) {
       input.release(pad);
       localHint.textContent = describeJoinError(error);
