@@ -30,3 +30,23 @@ Auditoria estática e validações selecionadas; sem correção de código, comm
 | 7 | Novos advisories no lock exigem revisão além do aceite Expo anterior | baixa | ABERTO | `pnpm-lock.yaml:1494`; `pnpm-lock.yaml:4882`; `apps/server/src/index.ts:33`; Pacotes afetados confirmados; alcance de exploração pendente. |
 
 Reverificações e decisões históricas: #1 — Correção preservada por leitura; #2 — Correção preservada; #3 — Controle presente; #5 — ACEITO/PARCIAL histórico preservado. O relatório detalha alcance/evidência; provas operacionais antigas não foram repetidas.
+
+## Rodada 2026-11-06
+
+HEAD `f94d29fb764ae9bc77b4408c33914b01c7b0b4fb`, árvore inicialmente limpa. Relatório: `C:\Codes\relatorios\riscote\auditoria-2026-11-06.md`; evidências em `evidencias-2026-11-06`. Três agentes auxiliares, revisão/consolidação principal; sem correção de código, commit, push, deploy ou produção.
+
+**4 ativos: 3 médios, 1 baixo; nenhum crítico/alto confirmado. Próximo ID: #12.**
+
+| ID | Severidade | Status | Achado | Evidência |
+|---|---|---|---|---|
+| 8 | média | ABERTO | Sala privada aceita entrada sem código pelo matchmaking | apps/server/src/ArenaRoom.ts:117–122,165–177,197–205; apps/server/src/index.ts:45–46; apps/client/src/online.ts:65–68 |
+| 9 | média | ABERTO | Frequência de comandos controla o relógio de movimento e de carga | apps/server/src/ArenaRoom.ts:45–50,117,323–349,359; packages/shared/src/world.ts:1144–1172 |
+| 10 | média (potencial) | ABERTO | Erro após conexão abandona sala provisória sem encerrá-la | apps/client/src/online.ts:147–159,568–570,607–612,713–735; apps/client/src/net.ts:194–196; apps/server/src/ArenaRoom.ts:232–259 |
+| 11 | baixa | ABERTO | Soltar uma tecla cancela outro atalho da mesma ação ainda pressionado | apps/client/src/input.ts:9–25,71–84; apps/client/src/OnlineScene.ts:458–468 |
+
+#1–#4, #6 e #7 continuam RESOLVIDOS. **#5 passa a RESOLVIDO / sem advisory residual ativo**: GHSA-vfj7-8cjw-p6xm foi retirado em 23/10/2026 por não ser considerado explorável na prática ([fonte oficial](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)). O ignore no workspace foi preservado; audit em cópia sem ignore também retornou zero alertas. Não é correção de código aplicada pela auditoria.
+
+Validação: 458 testes shared +73 servidor aprovados; typecheck e build web aprovados. pnpm audit completo/prod/sem supressão sem alertas. Expo install --check retornou1 apenas por recomendar expo~58.0.23 em vez de58.0.22; informação de manutenção, sem vulnerabilidade presumida. Probe real127.0.0.1:2617 confirmou #8 e controle setPrivate; probe puro confirmou #9 (carga3s→1,65s a110 inputs/s, transporte não exercitado); nove cenários com dublês confirmaram ausência de leave em #10 (efeito operacional potencial); aliases confirmaram #11. Sem APK, browser visual, Docker multiarch, carga de produção ou dados reais.
+
+Servidores de teste encerrados. Remoção do TEMP próprio bloqueada pela revisão automática (“blocked by policy”); pasta `%TEMP%\codex-auditoria-riscote-20261106` mantida e documentada. Somente este ledger foi alterado no repositório.
+
