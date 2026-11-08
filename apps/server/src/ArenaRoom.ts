@@ -120,6 +120,9 @@ export class ArenaRoom extends Room<{ state: GameState }> {
     const campaign = campaignFrom(options.arenaId);
     // Só `true` abre a sala: cliente antigo, sem o campo, continua com sala privada.
     this.open = options.open === true;
+    // A privada fica fora do matchmaking por nome (join/joinOrCreate): só entra pelo código (joinById),
+    // como a capa promete (auditoria de 2026-11-06, achado 8).
+    await this.setPrivate(!this.open);
     const difficulty = parseDifficulty(options.difficulty);
     this.world = new World(campaign.arenas, randomInt(2 ** 31), { waves: this.waves, difficulty, chapterEnds: campaign.chapterEnds });
 

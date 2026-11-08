@@ -720,6 +720,25 @@ describe('itens na rede', () => {
     expect(JSON.stringify(list)).not.toContain(privada.roomId);
   });
 
+  it('sala privada (e a de cliente antigo) só aceita entrada pelo código, nunca pelo matchmaking por nome', async () => {
+    const privada = (await t.createRoom(ROOM_NAME, { open: false })) as unknown as ArenaRoom;
+    const antiga = (await t.createRoom(ROOM_NAME, {})) as unknown as ArenaRoom;
+    await t.connectTo(privada, { name: 'Segredo' });
+    await t.connectTo(antiga);
+    // Sem o código, o roteador do Colyseus não acha sala nenhuma (achado 8 da auditoria de 2026-11-06).
+    await expect(t.sdk.join(ROOM_NAME)).rejects.toThrow();
+    expect(privada.clients.length).toBe(1);
+    expect(antiga.clients.length).toBe(1);
+    // Com o código, entra como sempre.
+    const convidado = await t.sdk.joinById(privada.roomId);
+    expect(convidado.roomId).toBe(privada.roomId);
+    expect(privada.clients.length).toBe(2);
+    // Controle: a aberta continua alcançável por nome (é pública por decisão do usuário).
+    const aberta = (await t.createRoom(ROOM_NAME, { open: true })) as unknown as ArenaRoom;
+    await t.connectTo(aberta);
+    expect((await t.sdk.join(ROOM_NAME)).roomId).toBe(aberta.roomId);
+  });
+
   it('a lista em cache dura pouco e outras rotas seguem para o Colyseus', async () => {
     const http = createServer((_req, res) => res.end('colyseus'));
     let rooms: RoomSummary[] = [];
