@@ -48,12 +48,23 @@ const MAX_QUEUE = 8;
 const CATCH_UP_QUEUE = 3;
 /** Sem comandos por mais que isto, o jogador segue a simulação com os botões soltos. */
 const STARVE_TICKS = 10;
+/**
+ * A física de cada jogador não anda à frente do relógio da sala (auditoria de 2026-11-06, achado 9).
+ * `Seat.lag` conta os ticks da sala que a física dele ainda deve: cada tick soma 1 (até este teto) e
+ * cada passo aplicado (comando ou botões soltos) desconta 1. Sem atraso, nenhum comando a mais é
+ * aplicado: mandar acima de 60/s não acelera o movimento nem a carga. O teto limita a recuperação
+ * guardada para uma rajada depois de um atraso real (~166 ms). Comandos espaçados abaixo de 60/s
+ * continuam sendo aplicados um a um (o lado lento do achado 9 segue em aberto: ver o ledger).
+ */
+const MAX_LAG = STARVE_TICKS;
 const PATCH_RATE_MS = 1000 / 30;
 
 interface Seat {
   queue: InputMessage[];
   lastSeq: number;
   starved: number;
+  /** Ticks da sala que a física deste jogador ainda não andou (ver MAX_LAG). */
+  lag: number;
 }
 
 /** Fim de jogo esperando os nomes: a linha do placar e quem ainda pode escrever. */
@@ -218,7 +229,7 @@ export class ArenaRoom extends Room<{ state: GameState }> {
     while (used.has(slot)) slot++;
 
     const player = this.world.addPlayer(client.sessionId, slot);
-    this.seats.set(client.sessionId, { queue: [], lastSeq: -1, starved: 0 });
+    this.seats.set(client.sessionId, { queue: [], lastSeq: -1, starved: 0, lag: 0 });
     const net = new PlayerSchema();
     net.slot = slot;
     net.ack = 0;
@@ -338,17 +349,21 @@ export class ArenaRoom extends Room<{ state: GameState }> {
     for (const [sessionId, seat] of this.seats) {
       const net = this.state.players.get(sessionId);
       if (!net) continue;
-      // Cada comando é aplicado exatamente uma vez, na ordem: é o que o cliente previu.
+      // Cada comando é aplicado exatamente uma vez, na ordem: é o que o cliente previu. Só anda o que o
+      // relógio da sala deve a ele (`lag`): a recuperação de dois por tick gasta atraso real, nunca adianta.
+      seat.lag = Math.min(seat.lag + 1, MAX_LAG);
       const steps = seat.queue.length > CATCH_UP_QUEUE ? 2 : 1;
-      for (let i = 0; i < steps; i++) {
+      for (let i = 0; i < steps && seat.lag > 0; i++) {
         const input = seat.queue.shift();
         if (input) {
           active = true;
           seat.starved = 0;
           this.world.applyInput(sessionId, input.buttons);
           net.ack = input.seq;
+          seat.lag--;
         } else if (++seat.starved > STARVE_TICKS) {
           this.world.applyInput(sessionId, 0);
+          seat.lag--;
         }
       }
     }

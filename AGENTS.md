@@ -198,6 +198,7 @@ Ainda não há lint. O aviso de bundle acima de 500 kB vem do Phaser e é espera
   - Cada comando é simulado uma única vez, na ordem; `seq` repetido ou antigo é descartado.
   - A fila guarda no máximo 8 comandos.
   - Sem comandos por mais de 10 ticks, o jogador segue a simulação com os botões soltos.
+  - A física de cada jogador não anda à frente do relógio da sala (auditoria de 2026-11-06, achado 9): `Seat.lag` soma 1 por tick (teto `MAX_LAG`, 10) e cada passo aplicado desconta 1. Mandar acima de 60/s não acelera movimento nem carga; a recuperação de dois por tick só gasta atraso real. Comandos espaçados abaixo de 60/s ainda são aplicados um a um (lado lento do achado 9 em aberto: os testes de rede mandam ~34/s no Windows, e apertar isso pede decidir a tolerância e refazer esses clientes de teste).
   - `ack` informa o último comando aplicado; a reconciliação depende dele.
 - **Estado sincronizado.** Os campos de `PlayerSchema` espelham `NetPlayer`, em `float64`, para a reconciliação partir do estado exato do servidor.
 - **Previsão só do próprio movimento.** Inimigos, gotas e derrubadas não são previstos. Derrubado, o boneco não obedece aos comandos, mas cai até pousar num chão (`stepDowned`, no servidor e no `Predictor`): derrubado no ar, ficaria fora do alcance do resgate (pedido do usuário em 2026-11-01). Renascimento e derrubada geram correções esperadas.

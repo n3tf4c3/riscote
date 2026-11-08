@@ -41,6 +41,7 @@ import {
   parseRoomList,
   type RoomSummary,
   CHAPTERS,
+  CHARGE_TICKS,
 } from '@riscote/shared';
 import { ArenaRoom } from '../src/ArenaRoom.ts';
 import { AttemptLimiter, PEER_HEADER, limitJoins, limitRooms, markPeerAddress } from '../src/joinLimit.ts';
@@ -221,6 +222,78 @@ describe('autoridade do servidor', () => {
     for (let i = 0; i < 5; i++) c.send(MSG_INPUT, { seq: 1, buttons: BTN_LEFT });
     await sleep(100);
     expect(room.state.players.get(c.sessionId)!.x).toBeGreaterThanOrEqual(afterValid);
+  });
+
+  /**
+   * Joga `ticks` ticks de uma sala nova com um jogador sintético, entregando `perTick(tick)` comandos antes
+   * de cada um, sem transporte nem relógio real (tudo síncrono: o timer da sala não intercala).
+   */
+  async function clockRun(buttons: number, perTick: (tick: number) => number, ticks: number) {
+    const room = (await newRoom()) as any;
+    const id = 'relogio';
+    room.onJoin({ sessionId: id }, {});
+    const world = room.world;
+    const original = world.applyInput;
+    let steps = 0;
+    let ahead = -Infinity;
+    /** Passos aplicados até o fim de cada tick (índice 0 = tick 1). */
+    const history: number[] = [];
+    world.applyInput = function (sid: string, b: number) {
+      if (sid === id) steps++;
+      return original.call(this, sid, b);
+    };
+    const startX = world.players.get(id).body.x;
+    let seq = 0;
+    try {
+      for (let tick = 1; tick <= ticks; tick++) {
+        for (let k = perTick(tick); k > 0; k--) room.receiveInput({ sessionId: id }, { seq: ++seq, buttons });
+        room.step();
+        ahead = Math.max(ahead, steps - tick);
+        history.push(steps);
+      }
+      const p = world.players.get(id);
+      return { steps, ahead, history, sent: seq, dx: p.body.x - startX, charge: p.chargeTicks, ack: room.state.players.get(id).ack };
+    } finally {
+      world.applyInput = original;
+      room.onLeave({ sessionId: id });
+    }
+  }
+
+  // Achado 9 da auditoria de 2026-11-06: a física e a carga andam no relógio da sala, não na frequência dos comandos.
+  const fast110 = (t: number) => (t % 6 === 0 ? 1 : 2);
+
+  it('relógio: 110 comandos/s não aceleram o movimento (60/s como controle)', async () => {
+    const normal = await clockRun(BTN_RIGHT, () => 1, 60);
+    expect(normal).toMatchObject({ steps: 60, ack: 60, sent: 60 });
+    expect(normal.dx).toBeGreaterThan(0);
+    // Abaixo do limite de mensagens, mas a física não passa de um passo por tick.
+    const fast = await clockRun(BTN_RIGHT, fast110, 60);
+    expect(fast.sent).toBe(110);
+    expect(fast.ahead).toBeLessThanOrEqual(0);
+    expect(fast.steps).toBe(60);
+    expect(fast.dx).toBe(normal.dx);
+  });
+
+  it('relógio: atraso guardado mandando devagar tem teto e não vira rajada de velocidade depois', async () => {
+    // 2 s a 30/s (meio passo por tick) e depois 1 s a 110/s: a janela rápida anda no máximo 1 s + o teto (10).
+    const shifted = await clockRun(BTN_RIGHT, (t) => (t <= 120 ? t % 2 : fast110(t)), 180);
+    expect(shifted.ahead).toBeLessThanOrEqual(0);
+    expect(shifted.history[179]! - shifted.history[119]!).toBeLessThanOrEqual(60 + 10);
+  });
+
+  it('relógio: rajada depois de um atraso real continua sendo recuperada (controle)', async () => {
+    // 5 ticks sem nada, depois 6 juntos e um por tick: o atraso real paga a recuperação de dois por tick.
+    const burst = await clockRun(BTN_RIGHT, (t) => (t <= 5 ? 0 : t === 6 ? 6 : 1), 30);
+    expect(burst.sent).toBe(30);
+    expect(burst.ack).toBeGreaterThanOrEqual(28);
+    expect(burst.ahead).toBeLessThanOrEqual(0);
+  });
+
+  it('relógio: 110 comandos/s não encurtam a carga do tiro (180 ticks a 60/s como controle)', async () => {
+    const rushed = await clockRun(BTN_ATTACK, fast110, 150);
+    expect(rushed.charge).toBeLessThan(CHARGE_TICKS);
+    const held = await clockRun(BTN_ATTACK, () => 1, CHARGE_TICKS);
+    expect(held.charge).toBe(CHARGE_TICKS);
   });
 
   it('o estado do servidor é a simulação compartilhada aplicada aos comandos, e os clientes convergem para ele', async () => {
