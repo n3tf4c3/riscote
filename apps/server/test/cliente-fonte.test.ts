@@ -20,3 +20,14 @@ describe('cliente: sala provisória (achado 10 da auditoria de 2026-11-06)', () 
     expect(waits.length).toBe(adopts.length);
   });
 });
+
+describe('cliente: teclas com o mesmo botão (achado 11 da auditoria de 2026-11-06)', () => {
+  it('o teclado guarda as teclas seguradas em HeldKeys, e o keyup nunca apaga o bit da ação inteira', () => {
+    const input = source('input.ts');
+    expect(input).toMatch(/new HeldKeys\(\)/);
+    expect(input).toMatch(/keyup[^\n]*\.release\(e\.code\)/);
+    expect(input).toMatch(/blur[\s\S]{0,60}\.clear\(\)/);
+    // A máscara do teclado não é mais um número alterado bit a bit pelos eventos.
+    expect(input).not.toMatch(/this\.keys\s*(\|=|&=)/);
+  });
+});

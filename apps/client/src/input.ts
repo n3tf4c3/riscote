@@ -1,4 +1,4 @@
-import { BTN_ATTACK, BTN_DOWN, BTN_JUMP, BTN_LEFT, BTN_RIGHT, BTN_UP } from '@riscote/shared';
+import { BTN_ATTACK, BTN_DOWN, BTN_JUMP, BTN_LEFT, BTN_RIGHT, BTN_UP, HeldKeys } from '@riscote/shared';
 import { el } from './dom';
 import { TouchPad } from './toque';
 
@@ -56,7 +56,8 @@ function isTextField(target: EventTarget | null): boolean {
  * (`claimed`), que deixa de entrar nos botões do primeiro; o teclado e o toque ficam com o primeiro.
  */
 export class InputSource {
-  private keys = 0;
+  /** Teclas seguradas, por código: a máscara sai delas (achado 11 da auditoria de 2026-11-06). */
+  private readonly keys = new HeldKeys();
   /** Controles que são de outro jogador nesta tela. */
   private readonly claimed = new Set<number>();
   /** Esperando um controle para o próximo jogador: quem apertar um botão primeiro fica com ele. */
@@ -76,14 +77,12 @@ export class InputSource {
       if (e.target instanceof HTMLInputElement) e.target.blur();
       // Quem passou a jogar no teclado não precisa dos controles de toque por cima da arena.
       this.touch.setVisible(false);
-      this.keys |= bit;
+      this.keys.press(e.code);
     });
-    window.addEventListener('keyup', (e) => {
-      const bit = KEYMAPS[this.keyMode][e.code];
-      if (bit !== undefined) this.keys &= ~bit;
-    });
+    // Solta só a tecla: outra que dá o mesmo botão e continua apertada mantém o botão.
+    window.addEventListener('keyup', (e) => this.keys.release(e.code));
     window.addEventListener('blur', () => {
-      this.keys = 0;
+      this.keys.clear();
     });
   }
 
@@ -95,7 +94,7 @@ export class InputSource {
   setKeyMode(mode: KeyMode): void {
     this.keyMode = mode;
     // Uma tecla segurada na troca não teria mais o keyup correspondente.
-    this.keys = 0;
+    this.keys.clear();
     document.body.dataset.teclas = mode;
     try {
       localStorage.setItem(KEY_MODE_KEY, mode);
@@ -119,7 +118,7 @@ export class InputSource {
     this.pollClaim();
     let pads = 0;
     for (const pad of connectedPads()) if (!this.claimed.has(pad.index)) pads |= padBits(pad);
-    return this.keys | pads | this.touch.buttons();
+    return this.keys.buttons(KEYMAPS[this.keyMode]) | pads | this.touch.buttons();
   }
 
   /** Botões do controle de um jogador a mais. */
